@@ -4,7 +4,7 @@ import { ipcRenderer, contextBridge } from 'electron'
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args
-    return ipcRenderer.on(channel, (event, ...args) => listener(event, ...args))
+    return ipcRenderer.on(channel, (event, ...listenerArgs) => listener(event, ...listenerArgs))
   },
   off(...args: Parameters<typeof ipcRenderer.off>) {
     const [channel, ...omit] = args
@@ -21,4 +21,10 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
 
   // You can expose other APTs you need here.
   // ...
+})
+
+contextBridge.exposeInMainWorld('dispatchApi', {
+  request(payload: { path: string; init?: { method?: string; headers?: Record<string, string>; body?: string } }) {
+    return ipcRenderer.invoke('dispatch:request', payload)
+  },
 })

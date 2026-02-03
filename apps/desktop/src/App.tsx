@@ -1,35 +1,54 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/electron-vite.animate.svg'
-import './App.css'
+import { trpc } from "./lib/trpc";
+import { useUiStore } from "./store/ui";
+import { AddSourceDialog } from "./components/AddSourceDialog";
+import { SettingsDialog } from "./components/SettingsDialog";
+import { SourceList } from "./components/SourceList";
+import { ArticleList } from "./components/ArticleList";
+import { ReaderPane } from "./components/ReaderPane";
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const selectedSourceId = useUiStore((state) => state.selectedSourceId);
+  const selectedArticleId = useUiStore((state) => state.selectedArticleId);
+
+  const { data: articles = [] } = trpc.articles.list.useQuery({
+    sourceId: selectedSourceId ?? undefined,
+    page: 1,
+    pageSize: 50
+  });
+
+  const selectedArticle = articles.find(
+    (article) => article.id === selectedArticleId
+  );
 
   return (
-    <>
-      <div>
-        <a href="https://electron-vite.github.io" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="h-screen bg-slate-50 p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900">Dispatch</h1>
+          <p className="text-sm text-slate-500">Local-first news reader</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <AddSourceDialog />
+          <SettingsDialog />
+        </div>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
+      <div className="grid h-[calc(100vh-96px)] grid-cols-[260px_1fr_1.4fr] gap-4">
+        <aside className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="mb-2 text-xs font-semibold uppercase text-slate-400">
+            Sources
+          </div>
+          <SourceList />
+        </aside>
+        <section className="rounded-lg border border-slate-200 bg-white p-3">
+          <div className="mb-2 text-xs font-semibold uppercase text-slate-400">
+            Articles
+          </div>
+          <ArticleList />
+        </section>
+        <section className="min-h-0">
+          <ReaderPane article={selectedArticle ?? null} />
+        </section>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
+    </div>
+  );
 }
-
-export default App

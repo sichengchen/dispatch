@@ -6,7 +6,8 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "lint": "turbo lint",
-    "test": "turbo test"
+    "test": "turbo test",
+    "test:secrets": "scripts/check-secrets.sh"
   },
   "devDependencies": {
     "turbo": "^2.0.0",

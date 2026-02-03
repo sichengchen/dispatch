@@ -7,16 +7,29 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "dev": "tsx watch src/index.ts"
+    "dev": "pnpm --filter @dispatch/db build && pnpm --filter @dispatch/lib build && node --import tsx/esm src/index.ts",
+    "test:backend": "pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && vitest run -c vitest.config.ts test/backend-hono-trpc.test.ts",
+    "test:scraper": "pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && vitest run -c vitest.config.ts test/scraper-rss.test.ts",
+    "test:llm": "pnpm --filter @dispatch/lib build && DISPATCH_LIVE=1 vitest run -c vitest.live.config.ts test/llm-summarize.live.test.ts",
+    "test:llm:live": "pnpm --filter @dispatch/lib build && DISPATCH_LIVE=1 vitest run -c vitest.live.config.ts"
   },
   "dependencies": {
     "@dispatch/db": "workspace:*",
     "@dispatch/lib": "workspace:*",
     "@trpc/server": "^10.45.0",
+    "@hono/node-server": "^1.13.0",
+    "ai": "^4.1.17",
+    "drizzle-orm": "^0.35.0",
     "hono": "^4.4.0",
+    "node-schedule": "^2.1.1",
+    "rss-parser": "^3.13.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "tsx": "^4.19.0"
+    "dotenv": "^16.4.5",
+    "tsx": "^4.19.0",
+    "@types/node": "^20.14.10",
+    "vitest": "^2.1.9",
+    "@types/node-schedule": "^2.1.6"
   }
 }

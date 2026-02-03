@@ -9,6 +9,7 @@ export const sources = sqliteTable(
     name: text("name").notNull(),
     type: text("type", { enum: ["rss", "web"] }).notNull().default("rss"),
     lastFetchedAt: integer("last_fetched_at", { mode: "timestamp_ms" }),
+    lastErrorAt: integer("last_error_at", { mode: "timestamp_ms" }),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
@@ -30,6 +31,7 @@ export const articles = sqliteTable(
     url: text("url").notNull(),
     rawHtml: text("raw_html"),
     cleanContent: text("clean_content"),
+    summary: text("summary"),
     publishedAt: integer("published_at", { mode: "timestamp_ms" }),
     fetchedAt: integer("fetched_at", { mode: "timestamp_ms" })
       .notNull()

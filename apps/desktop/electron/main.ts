@@ -1,9 +1,12 @@
-import { app, BrowserWindow } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
+import { spawn, type ChildProcess } from 'node:child_process'
 import { createRequire } from 'node:module'
+import net from 'node:net'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const require = createRequire(import.meta.url)
+const { app, BrowserWindow, ipcMain } = require('electron')
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
@@ -24,26 +27,148 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
-let win: BrowserWindow | null
+let serverProcess: ChildProcess | null = null
+
+const SERVER_HOST = process.env.DISPATCH_HOST ?? '127.0.0.1'
+let serverPort = Number(process.env.DISPATCH_PORT ?? 3001)
+
+function getServerUrl() {
+  return `http://${SERVER_HOST}:${serverPort}`
+}
+
+function getSettingsPath() {
+  if (process.env.DISPATCH_SETTINGS_PATH) {
+    return process.env.DISPATCH_SETTINGS_PATH;
+  }
+  return path.join(app.getPath('userData'), 'dispatch.settings.json')
+}
+
+function getDbPath() {
+  if (process.env.DISPATCH_DB_PATH) {
+    return process.env.DISPATCH_DB_PATH;
+  }
+  if (VITE_DEV_SERVER_URL) {
+    return path.resolve(process.env.APP_ROOT ?? '.', '..', 'packages/db/dispatch.dev.db')
+  }
+  return path.join(app.getPath('userData'), 'dispatch.db')
+}
+
+async function waitForServer(timeoutMs = 10000) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    try {
+      const res = await fetch(`${getServerUrl()}/health`)
+      if (res.ok) return
+    } catch {
+      // ignore
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  throw new Error('Server did not become ready in time')
+}
+
+async function checkPortAvailable(port: number) {
+  return new Promise<boolean>((resolve) => {
+    const tester = net.createServer()
+    tester.once('error', () => resolve(false))
+    tester.once('listening', () => tester.close(() => resolve(true)))
+    tester.listen(port, SERVER_HOST)
+  })
+}
+
+async function checkServerHealthy(port: number) {
+  try {
+    const res = await fetch(`http://${SERVER_HOST}:${port}/health`)
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
+async function resolveServerPort() {
+  if (Number.isFinite(serverPort)) {
+    if (await checkServerHealthy(serverPort)) {
+      return { reuse: true }
+    }
+    if (await checkPortAvailable(serverPort)) {
+      process.env.DISPATCH_PORT = String(serverPort)
+      return { reuse: false }
+    }
+  }
+
+  if (!process.env.DISPATCH_PORT) {
+    if (await checkServerHealthy(3001)) {
+      serverPort = 3001
+      return { reuse: true }
+    }
+    for (let port = 3001; port <= 3010; port += 1) {
+      if (await checkPortAvailable(port)) {
+        serverPort = port
+        process.env.DISPATCH_PORT = String(serverPort)
+        return { reuse: false }
+      }
+    }
+  }
+
+  const fallbackPort = 0
+  const probe = net.createServer()
+  await new Promise<void>((resolve) => probe.listen(fallbackPort, SERVER_HOST, resolve))
+  const address = probe.address()
+  probe.close()
+  if (address && typeof address === 'object') {
+    serverPort = address.port
+    process.env.DISPATCH_PORT = String(serverPort)
+  }
+  return { reuse: false }
+}
+
+async function startServer() {
+  if (serverProcess) return
+
+  const { reuse } = await resolveServerPort()
+  if (reuse) return
+
+  const serverEnv = {
+    ...process.env,
+    PORT: String(serverPort),
+    HOST: SERVER_HOST,
+    DISPATCH_SETTINGS_PATH: getSettingsPath(),
+    DISPATCH_DB_PATH: getDbPath()
+  }
+
+  if (VITE_DEV_SERVER_URL || process.env.DISPATCH_E2E === "1") {
+    const cmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+    serverProcess = spawn(cmd, ['--filter', '@dispatch/server', 'dev'], {
+      cwd: process.env.APP_ROOT,
+      env: serverEnv,
+      stdio: 'inherit'
+    })
+  } else {
+    console.warn('Server bootstrap for packaged app is not configured yet.')
+    return
+  }
+
+  const timeoutMs = Number(process.env.DISPATCH_SERVER_TIMEOUT_MS ?? 10000)
+  await waitForServer(Number.isFinite(timeoutMs) ? timeoutMs : 10000)
+}
 
 function createWindow() {
-  win = new BrowserWindow({
+  const window = new BrowserWindow({
     icon: path.join(process.env.VITE_PUBLIC, 'electron-vite.svg'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
     },
   })
-
   // Test active push message to Renderer-process.
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', (new Date).toLocaleString())
+  window.webContents.on('did-finish-load', () => {
+    window.webContents.send('main-process-message', (new Date).toLocaleString())
   })
 
   if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL)
+    window.loadURL(VITE_DEV_SERVER_URL)
   } else {
     // win.loadFile('dist/index.html')
-    win.loadFile(path.join(RENDERER_DIST, 'index.html'))
+    window.loadFile(path.join(RENDERER_DIST, 'index.html'))
   }
 }
 
@@ -53,7 +178,6 @@ function createWindow() {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit()
-    win = null
   }
 })
 
@@ -65,4 +189,24 @@ app.on('activate', () => {
   }
 })
 
-app.whenReady().then(createWindow)
+ipcMain.handle('dispatch:request', async (_event: IpcMainInvokeEvent, payload: { path: string; init?: RequestInit }) => {
+  const url = new URL(payload.path, getServerUrl())
+  const response = await fetch(url, payload.init)
+  const body = await response.text()
+  return {
+    status: response.status,
+    statusText: response.statusText,
+    headers: Array.from(response.headers.entries()),
+    body
+  }
+})
+
+app.on('before-quit', () => {
+  serverProcess?.kill()
+  serverProcess = null
+})
+
+app.whenReady().then(async () => {
+  await startServer()
+  createWindow()
+})

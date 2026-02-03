@@ -7,5 +7,13 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "ai": "^4.1.17",
+    "@ai-sdk/anthropic": "^1.1.15",
+    "@ai-sdk/openai": "^1.1.16"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10"
   }
 }

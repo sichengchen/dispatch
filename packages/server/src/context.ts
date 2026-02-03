@@ -1,7 +1,15 @@
-export type TrpcContext = {
-  // Placeholder for DB client in Phase 1.3
+import type { DbClient } from "@dispatch/db";
+import { db } from "@dispatch/db";
+
+type CreateContextOptions = {
+  req: Request;
 };
 
-export function createContext(): TrpcContext {
-  return {};
+export type TrpcContext = {
+  db: DbClient;
+  req: Request;
+};
+
+export function createContext({ req }: CreateContextOptions): TrpcContext {
+  return { db, req };
 }

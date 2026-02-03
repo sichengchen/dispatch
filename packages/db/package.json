@@ -18,6 +18,8 @@
   },
   "devDependencies": {
     "drizzle-kit": "^0.26.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "@types/better-sqlite3": "^7.6.10",
+    "@types/node": "^20.14.10"
   }
 }

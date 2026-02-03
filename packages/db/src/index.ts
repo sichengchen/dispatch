@@ -24,3 +24,4 @@ export function createDbClient(dbPath = DEFAULT_DB_PATH) {
 }
 
 export const db = createDbClient();
+export type DbClient = ReturnType<typeof createDbClient>;
