@@ -1,0 +1,19 @@
+{
+  "name": "@dispatch/db",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "migrate": "drizzle-kit migrate"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.0.0",
+    "drizzle-orm": "^0.35.0"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^0.26.0"
+  }
+}
