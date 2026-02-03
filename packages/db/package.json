@@ -7,13 +7,17 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "migrate": "drizzle-kit migrate"
+    "generate": "drizzle-kit generate",
+    "migrate": "drizzle-kit migrate",
+    "seed": "tsx src/seed.ts",
+    "verify": "tsx src/verify.ts"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",
     "drizzle-orm": "^0.35.0"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.26.0"
+    "drizzle-kit": "^0.26.0",
+    "tsx": "^4.19.0"
   }
 }
