@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "./ui/select";
+import { Checkbox } from "./ui/checkbox";
 
 type Task = "summarize" | "classify" | "grade" | "embed";
 
@@ -280,15 +281,16 @@ export function SettingsDialog() {
               <div className="mt-1 text-xs text-slate-500">
                 Show detailed pipeline steps for each article.
               </div>
-              <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-slate-300 text-slate-900"
+              <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                <Checkbox
+                  id="verbose-mode"
                   checked={verboseMode}
-                  onChange={(e) => setVerboseMode(e.target.checked)}
+                  onCheckedChange={(checked) => {
+                    setVerboseMode(checked === true);
+                  }}
                 />
-                Verbose mode
-              </label>
+                <Label htmlFor="verbose-mode">Verbose mode</Label>
+              </div>
             </div>
           </div>
         )}

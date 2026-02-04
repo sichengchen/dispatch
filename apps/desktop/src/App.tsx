@@ -16,7 +16,7 @@ export default function App() {
   );
 
   return (
-    <div className="h-screen bg-slate-50 p-4">
+    <div className="flex min-h-screen flex-col bg-slate-50 p-4">
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Dispatch</h1>
@@ -28,18 +28,22 @@ export default function App() {
           <SettingsDialog />
         </div>
       </div>
-      <div className="grid h-[calc(100vh-96px)] grid-cols-[260px_1fr_1.4fr] gap-4">
-        <aside className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="grid min-h-0 flex-1 grid-cols-[260px_1fr_1.4fr] gap-4">
+        <aside className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3">
           <div className="mb-2 text-xs font-semibold uppercase text-slate-400">
             Sources
           </div>
-          <SourceList />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <SourceList />
+          </div>
         </aside>
-        <section className="rounded-lg border border-slate-200 bg-white p-3">
+        <section className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3">
           <div className="mb-2 text-xs font-semibold uppercase text-slate-400">
             Articles
           </div>
-          <ArticleList />
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <ArticleList />
+          </div>
         </section>
         <section className="min-h-0">
           <ReaderPane article={selectedArticle ?? null} />
