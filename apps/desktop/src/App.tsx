@@ -3,7 +3,7 @@ import { trpc } from "./lib/trpc";
 import { useUiStore } from "./store/ui";
 import { AddSourceDialog } from "./components/AddSourceDialog";
 import { DiscoverSourcesDialog } from "./components/DiscoverSourcesDialog";
-import { SettingsDialog } from "./components/SettingsDialog";
+import { SettingsPage } from "./components/SettingsPage";
 import { DigestHistoryDialog } from "./components/DigestHistoryDialog";
 import { HomeDigest } from "./components/HomeDigest";
 import { HomeArticlesList } from "./components/HomeArticlesList";
@@ -14,7 +14,7 @@ import { PipelinePane } from "./components/PipelinePane";
 import { Button } from "./components/ui/button";
 
 export default function App() {
-  const [activeView, setActiveView] = useState<"home" | "sources" | "article">("home");
+  const [activeView, setActiveView] = useState<"home" | "sources" | "article" | "settings">("home");
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
   const setSelectedArticleId = useUiStore((state) => state.setSelectedArticleId);
 
@@ -42,6 +42,13 @@ export default function App() {
             <p className="text-sm text-slate-500">Your newspaper at home</p>
           </button>
           <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant={activeView === "home" ? "default" : "outline"}
+              onClick={() => setActiveView("home")}
+            >
+              Home
+            </Button>
             <DigestHistoryDialog onSelectArticle={openArticle} />
             <Button
               size="sm"
@@ -51,7 +58,13 @@ export default function App() {
               Sources
             </Button>
             <DiscoverSourcesDialog />
-            <SettingsDialog />
+            <Button
+              size="sm"
+              variant={activeView === "settings" ? "default" : "outline"}
+              onClick={() => setActiveView("settings")}
+            >
+              Settings
+            </Button>
           </div>
         </div>
       </header>
@@ -96,6 +109,8 @@ export default function App() {
               </section>
             </div>
           </div>
+        ) : activeView === "settings" ? (
+          <SettingsPage />
         ) : (
           <ArticleViewer
             article={selectedArticle ?? null}

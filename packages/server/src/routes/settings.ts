@@ -67,6 +67,7 @@ const digestConfigSchema = z.object({
   scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
   topN: z.number().int().positive().max(50).optional(),
   hoursBack: z.number().positive().optional(),
+  preferredLanguage: z.string().min(1).optional(),
 });
 
 const settingsSchema = z.object({

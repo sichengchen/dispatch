@@ -1,14 +1,6 @@
 import { useEffect, useState } from "react";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger
-} from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import {
@@ -131,8 +123,7 @@ function resolveCatalogEntry(
   return entries.find((entry) => entry.id === modelId);
 }
 
-export function SettingsDialog() {
-  const [open, setOpen] = useState(false);
+export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
   const settingsQuery = trpc.settings.get.useQuery();
   const updateSettings = trpc.settings.update.useMutation({
@@ -163,10 +154,11 @@ export function SettingsDialog() {
   const [digestTime, setDigestTime] = useState("06:00");
   const [digestTopN, setDigestTopN] = useState(10);
   const [digestHoursBack, setDigestHoursBack] = useState(24);
+  const [digestPreferredLanguage, setDigestPreferredLanguage] = useState("English");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!settingsQuery.data || !open) return;
+    if (!settingsQuery.data) return;
     const cfg = settingsQuery.data;
     const llm = cfg.models;
 
@@ -187,6 +179,7 @@ export function SettingsDialog() {
     setDigestTime(cfg.digest?.scheduledTime ?? "06:00");
     setDigestTopN(cfg.digest?.topN ?? 10);
     setDigestHoursBack(cfg.digest?.hoursBack ?? 24);
+    setDigestPreferredLanguage(cfg.digest?.preferredLanguage ?? "English");
 
     const nextCatalog = llm.catalog && llm.catalog.length > 0
       ? llm.catalog.map((entry) => ({
@@ -282,7 +275,7 @@ export function SettingsDialog() {
     setCatalog(nextCatalog);
     setRouting(nextRouting);
     setErrorMessage(null);
-  }, [settingsQuery.data, open]);
+  }, [settingsQuery.data]);
 
   const searchNeedsKey = searchProvider === "brave" || searchProvider === "serper";
   const missingSearchConfig = searchNeedsKey && !searchApiKey;
@@ -302,14 +295,16 @@ export function SettingsDialog() {
   const saveDisabled = updateSettings.isPending || missingModelName || !hasCatalog;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button size="sm" variant="outline">Settings</Button>
-      </DialogTrigger>
-      <DialogContent className="w-[640px] max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Settings</DialogTitle>
-        </DialogHeader>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-semibold text-slate-900">Settings</h2>
+          <p className="text-sm text-slate-500">
+            Configure sources, models, and digest preferences.
+          </p>
+        </div>
+        
+      </div>
 
         <div className="mt-2 flex gap-2">
           <Button
@@ -406,6 +401,22 @@ export function SettingsDialog() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <div className="text-sm font-semibold text-slate-900">Digest</div>
+                <div className="text-xs text-slate-500">
+                  Preferred language for digest overview and topic summaries.
+                </div>
+                <div className="mt-2 space-y-1">
+                  <Label htmlFor="digest-language">Preferred Language</Label>
+                  <Input
+                    id="digest-language"
+                    placeholder="English"
+                    value={digestPreferredLanguage}
+                    onChange={(e) => setDigestPreferredLanguage(e.target.value)}
+                  />
+                </div>
               </div>
 
               <div className="mt-4 space-y-2">
@@ -1006,9 +1017,15 @@ export function SettingsDialog() {
           </div>
         )}
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} type="button">
-            Cancel
+        <div className="flex items-center justify-end gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setActiveTab("general");
+            }}
+            type="button"
+          >
+            Reset View
           </Button>
           <Button
             onClick={() => {
@@ -1129,6 +1146,7 @@ export function SettingsDialog() {
                   scheduledTime: digestTime,
                   topN: digestTopN,
                   hoursBack: digestHoursBack,
+                  preferredLanguage: digestPreferredLanguage || undefined,
                 }
               });
             }}
@@ -1137,8 +1155,7 @@ export function SettingsDialog() {
           >
             {updateSettings.isPending ? "Saving…" : "Save"}
           </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
   );
 }

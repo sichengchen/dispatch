@@ -59,6 +59,7 @@ export async function generateDigest(options?: {
   const config = getDigestConfig();
   const topN = options?.topN ?? config.topN ?? 10;
   const hoursBack = options?.hoursBack ?? config.hoursBack ?? 24;
+  const preferredLanguage = config.preferredLanguage?.trim() || undefined;
 
   const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
 
@@ -131,6 +132,7 @@ Rules:
 - The overview should be a short paragraph (3-6 sentences) with light analysis of the issues.
 - For each key point, include references as article numbers.
 - If a point is supported by multiple articles, include multiple refs.
+- Write the overview and key points in ${preferredLanguage ?? "the same language as the sources"}.
 - Return STRICT JSON, no markdown.
 
 JSON schema:
