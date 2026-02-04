@@ -7,13 +7,14 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { DigestHistoryDialog } from "./components/DigestHistoryDialog";
 import { HomeDigest } from "./components/HomeDigest";
 import { HomeArticlesList } from "./components/HomeArticlesList";
+import { ArticleViewer } from "./components/ArticleViewer";
 import { SourceList } from "./components/SourceList";
 import { ArticleList } from "./components/ArticleList";
 import { ReaderPane } from "./components/ReaderPane";
 import { Button } from "./components/ui/button";
 
 export default function App() {
-  const [activeView, setActiveView] = useState<"home" | "sources">("home");
+  const [activeView, setActiveView] = useState<"home" | "sources" | "article">("home");
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
   const setSelectedArticleId = useUiStore((state) => state.setSelectedArticleId);
 
@@ -24,7 +25,7 @@ export default function App() {
 
   const openArticle = (id: number) => {
     setSelectedArticleId(id);
-    setActiveView("sources");
+    setActiveView("article");
   };
 
   return (
@@ -60,7 +61,7 @@ export default function App() {
             <HomeDigest onSelectArticle={openArticle} />
             <HomeArticlesList onSelectArticle={openArticle} />
           </div>
-        ) : (
+        ) : activeView === "sources" ? (
           <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -95,6 +96,12 @@ export default function App() {
               </section>
             </div>
           </div>
+        ) : (
+          <ArticleViewer
+            article={selectedArticle ?? null}
+            onBack={() => setActiveView("home")}
+            onSelectArticle={openArticle}
+          />
         )}
       </main>
     </div>

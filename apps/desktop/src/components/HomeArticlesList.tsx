@@ -52,7 +52,7 @@ export function HomeArticlesList({ onSelectArticle }: HomeArticlesListProps) {
           </div>
         )}
         {!isLoading && !error && ordered.length > 0 && (
-          <ul className="list-disc space-y-4 pl-5 text-sm text-slate-800">
+          <ol className="list-decimal space-y-4 pl-5 text-sm text-slate-800">
             {ordered.map((article) => (
               <li key={article.id}>
                 <div className="flex flex-wrap items-center gap-2">
@@ -75,7 +75,7 @@ export function HomeArticlesList({ onSelectArticle }: HomeArticlesListProps) {
                 </div>
               </li>
             ))}
-          </ul>
+          </ol>
         )}
       </CardContent>
     </Card>

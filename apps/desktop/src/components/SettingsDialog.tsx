@@ -384,19 +384,26 @@ export function SettingsDialog() {
                         {formatWeight(gradingWeights[item.id])}
                       </span>
                     </div>
-                    <Slider
-                      value={[gradingWeights[item.id]]}
-                      min={0}
-                      max={2}
-                      step={0.05}
-                      onValueChange={(value) => {
-                        const nextValue = value[0] ?? 0;
-                        setGradingWeights((prev) => ({
-                          ...prev,
-                          [item.id]: nextValue
-                        }));
-                      }}
-                    />
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between text-[11px] text-slate-500">
+                        <span>Less important</span>
+                        <span>Default</span>
+                        <span>More important</span>
+                      </div>
+                      <Slider
+                        value={[gradingWeights[item.id]]}
+                        min={0}
+                        max={2}
+                        step={0.05}
+                        onValueChange={(value) => {
+                          const nextValue = value[0] ?? 0;
+                          setGradingWeights((prev) => ({
+                            ...prev,
+                            [item.id]: nextValue
+                          }));
+                        }}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

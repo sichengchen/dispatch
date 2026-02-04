@@ -91,6 +91,12 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
     return list;
   }, [articles, digest?.articleIds]);
   const topics = useMemo(() => buildTopicGroups(digestArticles), [digestArticles]);
+  const referenceMap = useMemo(() => {
+    const sorted = [...digestArticles].sort(
+      (a, b) => (b.grade ?? 0) - (a.grade ?? 0)
+    );
+    return new Map(sorted.map((article, index) => [article.id, index + 1]));
+  }, [digestArticles]);
   const overviewLine = useMemo(() => {
     if (!digest?.content) return null;
     const lines = digest.content.split("\n").map((line) => line.trim()).filter(Boolean);
@@ -165,7 +171,7 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
                                   onClick={() => onSelectArticle?.(article.id)}
                                   className="ml-2 text-xs text-slate-500 underline hover:text-slate-900"
                                 >
-                                  [{article.sourceName ?? "Source"}]
+                                  [{referenceMap.get(article.id) ?? "?"}]
                                 </button>
                               </li>
                             ))
@@ -192,7 +198,7 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
                               onClick={() => onSelectArticle?.(article.id)}
                               className="ml-2 text-xs text-slate-500 underline hover:text-slate-900"
                             >
-                              [{article.sourceName ?? "Source"}]
+                              [{referenceMap.get(article.id) ?? "?"}]
                             </button>
                           </p>
                         ))}
