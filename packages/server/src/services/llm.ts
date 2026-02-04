@@ -579,7 +579,12 @@ export async function processArticle(
       },
       configOverride
     );
-    recordPipelineEvent(articleId, "grade", "success");
+    recordPipelineEvent(
+      articleId,
+      "grade",
+      "success",
+      `score=${grade.score} importancy=${grade.importancy} quality=${grade.quality}`
+    );
   } catch (err) {
     console.error(`[pipeline] grade failed for article ${articleId}`, err);
     recordPipelineEvent(

@@ -19,6 +19,7 @@ import {
   SelectValue
 } from "./ui/select";
 import { Checkbox } from "./ui/checkbox";
+import { Slider } from "./ui/slider";
 
 type Task = "summarize" | "classify" | "grade" | "embed";
 
@@ -41,10 +42,10 @@ type Tab = "general" | "discover" | "models" | "router";
 type RoutingState = Record<Task, string>;
 
 type GradingWeights = {
-  importancy: string;
-  quality: string;
-  interest: string;
-  source: string;
+  importancy: number;
+  quality: number;
+  interest: number;
+  source: number;
 };
 
 type ScoreRow = {
@@ -63,10 +64,10 @@ const TASKS: Array<{ id: Task; label: string; hint: string }> = [
 const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
 
 const DEFAULT_GRADING_WEIGHTS: GradingWeights = {
-  importancy: "0.5",
-  quality: "0.5",
-  interest: "0",
-  source: "0"
+  importancy: 0.5,
+  quality: 0.5,
+  interest: 0,
+  source: 0
 };
 
 function createFallbackId(provider: ProviderType, model: string) {
@@ -93,9 +94,8 @@ function clampNumber(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-function parseNumber(value: string, fallback: number) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+function formatWeight(value: number) {
+  return value.toFixed(2);
 }
 
 function buildScoreRows(map?: Record<string, number>): ScoreRow[] {
@@ -170,10 +170,10 @@ export function SettingsDialog() {
     setVerboseMode(cfg.ui?.verbose ?? false);
     const nextWeights = cfg.grading?.weights;
     setGradingWeights({
-      importancy: String(nextWeights?.importancy ?? DEFAULT_GRADING_WEIGHTS.importancy),
-      quality: String(nextWeights?.quality ?? DEFAULT_GRADING_WEIGHTS.quality),
-      interest: String(nextWeights?.interest ?? DEFAULT_GRADING_WEIGHTS.interest),
-      source: String(nextWeights?.source ?? DEFAULT_GRADING_WEIGHTS.source)
+      importancy: nextWeights?.importancy ?? DEFAULT_GRADING_WEIGHTS.importancy,
+      quality: nextWeights?.quality ?? DEFAULT_GRADING_WEIGHTS.quality,
+      interest: nextWeights?.interest ?? DEFAULT_GRADING_WEIGHTS.interest,
+      source: nextWeights?.source ?? DEFAULT_GRADING_WEIGHTS.source
     });
     setInterestScores(buildScoreRows(cfg.grading?.interestByTag));
     setSourceScores(buildScoreRows(cfg.grading?.sourceWeights));
@@ -359,67 +359,35 @@ export function SettingsDialog() {
               <div className="mt-1 text-xs text-slate-500">
                 Configure the grade equation. Weights auto-normalize.
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Importancy weight</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={gradingWeights.importancy}
-                    onChange={(e) => {
-                      setGradingWeights((prev) => ({
-                        ...prev,
-                        importancy: e.target.value
-                      }));
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Quality weight</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={gradingWeights.quality}
-                    onChange={(e) => {
-                      setGradingWeights((prev) => ({
-                        ...prev,
-                        quality: e.target.value
-                      }));
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Interest weight</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={gradingWeights.interest}
-                    onChange={(e) => {
-                      setGradingWeights((prev) => ({
-                        ...prev,
-                        interest: e.target.value
-                      }));
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label>Source weight</Label>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    value={gradingWeights.source}
-                    onChange={(e) => {
-                      setGradingWeights((prev) => ({
-                        ...prev,
-                        source: e.target.value
-                      }));
-                    }}
-                  />
-                </div>
+              <div className="mt-3 space-y-4">
+                {([
+                  { id: "importancy", label: "Importancy weight" },
+                  { id: "quality", label: "Quality weight" },
+                  { id: "interest", label: "Interest weight" },
+                  { id: "source", label: "Source weight" }
+                ] as const).map((item) => (
+                  <div key={item.id} className="space-y-2">
+                    <div className="flex items-center justify-between text-sm text-slate-700">
+                      <Label>{item.label}</Label>
+                      <span className="font-mono text-xs text-slate-500">
+                        {formatWeight(gradingWeights[item.id])}
+                      </span>
+                    </div>
+                    <Slider
+                      value={[gradingWeights[item.id]]}
+                      min={0}
+                      max={2}
+                      step={0.05}
+                      onValueChange={(value) => {
+                        const nextValue = value[0] ?? 0;
+                        setGradingWeights((prev) => ({
+                          ...prev,
+                          [item.id]: nextValue
+                        }));
+                      }}
+                    />
+                  </div>
+                ))}
               </div>
 
               <div className="mt-4 space-y-2">
@@ -978,20 +946,17 @@ export function SettingsDialog() {
                 for (const row of rows) {
                   const key = row.key.trim();
                   if (!key) continue;
-                  const value = clampNumber(parseNumber(row.score, 0), -10, 10);
+                  const value = clampNumber(Number(row.score) || 0, -10, 10);
                   map[key.toLowerCase()] = value;
                 }
                 return map;
               };
 
               const weights = {
-                importancy: Math.max(
-                  0,
-                  parseNumber(gradingWeights.importancy, 0.5)
-                ),
-                quality: Math.max(0, parseNumber(gradingWeights.quality, 0.5)),
-                interest: Math.max(0, parseNumber(gradingWeights.interest, 0)),
-                source: Math.max(0, parseNumber(gradingWeights.source, 0))
+                importancy: Math.max(0, gradingWeights.importancy),
+                quality: Math.max(0, gradingWeights.quality),
+                interest: Math.max(0, gradingWeights.interest),
+                source: Math.max(0, gradingWeights.source)
               };
 
               const interestByTag = buildScoreMap(interestScores);
