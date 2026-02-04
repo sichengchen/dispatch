@@ -2,8 +2,11 @@ import DOMPurify from "dompurify";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
+import { trpc } from "../lib/trpc";
+import { useUiStore } from "../store/ui";
 
 export type ReaderArticle = {
+  id: number;
   title: string;
   cleanContent?: string | null;
   rawHtml?: string | null;
@@ -13,6 +16,9 @@ export type ReaderArticle = {
 };
 
 export function ReaderPane({ article }: { article: ReaderArticle | null }) {
+  const setSelectedArticleId = useUiStore((state) => state.setSelectedArticleId);
+  const setSelectedSourceId = useUiStore((state) => state.setSelectedSourceId);
+
   if (!article) {
     return (
       <div className="h-full rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
@@ -20,6 +26,12 @@ export function ReaderPane({ article }: { article: ReaderArticle | null }) {
       </div>
     );
   }
+
+  const { data: related = [], isLoading: isLoadingRelated } =
+    trpc.articles.related.useQuery(
+      { id: article.id, topK: 5 },
+      { enabled: Boolean(article.id) }
+    );
 
   const content = article.cleanContent || "";
   const htmlFallback = !content && article.rawHtml ? article.rawHtml : null;
@@ -95,6 +107,47 @@ export function ReaderPane({ article }: { article: ReaderArticle | null }) {
           </ReactMarkdown>
         </div>
       )}
+
+      <div className="mt-6 border-t border-slate-200 pt-4">
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-slate-700">Related Articles</h3>
+          {isLoadingRelated && (
+            <span className="text-xs text-slate-400">Searching...</span>
+          )}
+        </div>
+        {related.length === 0 && !isLoadingRelated ? (
+          <div className="text-xs text-slate-500">No related articles yet.</div>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {related.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  if (item.sourceId != null) {
+                    setSelectedSourceId(item.sourceId);
+                  }
+                  setSelectedArticleId(item.id);
+                }}
+                className="min-w-[220px] max-w-[260px] rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition hover:border-slate-300"
+              >
+                <div className="text-sm font-semibold text-slate-900">
+                  {item.title}
+                </div>
+                <div className="mt-1 text-xs text-slate-500">
+                  {item.sourceName ?? "Unknown source"} ·{" "}
+                  {new Date(item.publishedAt ?? item.fetchedAt).toLocaleDateString()}
+                </div>
+                {item.summary && (
+                  <div className="mt-2 text-xs text-slate-600">
+                    {item.summary}
+                  </div>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

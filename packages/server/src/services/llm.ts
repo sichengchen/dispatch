@@ -4,6 +4,7 @@ import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { createProviderMap, getModelConfig, type LlmConfig, type LlmTask } from "@dispatch/lib";
 import { getLlmConfig } from "./settings";
+import { upsertArticleVector } from "./vector";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -468,4 +469,14 @@ export async function processArticle(
     })
     .where(eq(articles.id, articleId))
     .run();
+
+  // 5. Vectorize for related-articles search
+  try {
+    await upsertArticleVector(
+      { ...article, summary },
+      configOverride
+    );
+  } catch (err) {
+    console.error(`[pipeline] vectorization failed for article ${articleId}`, err);
+  }
 }

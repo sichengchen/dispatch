@@ -1,10 +1,43 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { articles, sources } from "@dispatch/db";
 import { t } from "../trpc";
+import { getRelatedArticles } from "../services/vector";
 
 export const articlesRouter = t.router({
+  byId: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ ctx, input }) => {
+      const row = ctx.db
+        .select({
+          id: articles.id,
+          sourceId: articles.sourceId,
+          title: articles.title,
+          url: articles.url,
+          rawHtml: articles.rawHtml,
+          cleanContent: articles.cleanContent,
+          summary: articles.summary,
+          tags: articles.tags,
+          grade: articles.grade,
+          keyPoints: articles.keyPoints,
+          processedAt: articles.processedAt,
+          publishedAt: articles.publishedAt,
+          fetchedAt: articles.fetchedAt,
+          isRead: articles.isRead,
+          sourceName: sources.name
+        })
+        .from(articles)
+        .leftJoin(sources, eq(articles.sourceId, sources.id))
+        .where(eq(articles.id, input.id))
+        .get();
+
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+      }
+
+      return row;
+    }),
   list: t.procedure
     .input(
       z
@@ -53,6 +86,45 @@ export const articlesRouter = t.router({
         .limit(pageSize)
         .offset(offset)
         .all();
+    }),
+  related: t.procedure
+    .input(
+      z.object({
+        id: z.number().int().positive(),
+        topK: z.number().int().positive().max(20).default(5)
+      })
+    )
+    .query(async ({ ctx, input }) => {
+      let relatedIds: number[] = [];
+      try {
+        relatedIds = await getRelatedArticles(input.id, input.topK);
+      } catch (err) {
+        console.warn(`[articles.related] failed for article ${input.id}`, err);
+      }
+      if (relatedIds.length === 0) return [];
+
+      const rows = ctx.db
+        .select({
+          id: articles.id,
+          sourceId: articles.sourceId,
+          title: articles.title,
+          url: articles.url,
+          summary: articles.summary,
+          publishedAt: articles.publishedAt,
+          fetchedAt: articles.fetchedAt,
+          sourceName: sources.name
+        })
+        .from(articles)
+        .leftJoin(sources, eq(articles.sourceId, sources.id))
+        .where(inArray(articles.id, relatedIds))
+        .all();
+
+      const order = new Map(relatedIds.map((id, index) => [id, index]));
+      return rows.sort((a, b) => {
+        const left = order.get(a.id) ?? 0;
+        const right = order.get(b.id) ?? 0;
+        return left - right;
+      });
     }),
   markRead: t.procedure
     .input(z.object({ id: z.number().int().positive() }))

@@ -16,8 +16,9 @@ export default function App() {
     pageSize: 50
   });
 
-  const selectedArticle = articles.find(
-    (article) => article.id === selectedArticleId
+  const { data: selectedArticle } = trpc.articles.byId.useQuery(
+    { id: selectedArticleId ?? 0 },
+    { enabled: selectedArticleId != null }
   );
 
   return (

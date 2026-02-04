@@ -18,6 +18,7 @@
     "@dispatch/db": "workspace:*",
     "@dispatch/lib": "workspace:*",
     "@hono/node-server": "^1.19.9",
+    "@lancedb/lancedb": "^0.23.0",
     "@mozilla/readability": "^0.6.0",
     "@trpc/server": "^11.9.0",
     "ai": "^6.0.69",

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 *.db
+dispatch.vectors/
 .env
 dispatch.settings.json
 .DS_Store
