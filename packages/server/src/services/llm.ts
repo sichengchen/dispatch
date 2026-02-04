@@ -188,7 +188,7 @@ function resolveOpenAiApiKey(config: LlmConfig, modelConfig: ModelConfig) {
   }
   const entry = getCatalogEntry(config, modelConfig.modelId);
   const entryKey = entry?.providerConfig?.apiKey?.trim();
-  return entryKey || config.providers.openai?.apiKey || null;
+  return entryKey || null;
 }
 
 function resolveOpenAiBaseUrl(config: LlmConfig, modelConfig: ModelConfig) {
@@ -197,7 +197,7 @@ function resolveOpenAiBaseUrl(config: LlmConfig, modelConfig: ModelConfig) {
   }
   const entry = getCatalogEntry(config, modelConfig.modelId);
   const entryBaseUrl = entry?.providerConfig?.baseUrl?.trim();
-  return entryBaseUrl || config.providers.openai?.baseUrl || null;
+  return entryBaseUrl || null;
 }
 
 function resolveProviderOverrides(
@@ -213,10 +213,8 @@ function resolveProviderOverrides(
   }
 
   if (modelConfig.providerType === "openai") {
-    const apiKey =
-      entry.providerConfig.apiKey?.trim() || config.providers.openai?.apiKey;
-    const baseUrl =
-      entry.providerConfig.baseUrl?.trim() || config.providers.openai?.baseUrl;
+    const apiKey = entry.providerConfig.apiKey?.trim();
+    const baseUrl = entry.providerConfig.baseUrl?.trim();
     if (!apiKey || !baseUrl) return undefined;
     return { openai: { apiKey, baseUrl } };
   }
@@ -231,10 +229,15 @@ async function callLlm(
 ): Promise<string> {
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, task);
+  const entry = getCatalogEntry(config, modelConfig.modelId);
   const providerOverrides = resolveProviderOverrides(config, modelConfig);
 
   if (modelConfig.providerType === "mock") {
     return `Mock ${task} response`;
+  }
+
+  if (!entry) {
+    throw new Error(`Model not found in catalog: ${modelConfig.modelId}`);
   }
 
   if (modelConfig.providerType === "openai") {
@@ -286,7 +289,11 @@ async function callLlm(
     }
   }
 
-  const providerMap = createProviderMap(config.providers, providerOverrides);
+  if (!providerOverrides) {
+    throw new Error(`Provider config missing for model ${modelConfig.modelId}`);
+  }
+
+  const providerMap = createProviderMap(providerOverrides);
   const provider = providerMap[modelConfig.providerType];
 
   if (!provider) {

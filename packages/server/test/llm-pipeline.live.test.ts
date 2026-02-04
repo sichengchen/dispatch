@@ -24,12 +24,6 @@ function getLocalLlmConfig(): LlmConfig {
   }
 
   return {
-    providers: {
-      openai: {
-        apiKey,
-        baseUrl
-      }
-    },
     assignment: [
       { task: "summarize", modelId: "openai:local" },
       { task: "classify", modelId: "openai:local" },
@@ -40,7 +34,11 @@ function getLocalLlmConfig(): LlmConfig {
         id: "openai:local",
         providerType: "openai",
         model,
-        capabilities: ["chat"]
+        capabilities: ["chat"],
+        providerConfig: {
+          apiKey,
+          baseUrl
+        }
       }
     ]
   };

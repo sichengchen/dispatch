@@ -37,7 +37,6 @@ export type ModelConfig = {
 };
 
 export type LlmConfig = {
-  providers: ProviderKeyMap;
   assignment: ModelAssignment[];
   catalog?: ModelCatalogEntry[];
 };
@@ -45,7 +44,6 @@ export type LlmConfig = {
 export function getDefaultLlmConfig(): LlmConfig {
   const defaultModel = "claude-3-5-sonnet-20240620";
   return {
-    providers: {},
     assignment: [
       {
         task: "summarize",
@@ -114,11 +112,10 @@ export function getModelConfig(config: LlmConfig, task: LlmTask): ModelConfig {
 }
 
 export function createProviderMap(
-  keys: ProviderKeyMap,
-  overrides?: ProviderKeyMap
+  keys: ProviderKeyMap
 ) {
-  const anthropicKey = overrides?.anthropic ?? keys.anthropic;
-  const openaiCfg = overrides?.openai ?? keys.openai;
+  const anthropicKey = keys.anthropic;
+  const openaiCfg = keys.openai;
   return {
     anthropic: (modelName: string): LanguageModel => {
       if (!anthropicKey) {

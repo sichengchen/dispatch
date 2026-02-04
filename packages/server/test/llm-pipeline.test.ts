@@ -13,7 +13,6 @@ import {
 let testCounter = 0;
 
 const mockConfig: LlmConfig = {
-  providers: {},
   assignment: [
     { task: "summarize", modelId: "mock:mock" },
     { task: "classify", modelId: "mock:mock" },

@@ -7,16 +7,6 @@ import {
   saveSettings
 } from "../services/settings";
 
-const providerKeysSchema = z.object({
-  anthropic: z.string().min(1).optional(),
-  openai: z
-    .object({
-      apiKey: z.string().min(1),
-      baseUrl: z.string().url()
-    })
-    .optional()
-});
-
 const assignmentSchema = z.object({
   task: z.enum(["summarize", "classify", "grade", "embed"]),
   modelId: z.string().min(1)
@@ -37,7 +27,6 @@ const catalogSchema = z.object({
 });
 
 const llmConfigSchema = z.object({
-  providers: providerKeysSchema,
   assignment: z.array(assignmentSchema),
   catalog: z.array(catalogSchema).optional()
 });

@@ -5,7 +5,7 @@ import type { Connection, Table } from "@lancedb/lancedb";
 import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { getModelConfig, type LlmConfig } from "@dispatch/lib";
-import { getLlmConfig, getProviderKeys } from "./settings";
+import { getLlmConfig } from "./settings";
 
 const TABLE_NAME = "articles_vectors";
 const DEFAULT_MAX_CHARS = 6000;
@@ -122,11 +122,10 @@ function resolveEmbeddingConfig(configOverride?: LlmConfig) {
       "Selected embeddings model is not marked for embeddings. Update the model capabilities in Settings."
     );
   }
-  const providerKeys = getProviderKeys();
   const apiKey =
-    entry?.providerConfig?.apiKey?.trim() || providerKeys.openai?.apiKey;
+    entry?.providerConfig?.apiKey?.trim();
   const baseUrl =
-    entry?.providerConfig?.baseUrl?.trim() || providerKeys.openai?.baseUrl;
+    entry?.providerConfig?.baseUrl?.trim();
   const normalizedBaseUrl = baseUrl?.replace(/\/$/, "");
   const inferredEndpoint = normalizedBaseUrl ? `${normalizedBaseUrl}/embeddings` : undefined;
   const endpoint =

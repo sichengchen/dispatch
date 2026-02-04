@@ -20,12 +20,6 @@ function getLocalLlmConfig(): LlmConfig {
   }
 
   return {
-    providers: {
-      openai: {
-        apiKey,
-        baseUrl
-      }
-    },
     assignment: [
       {
         task: "summarize",
@@ -37,7 +31,11 @@ function getLocalLlmConfig(): LlmConfig {
         id: "openai:local",
         providerType: "openai",
         model,
-        capabilities: ["chat"]
+        capabilities: ["chat"],
+        providerConfig: {
+          apiKey,
+          baseUrl
+        }
       }
     ]
   };
@@ -72,12 +70,6 @@ account for shifting food availability and more frequent extreme weather events.
     const previousChatEndpoint = process.env.DISPATCH_LLM_CHAT_ENDPOINT;
     delete process.env.DISPATCH_LLM_CHAT_ENDPOINT;
     const invalidConfig: LlmConfig = {
-      providers: {
-        openai: {
-          apiKey: baseConfig.providers.openai?.apiKey ?? "",
-          baseUrl: ""
-        }
-      },
       assignment: [
         {
           task: "summarize",
@@ -89,7 +81,11 @@ account for shifting food availability and more frequent extreme weather events.
           id: "openai:local",
           providerType: "openai",
           model: baseConfig.catalog?.[0]?.model ?? "local-model",
-          capabilities: ["chat"]
+          capabilities: ["chat"],
+          providerConfig: {
+            apiKey: baseConfig.catalog?.[0]?.providerConfig?.apiKey ?? "",
+            baseUrl: ""
+          }
         }
       ]
     };

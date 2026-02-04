@@ -778,29 +778,8 @@ export function SettingsDialog() {
                   modelId: entry.id
                 };
               });
-              const providerDefaults = resolvedCatalog.reduce<{
-                anthropic?: string;
-                openai?: { apiKey: string; baseUrl: string };
-              }>((acc, entry) => {
-                if (entry.providerType === "anthropic" && entry.providerConfig?.apiKey) {
-                  acc.anthropic ??= entry.providerConfig.apiKey;
-                }
-                if (
-                  entry.providerType === "openai" &&
-                  entry.providerConfig?.apiKey &&
-                  entry.providerConfig?.baseUrl
-                ) {
-                  acc.openai ??= {
-                    apiKey: entry.providerConfig.apiKey,
-                    baseUrl: entry.providerConfig.baseUrl
-                  };
-                }
-                return acc;
-              }, {});
-
               updateSettings.mutate({
                 models: {
-                  providers: providerDefaults,
                   assignment: resolvedModels,
                   catalog: resolvedCatalog
                 },

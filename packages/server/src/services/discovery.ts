@@ -312,10 +312,8 @@ function resolveProviderOverrides(
   }
 
   if (modelConfig.providerType === "openai") {
-    const apiKey =
-      entry.providerConfig.apiKey?.trim() || config.providers.openai?.apiKey;
-    const baseUrl =
-      entry.providerConfig.baseUrl?.trim() || config.providers.openai?.baseUrl;
+    const apiKey = entry.providerConfig.apiKey?.trim();
+    const baseUrl = entry.providerConfig.baseUrl?.trim();
     if (!apiKey || !baseUrl) return undefined;
     return { openai: { apiKey, baseUrl } };
   }
@@ -328,10 +326,11 @@ function getDiscoveryModel(config: LlmConfig) {
   if (modelConfig.providerType === "mock") {
     return null;
   }
-  const providerMap = createProviderMap(
-    config.providers,
-    resolveProviderOverrides(config, modelConfig)
-  );
+  const providerOverrides = resolveProviderOverrides(config, modelConfig);
+  if (!providerOverrides) {
+    throw new Error(`Provider config missing for model ${modelConfig.modelId}`);
+  }
+  const providerMap = createProviderMap(providerOverrides);
   const provider = providerMap[modelConfig.providerType];
   if (!provider) {
     throw new Error(`Unsupported provider: ${modelConfig.providerType}`);

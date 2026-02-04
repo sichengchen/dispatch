@@ -1,18 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { LlmConfig, ModelCatalogEntry, ProviderKeyMap } from "@dispatch/lib";
+import type { LlmConfig, ModelCatalogEntry } from "@dispatch/lib";
 import { getDefaultLlmConfig } from "@dispatch/lib";
-
-const providerKeysSchema = z.object({
-  anthropic: z.string().min(1).optional(),
-  openai: z
-    .object({
-      apiKey: z.string().min(1),
-      baseUrl: z.string().url()
-    })
-    .optional()
-});
 
 const assignmentSchema = z.object({
   task: z.enum(["summarize", "classify", "grade", "embed"]),
@@ -34,7 +24,6 @@ const catalogSchema: z.ZodType<ModelCatalogEntry> = z.object({
 });
 
 const llmConfigSchema: z.ZodType<LlmConfig> = z.object({
-  providers: providerKeysSchema,
   assignment: z.array(assignmentSchema),
   catalog: z.array(catalogSchema).optional()
 });
@@ -147,10 +136,6 @@ export function updateLlmConfig(next: LlmConfig): LlmConfig {
 
 export function getLlmConfig(): LlmConfig {
   return loadSettings().models;
-}
-
-export function getProviderKeys(): ProviderKeyMap {
-  return getLlmConfig().providers;
 }
 
 export function getSearchConfig(): SearchConfig {
