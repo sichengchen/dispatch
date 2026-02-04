@@ -10,6 +10,19 @@ export type ProviderKeyMap = {
   openaiCompatible?: { apiKey: string; baseUrl: string };
 };
 
+export type ModelProviderConfig = {
+  apiKey?: string;
+  baseUrl?: string;
+};
+
+export type ModelCatalogEntry = {
+  id: string;
+  provider: ProviderId;
+  model: string;
+  label?: string;
+  providerConfig?: ModelProviderConfig;
+};
+
 export type ModelConfig = {
   task: LlmTask;
   provider: ProviderId;
@@ -19,16 +32,26 @@ export type ModelConfig = {
 export type LlmConfig = {
   providers: ProviderKeyMap;
   models: ModelConfig[];
+  catalog?: ModelCatalogEntry[];
 };
 
 export function getDefaultLlmConfig(): LlmConfig {
+  const defaultModel = "claude-3-5-sonnet-20240620";
   return {
     providers: {},
     models: [
       {
         task: "summarize",
         provider: "anthropic",
-        model: "claude-3-5-sonnet-20240620"
+        model: defaultModel
+      }
+    ],
+    catalog: [
+      {
+        id: `anthropic:${defaultModel}`,
+        provider: "anthropic",
+        model: defaultModel,
+        label: "Claude 3.5 Sonnet"
       }
     ]
   };
@@ -44,16 +67,21 @@ export function getModelConfig(config: LlmConfig, task: LlmTask): ModelConfig {
   };
 }
 
-export function createProviderMap(keys: ProviderKeyMap) {
+export function createProviderMap(
+  keys: ProviderKeyMap,
+  overrides?: ProviderKeyMap
+) {
+  const anthropicKey = overrides?.anthropic ?? keys.anthropic;
+  const openaiCompatibleCfg = overrides?.openaiCompatible ?? keys.openaiCompatible;
   return {
     anthropic: (modelName: string): LanguageModel => {
-      if (!keys.anthropic) {
+      if (!anthropicKey) {
         throw new Error("Anthropic API key is missing");
       }
-      return createAnthropic({ apiKey: keys.anthropic })(modelName);
+      return createAnthropic({ apiKey: anthropicKey })(modelName);
     },
     openaiCompatible: (modelName: string): LanguageModel => {
-      const cfg = keys.openaiCompatible;
+      const cfg = openaiCompatibleCfg;
       if (!cfg?.apiKey || !cfg.baseUrl) {
         throw new Error("OpenAI-compatible config is missing");
       }

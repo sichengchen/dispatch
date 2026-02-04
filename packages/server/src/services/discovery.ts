@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { generateText, tool, zodSchema } from "ai";
-import { createProviderMap, getModelConfig, type LlmConfig } from "@dispatch/lib";
-import { getLlmConfig } from "./settings";
+import {
+  createProviderMap,
+  getModelConfig,
+  type LlmConfig,
+  type ModelConfig,
+  type ProviderId,
+  type ProviderKeyMap
+} from "@dispatch/lib";
+import { getLlmConfig, getSearchConfig } from "./settings";
 
 const suggestionSchema = z.object({
   name: z.string().min(1),
@@ -104,13 +111,17 @@ function parseJsonFromLlm(raw: string): unknown {
   return JSON.parse(jsonStr);
 }
 
-function getSearchProvider() {
-  return (process.env.DISPATCH_SEARCH_PROVIDER ?? "brave").toLowerCase();
+function getSearchProvider(config?: { provider?: string }) {
+  return (config?.provider ?? process.env.DISPATCH_SEARCH_PROVIDER ?? "brave").toLowerCase();
 }
 
-async function searchBrave(query: string, count: number): Promise<SearchResponse> {
-  const endpoint = process.env.DISPATCH_SEARCH_ENDPOINT ?? "https://api.search.brave.com/res/v1/web/search";
-  const apiKey = process.env.DISPATCH_SEARCH_API_KEY;
+async function searchBrave(
+  query: string,
+  count: number,
+  config?: { apiKey?: string; endpoint?: string }
+): Promise<SearchResponse> {
+  const endpoint = config?.endpoint ?? process.env.DISPATCH_SEARCH_ENDPOINT ?? "https://api.search.brave.com/res/v1/web/search";
+  const apiKey = config?.apiKey ?? process.env.DISPATCH_SEARCH_API_KEY;
   if (!apiKey) {
     throw new Error("Missing DISPATCH_SEARCH_API_KEY for Brave search provider.");
   }
@@ -144,9 +155,13 @@ async function searchBrave(query: string, count: number): Promise<SearchResponse
   };
 }
 
-async function searchSerper(query: string, count: number): Promise<SearchResponse> {
-  const endpoint = process.env.DISPATCH_SEARCH_ENDPOINT ?? "https://google.serper.dev/search";
-  const apiKey = process.env.DISPATCH_SEARCH_API_KEY;
+async function searchSerper(
+  query: string,
+  count: number,
+  config?: { apiKey?: string; endpoint?: string }
+): Promise<SearchResponse> {
+  const endpoint = config?.endpoint ?? process.env.DISPATCH_SEARCH_ENDPOINT ?? "https://google.serper.dev/search";
+  const apiKey = config?.apiKey ?? process.env.DISPATCH_SEARCH_API_KEY;
   if (!apiKey) {
     throw new Error("Missing DISPATCH_SEARCH_API_KEY for Serper search provider.");
   }
@@ -196,8 +211,12 @@ function extractDuckDuckGoResults(items: Array<Record<string, unknown>>): Search
   return results;
 }
 
-async function searchDuckDuckGo(query: string, count: number): Promise<SearchResponse> {
-  const url = new URL(process.env.DISPATCH_SEARCH_ENDPOINT ?? "https://api.duckduckgo.com/");
+async function searchDuckDuckGo(
+  query: string,
+  count: number,
+  config?: { endpoint?: string }
+): Promise<SearchResponse> {
+  const url = new URL(config?.endpoint ?? process.env.DISPATCH_SEARCH_ENDPOINT ?? "https://api.duckduckgo.com/");
   url.searchParams.set("q", query);
   url.searchParams.set("format", "json");
   url.searchParams.set("no_html", "1");
@@ -232,7 +251,11 @@ async function searchDuckDuckGo(query: string, count: number): Promise<SearchRes
   return { results: results.slice(0, count) };
 }
 
-async function searchWeb(query: string, count: number): Promise<SearchResponse> {
+async function searchWeb(
+  query: string,
+  count: number,
+  config?: { provider?: string; apiKey?: string; endpoint?: string }
+): Promise<SearchResponse> {
   if (process.env.DISPATCH_TEST_SEARCH_RESULTS) {
     const parsed = JSON.parse(process.env.DISPATCH_TEST_SEARCH_RESULTS) as SearchResponse | SearchResult[];
     if (Array.isArray(parsed)) {
@@ -241,21 +264,21 @@ async function searchWeb(query: string, count: number): Promise<SearchResponse> 
     return { results: parsed.results ?? [] };
   }
 
-  const provider = getSearchProvider();
+  const provider = getSearchProvider(config);
   if (provider === "serper") {
-    return searchSerper(query, count);
+    return searchSerper(query, count, config);
   }
   if (provider === "duckduckgo") {
-    return searchDuckDuckGo(query, count);
+    return searchDuckDuckGo(query, count, config);
   }
-  return searchBrave(query, count);
+  return searchBrave(query, count, config);
 }
 
 const webSearchTool = tool({
   description: "Search the web for relevant sources and return the top results.",
   inputSchema: zodSchema(searchInputSchema),
   execute: async (input) => {
-    const response = await searchWeb(input.query, input.count);
+    const response = await searchWeb(input.query, input.count, getSearchConfig());
     const normalized = normalizeSearchResults(response.results);
     return { results: normalized };
   }
@@ -269,12 +292,49 @@ function shouldSkipLlm(configOverride?: LlmConfig) {
   return configOverride.models.every((model) => model.provider === "mock");
 }
 
+function getCatalogEntry(
+  config: LlmConfig,
+  provider: ProviderId,
+  model: string
+) {
+  return config.catalog?.find(
+    (entry) => entry.provider === provider && entry.model === model
+  );
+}
+
+function resolveProviderOverrides(
+  config: LlmConfig,
+  modelConfig: ModelConfig
+): ProviderKeyMap | undefined {
+  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  if (!entry?.providerConfig) return undefined;
+
+  if (modelConfig.provider === "anthropic") {
+    const apiKey = entry.providerConfig.apiKey?.trim();
+    return apiKey ? { anthropic: apiKey } : undefined;
+  }
+
+  if (modelConfig.provider === "openaiCompatible") {
+    const apiKey =
+      entry.providerConfig.apiKey?.trim() || config.providers.openaiCompatible?.apiKey;
+    const baseUrl =
+      entry.providerConfig.baseUrl?.trim() || config.providers.openaiCompatible?.baseUrl;
+    if (!apiKey || !baseUrl) return undefined;
+    return { openaiCompatible: { apiKey, baseUrl } };
+  }
+
+  return undefined;
+}
+
 function getDiscoveryModel(config: LlmConfig) {
   const modelConfig = getModelConfig(config, "summarize");
   if (modelConfig.provider === "mock") {
     return null;
   }
-  const providerMap = createProviderMap(config.providers);
+  const providerMap = createProviderMap(
+    config.providers,
+    resolveProviderOverrides(config, modelConfig)
+  );
   const provider = providerMap[modelConfig.provider];
   if (!provider) {
     throw new Error(`Unsupported provider: ${modelConfig.provider}`);
@@ -291,7 +351,7 @@ export async function discoverSources(query: string, configOverride?: LlmConfig)
   const config = configOverride ?? getLlmConfig();
 
   if (shouldSkipLlm(configOverride)) {
-    const response = await searchWeb(trimmed, 8);
+    const response = await searchWeb(trimmed, 8, getSearchConfig());
     return normalizeSuggestions(
       response.results.map((result) => ({
         name: result.title,
@@ -303,7 +363,7 @@ export async function discoverSources(query: string, configOverride?: LlmConfig)
 
   const model = getDiscoveryModel(config);
   if (!model) {
-    const response = await searchWeb(trimmed, 8);
+    const response = await searchWeb(trimmed, 8, getSearchConfig());
     return normalizeSuggestions(
       response.results.map((result) => ({
         name: result.title,
@@ -343,7 +403,7 @@ Avoid duplicates and do not invent URLs.`;
     return normalizeSuggestions(result.sources);
   } catch (err) {
     console.warn("[discoverSources] LLM tool call failed, falling back to search results", err);
-    const response = await searchWeb(trimmed, 8);
+    const response = await searchWeb(trimmed, 8, getSearchConfig());
     return normalizeSuggestions(
       response.results.map((result) => ({
         name: result.title,

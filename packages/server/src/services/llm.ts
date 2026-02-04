@@ -2,7 +2,15 @@ import { z } from "zod";
 import { generateText } from "ai";
 import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { createProviderMap, getModelConfig, type LlmConfig, type LlmTask } from "@dispatch/lib";
+import {
+  createProviderMap,
+  getModelConfig,
+  type LlmConfig,
+  type LlmTask,
+  type ProviderId,
+  type ProviderKeyMap,
+  type ModelConfig
+} from "@dispatch/lib";
 import { getLlmConfig } from "./settings";
 import { upsertArticleVector } from "./vector";
 
@@ -169,6 +177,49 @@ function parseJsonFromLlm<T>(raw: string, schema: z.ZodType<T>): T {
 // Generic LLM caller
 // ---------------------------------------------------------------------------
 
+function getCatalogEntry(
+  config: LlmConfig,
+  provider: ProviderId,
+  model: string
+) {
+  return config.catalog?.find(
+    (entry) => entry.provider === provider && entry.model === model
+  );
+}
+
+function resolveOpenAiApiKey(config: LlmConfig, modelConfig: ModelConfig) {
+  if (modelConfig.provider !== "openaiCompatible") {
+    return null;
+  }
+  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  const entryKey = entry?.providerConfig?.apiKey?.trim();
+  return entryKey || config.providers.openaiCompatible?.apiKey || null;
+}
+
+function resolveProviderOverrides(
+  config: LlmConfig,
+  modelConfig: ModelConfig
+): ProviderKeyMap | undefined {
+  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  if (!entry?.providerConfig) return undefined;
+
+  if (modelConfig.provider === "anthropic") {
+    const apiKey = entry.providerConfig.apiKey?.trim();
+    return apiKey ? { anthropic: apiKey } : undefined;
+  }
+
+  if (modelConfig.provider === "openaiCompatible") {
+    const apiKey =
+      entry.providerConfig.apiKey?.trim() || config.providers.openaiCompatible?.apiKey;
+    const baseUrl =
+      entry.providerConfig.baseUrl?.trim() || config.providers.openaiCompatible?.baseUrl;
+    if (!apiKey || !baseUrl) return undefined;
+    return { openaiCompatible: { apiKey, baseUrl } };
+  }
+
+  return undefined;
+}
+
 async function callLlm(
   task: LlmTask,
   prompt: string,
@@ -176,6 +227,7 @@ async function callLlm(
 ): Promise<string> {
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, task);
+  const providerOverrides = resolveProviderOverrides(config, modelConfig);
 
   if (modelConfig.provider === "mock") {
     return `Mock ${task} response`;
@@ -184,7 +236,7 @@ async function callLlm(
   if (modelConfig.provider === "openaiCompatible") {
     const chatEndpoint = process.env.DISPATCH_LLM_CHAT_ENDPOINT;
     if (chatEndpoint) {
-      const apiKey = config.providers.openaiCompatible?.apiKey;
+      const apiKey = resolveOpenAiApiKey(config, modelConfig);
       const response = await fetch(chatEndpoint, {
         method: "POST",
         headers: {
@@ -229,7 +281,7 @@ async function callLlm(
     }
   }
 
-  const providerMap = createProviderMap(config.providers);
+  const providerMap = createProviderMap(config.providers, providerOverrides);
   const provider = providerMap[modelConfig.provider];
 
   if (!provider) {

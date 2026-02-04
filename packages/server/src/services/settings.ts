@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { LlmConfig, ProviderKeyMap } from "@dispatch/lib";
+import type { LlmConfig, ModelCatalogEntry, ProviderKeyMap } from "@dispatch/lib";
 import { getDefaultLlmConfig } from "@dispatch/lib";
 
 const providerKeysSchema = z.object({
@@ -20,14 +20,41 @@ const modelConfigSchema = z.object({
   model: z.string().min(1)
 });
 
+const catalogSchema: z.ZodType<ModelCatalogEntry> = z.object({
+  id: z.string().min(1),
+  provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
+  model: z.string().min(1),
+  label: z.string().min(1).optional(),
+  providerConfig: z
+    .object({
+      apiKey: z.string().min(1).optional(),
+      baseUrl: z.string().url().optional()
+    })
+    .optional()
+});
+
 const llmConfigSchema: z.ZodType<LlmConfig> = z.object({
   providers: providerKeysSchema,
-  models: z.array(modelConfigSchema)
+  models: z.array(modelConfigSchema),
+  catalog: z.array(catalogSchema).optional()
+});
+
+const searchConfigSchema = z.object({
+  provider: z.enum(["brave", "serper", "duckduckgo"]).optional(),
+  apiKey: z.string().min(1).optional(),
+  endpoint: z.string().url().optional()
 });
 
 const settingsSchema = z.object({
-  llm: llmConfigSchema
+  llm: llmConfigSchema,
+  search: searchConfigSchema.optional()
 });
+
+export type SearchConfig = {
+  provider?: "brave" | "serper" | "duckduckgo";
+  apiKey?: string;
+  endpoint?: string;
+};
 
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -81,7 +108,8 @@ export function loadSettings(): Settings {
     return { llm: getDefaultLlmConfig() };
   }
   const merged = {
-    llm: parsed.llm ?? getDefaultLlmConfig()
+    llm: parsed.llm ?? getDefaultLlmConfig(),
+    search: parsed.search
   };
 
   const fallback = getDefaultLlmConfig();
@@ -94,11 +122,14 @@ export function loadSettings(): Settings {
     );
     return {
       providers,
-      models: models.length ? models : fallback.models
+      models: models.length ? models : fallback.models,
+      catalog: Array.isArray((llm as LlmConfig).catalog)
+        ? (llm as LlmConfig).catalog
+        : fallback.catalog
     } satisfies LlmConfig;
   })();
 
-  return settingsSchema.parse({ llm: migrated });
+  return settingsSchema.parse({ llm: migrated, search: merged.search });
 }
 
 export function saveSettings(next: Settings): Settings {
@@ -110,7 +141,7 @@ export function saveSettings(next: Settings): Settings {
 }
 
 export function updateLlmConfig(next: LlmConfig): LlmConfig {
-  return saveSettings({ llm: llmConfigSchema.parse(next) }).llm;
+  return saveSettings({ llm: llmConfigSchema.parse(next), search: getSearchConfig() }).llm;
 }
 
 export function getLlmConfig(): LlmConfig {
@@ -119,4 +150,8 @@ export function getLlmConfig(): LlmConfig {
 
 export function getProviderKeys(): ProviderKeyMap {
   return getLlmConfig().providers;
+}
+
+export function getSearchConfig(): SearchConfig {
+  return loadSettings().search ?? {};
 }

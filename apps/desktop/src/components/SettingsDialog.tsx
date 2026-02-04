@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import {
@@ -23,11 +23,20 @@ type Task = "summarize" | "classify" | "grade";
 
 type ProviderId = "anthropic" | "openaiCompatible" | "mock";
 
-type ModelRouting = Record<Task, { provider: ProviderId; model: string }>;
+type CatalogEntry = {
+  id: string;
+  provider: ProviderId;
+  model: string;
+  label: string;
+  providerConfig: {
+    apiKey: string;
+    baseUrl: string;
+  };
+};
 
-type Tab = "providers" | "models";
+type Tab = "models" | "router";
 
-type ProviderTab = "anthropic" | "openaiCompatible";
+type RoutingState = Record<Task, string>;
 
 const TASKS: Array<{ id: Task; label: string; hint: string }> = [
   { id: "summarize", label: "Summarize", hint: "One-liner and key points" },
@@ -37,18 +46,45 @@ const TASKS: Array<{ id: Task; label: string; hint: string }> = [
 
 const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
 
-function buildDefaultRouting(): ModelRouting {
-  return {
-    summarize: { provider: "anthropic", model: DEFAULT_MODEL },
-    classify: { provider: "anthropic", model: DEFAULT_MODEL },
-    grade: { provider: "anthropic", model: DEFAULT_MODEL }
-  };
+function createFallbackId(provider: ProviderId, model: string) {
+  return `${provider}:${model || "model"}`;
+}
+
+function generateId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `model-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
+function buildDefaultCatalog(): CatalogEntry[] {
+  return [
+    {
+      id: createFallbackId("anthropic", DEFAULT_MODEL),
+      provider: "anthropic",
+      model: DEFAULT_MODEL,
+      label: "Claude 3.5 Sonnet",
+      providerConfig: {
+        apiKey: "",
+        baseUrl: ""
+      }
+    }
+  ];
+}
+
+function resolveCatalogEntry(
+  entries: CatalogEntry[],
+  provider: ProviderId,
+  model: string
+) {
+  return entries.find(
+    (entry) => entry.provider === provider && entry.model === model
+  );
 }
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("providers");
-  const [providerTab, setProviderTab] = useState<ProviderTab>("anthropic");
+  const [activeTab, setActiveTab] = useState<Tab>("models");
   const settingsQuery = trpc.settings.get.useQuery();
   const updateSettings = trpc.settings.update.useMutation({
     onSuccess: () => {
@@ -57,218 +93,451 @@ export function SettingsDialog() {
     }
   });
 
-  const [anthropicKey, setAnthropicKey] = useState("");
-  const [openaiKey, setOpenaiKey] = useState("");
-  const [openaiBaseUrl, setOpenaiBaseUrl] = useState("");
-  const [modelRouting, setModelRouting] = useState<ModelRouting>(buildDefaultRouting());
+  const [searchProvider, setSearchProvider] = useState("brave");
+  const [searchApiKey, setSearchApiKey] = useState("");
+  const [searchEndpoint, setSearchEndpoint] = useState("");
+  const [catalog, setCatalog] = useState<CatalogEntry[]>(buildDefaultCatalog());
+  const [routing, setRouting] = useState<RoutingState>(() => ({
+    summarize: createFallbackId("anthropic", DEFAULT_MODEL),
+    classify: createFallbackId("anthropic", DEFAULT_MODEL),
+    grade: createFallbackId("anthropic", DEFAULT_MODEL)
+  }));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!settingsQuery.data || !open) return;
     const cfg = settingsQuery.data;
+    const llm = cfg.llm;
 
-    setAnthropicKey(cfg.providers.anthropic ?? "");
-    setOpenaiKey(cfg.providers.openaiCompatible?.apiKey ?? "");
-    setOpenaiBaseUrl(cfg.providers.openaiCompatible?.baseUrl ?? "");
+    setSearchProvider(cfg.search?.provider ?? "brave");
+    setSearchApiKey(cfg.search?.apiKey ?? "");
+    setSearchEndpoint(cfg.search?.endpoint ?? "");
 
-    const nextRouting = buildDefaultRouting();
-    for (const model of cfg.models) {
-      if (model.task in nextRouting) {
-        nextRouting[model.task as Task] = {
-          provider: model.provider as ProviderId,
-          model: model.model
-        };
+    const nextCatalog = llm.catalog && llm.catalog.length > 0
+      ? llm.catalog.map((entry) => ({
+          id: entry.id,
+          provider: entry.provider as ProviderId,
+          model: entry.model,
+          label: entry.label ?? "",
+          providerConfig: {
+            apiKey: entry.providerConfig?.apiKey ?? "",
+            baseUrl: entry.providerConfig?.baseUrl ?? ""
+          }
+        }))
+      : [];
+
+    const nextRouting: RoutingState = {
+      summarize: "",
+      classify: "",
+      grade: ""
+    };
+
+    for (const task of TASKS) {
+      const taskConfig = llm.models.find((model) => model.task === task.id);
+      if (taskConfig) {
+        let entry = resolveCatalogEntry(nextCatalog, taskConfig.provider as ProviderId, taskConfig.model);
+        if (!entry) {
+          const id = createFallbackId(taskConfig.provider as ProviderId, taskConfig.model);
+          entry = {
+            id,
+            provider: taskConfig.provider as ProviderId,
+            model: taskConfig.model,
+            label: "",
+            providerConfig: {
+              apiKey: "",
+              baseUrl: ""
+            }
+          };
+          nextCatalog.push(entry);
+        }
+        nextRouting[task.id] = entry.id;
       }
     }
-    setModelRouting(nextRouting);
+
+    if (nextCatalog.length === 0) {
+      nextCatalog.push(...buildDefaultCatalog());
+    }
+
+    for (const task of TASKS) {
+      if (!nextRouting[task.id]) {
+        nextRouting[task.id] = nextCatalog[0].id;
+      }
+    }
+
+    setCatalog(nextCatalog);
+    setRouting(nextRouting);
     setErrorMessage(null);
   }, [settingsQuery.data, open]);
 
-  const usesOpenAICompatible = useMemo(
-    () =>
-      TASKS.some((task) => modelRouting[task.id].provider === "openaiCompatible"),
-    [modelRouting]
-  );
+  const searchNeedsKey = searchProvider === "brave" || searchProvider === "serper";
+  const missingSearchConfig = searchNeedsKey && !searchApiKey;
 
-  const missingOpenAIConfig = usesOpenAICompatible && (!openaiKey || !openaiBaseUrl);
+  const missingModelName = catalog.some((entry) => !entry.model.trim());
+  const missingProviderConfig = catalog.some((entry) => {
+    if (entry.provider === "anthropic") {
+      return !entry.providerConfig.apiKey.trim();
+    }
+    if (entry.provider === "openaiCompatible") {
+      return !entry.providerConfig.apiKey.trim() || !entry.providerConfig.baseUrl.trim();
+    }
+    return false;
+  });
+  const hasCatalog = catalog.length > 0;
 
-  const missingModelName = TASKS.some((task) =>
-    !modelRouting[task.id].model.trim()
-  );
-
-  const saveDisabled = updateSettings.isPending || missingModelName;
+  const saveDisabled = updateSettings.isPending || missingModelName || !hasCatalog;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">Settings</Button>
       </DialogTrigger>
-      <DialogContent className="w-[560px]">
+      <DialogContent className="w-[640px]">
         <DialogHeader>
           <DialogTitle>LLM Settings</DialogTitle>
         </DialogHeader>
+
         <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("providers")}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              activeTab === "providers"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-600"
-            }`}
-          >
-            Providers
-          </button>
-          <button
-            type="button"
+          <Button
+            size="sm"
+            variant={activeTab === "models" ? "default" : "outline"}
             onClick={() => setActiveTab("models")}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-              activeTab === "models"
-                ? "bg-slate-900 text-white"
-                : "bg-slate-100 text-slate-600"
-            }`}
+            type="button"
           >
-            Model Router
-          </button>
+            Models
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "router" ? "default" : "outline"}
+            onClick={() => setActiveTab("router")}
+            type="button"
+          >
+            Router
+          </Button>
         </div>
 
-        {activeTab === "providers" && (
+        {activeTab === "models" && (
           <div className="mt-4 space-y-4">
-            <div className="flex rounded-lg border border-slate-200 p-1 text-xs">
-              <button
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Model Catalog</div>
+                <div className="text-xs text-slate-500">
+                  Add multiple models across providers. Router picks from this list.
+                </div>
+              </div>
+              <Button
+                size="sm"
                 type="button"
-                onClick={() => setProviderTab("anthropic")}
-                className={`flex-1 rounded-md px-2 py-1 font-medium transition ${
-                  providerTab === "anthropic"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600"
-                }`}
+                onClick={() =>
+                  setCatalog((prev) => [
+                    ...prev,
+                    {
+                      id: generateId(),
+                      provider: "anthropic",
+                      model: "",
+                      label: "",
+                      providerConfig: {
+                        apiKey: "",
+                        baseUrl: ""
+                      }
+                    }
+                  ])
+                }
               >
-                Anthropic
-              </button>
-              <button
-                type="button"
-                onClick={() => setProviderTab("openaiCompatible")}
-                className={`flex-1 rounded-md px-2 py-1 font-medium transition ${
-                  providerTab === "openaiCompatible"
-                    ? "bg-slate-900 text-white"
-                    : "text-slate-600"
-                }`}
-              >
-                OpenAI Compatible
-              </button>
+                + Add Model
+              </Button>
             </div>
 
-            {providerTab === "anthropic" && (
-              <div className="space-y-1">
-                <Label htmlFor="anthropic-key">Anthropic API Key</Label>
-                <Input
-                  id="anthropic-key"
-                  value={anthropicKey}
-                  onChange={(e) => {
-                    setAnthropicKey(e.target.value);
-                    setErrorMessage(null);
-                  }}
-                />
-              </div>
-            )}
+            <div className="space-y-3">
+              {catalog.map((entry) => {
+                const showRemove = catalog.length > 1;
+                return (
+                  <div
+                    key={entry.id}
+                    className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="grid flex-1 grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <Label>Provider</Label>
+                          <Select
+                            value={entry.provider}
+                            onValueChange={(value) => {
+                              setCatalog((prev) =>
+                                prev.map((item) =>
+                                  item.id === entry.id
+                                    ? {
+                                        ...item,
+                                        provider: value as ProviderId,
+                                        providerConfig: {
+                                          apiKey: "",
+                                          baseUrl: ""
+                                        }
+                                      }
+                                    : item
+                                )
+                              );
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select provider" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="anthropic">Anthropic</SelectItem>
+                              <SelectItem value="openaiCompatible">OpenAI Compatible</SelectItem>
+                              <SelectItem value="mock">Mock</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Model ID</Label>
+                          <Input
+                            value={entry.model}
+                            onChange={(e) => {
+                              const nextValue = e.target.value;
+                              setCatalog((prev) =>
+                                prev.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, model: nextValue }
+                                    : item
+                                )
+                              );
+                            }}
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Display Name (optional)</Label>
+                          <Input
+                            value={entry.label}
+                            onChange={(e) => {
+                              const nextValue = e.target.value;
+                              setCatalog((prev) =>
+                                prev.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, label: nextValue }
+                                    : item
+                                )
+                              );
+                            }}
+                          />
+                        </div>
+                        {entry.provider === "anthropic" && (
+                          <div className="space-y-1">
+                            <Label>Anthropic API Key</Label>
+                            <Input
+                              value={entry.providerConfig.apiKey}
+                              onChange={(e) => {
+                                const nextValue = e.target.value;
+                                setCatalog((prev) =>
+                                  prev.map((item) =>
+                                    item.id === entry.id
+                                      ? {
+                                          ...item,
+                                          providerConfig: {
+                                            ...item.providerConfig,
+                                            apiKey: nextValue
+                                          }
+                                        }
+                                      : item
+                                  )
+                                );
+                              }}
+                            />
+                          </div>
+                        )}
+                        {entry.provider === "openaiCompatible" && (
+                          <>
+                            <div className="space-y-1">
+                              <Label>OpenAI-Compatible Base URL</Label>
+                              <Input
+                                placeholder="https://api.example.com/v1"
+                                value={entry.providerConfig.baseUrl}
+                                onChange={(e) => {
+                                  const nextValue = e.target.value;
+                                  setCatalog((prev) =>
+                                    prev.map((item) =>
+                                      item.id === entry.id
+                                        ? {
+                                            ...item,
+                                            providerConfig: {
+                                              ...item.providerConfig,
+                                              baseUrl: nextValue
+                                            }
+                                          }
+                                        : item
+                                    )
+                                  );
+                                }}
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label>OpenAI-Compatible API Key</Label>
+                              <Input
+                                value={entry.providerConfig.apiKey}
+                                onChange={(e) => {
+                                  const nextValue = e.target.value;
+                                  setCatalog((prev) =>
+                                    prev.map((item) =>
+                                      item.id === entry.id
+                                        ? {
+                                            ...item,
+                                            providerConfig: {
+                                              ...item.providerConfig,
+                                              apiKey: nextValue
+                                            }
+                                          }
+                                        : item
+                                    )
+                                  );
+                                }}
+                              />
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <div className="pt-6">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          type="button"
+                          disabled={!showRemove}
+                          onClick={() => {
+                            setCatalog((prev) => prev.filter((item) => item.id !== entry.id));
+                            setRouting((prev) => {
+                              const remaining = catalog.filter((item) => item.id !== entry.id);
+                              const fallbackId = remaining[0]?.id ?? "";
+                              const next: RoutingState = { ...prev };
+                              for (const task of TASKS) {
+                                if (next[task.id] === entry.id) {
+                                  next[task.id] = fallbackId;
+                                }
+                              }
+                              return next;
+                            });
+                          }}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
-            {providerTab === "openaiCompatible" && (
-              <div className="space-y-3">
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="text-sm font-semibold text-slate-900">Search</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Configure the web search provider for source discovery.
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="openai-key">OpenAI-Compatible API Key</Label>
+                  <Label>Provider</Label>
+                  <Select
+                    value={searchProvider}
+                    onValueChange={(value) => {
+                      setSearchProvider(value);
+                      setErrorMessage(null);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="brave">Brave Search</SelectItem>
+                      <SelectItem value="serper">Serper (Google)</SelectItem>
+                      <SelectItem value="duckduckgo">DuckDuckGo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {searchNeedsKey && (
+                  <div className="space-y-1">
+                    <Label>API Key</Label>
+                    <Input
+                      value={searchApiKey}
+                      onChange={(e) => {
+                        setSearchApiKey(e.target.value);
+                        setErrorMessage(null);
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label>Endpoint (optional)</Label>
                   <Input
-                    id="openai-key"
-                    value={openaiKey}
+                    placeholder={
+                      searchProvider === "serper"
+                        ? "https://google.serper.dev/search"
+                        : searchProvider === "duckduckgo"
+                          ? "https://api.duckduckgo.com/"
+                          : "https://api.search.brave.com/res/v1/web/search"
+                    }
+                    value={searchEndpoint}
                     onChange={(e) => {
-                      setOpenaiKey(e.target.value);
+                      setSearchEndpoint(e.target.value);
                       setErrorMessage(null);
                     }}
                   />
                 </div>
-                <div className="space-y-1">
-                  <Label htmlFor="openai-base-url">OpenAI-Compatible Base URL</Label>
-                  <Input
-                    id="openai-base-url"
-                    placeholder="https://api.example.com/v1"
-                    value={openaiBaseUrl}
-                    onChange={(e) => {
-                      setOpenaiBaseUrl(e.target.value);
-                      setErrorMessage(null);
-                    }}
-                  />
-                </div>
               </div>
-            )}
+              {missingSearchConfig && (
+                <div className="mt-2 text-xs text-amber-700">
+                  This provider requires an API key.
+                </div>
+              )}
+            </div>
 
-            {missingOpenAIConfig && (
+            {missingProviderConfig && (
               <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                Some tasks use OpenAI-compatible models, but the API key or base URL is missing.
+                Some selected providers are missing credentials.
               </div>
             )}
           </div>
         )}
 
-        {activeTab === "models" && (
+        {activeTab === "router" && (
           <div className="mt-4 space-y-3">
             {TASKS.map((task) => {
-              const route = modelRouting[task.id];
+              const selectedId = routing[task.id];
               return (
                 <div
                   key={task.id}
                   className="rounded-lg border border-slate-200 bg-slate-50 p-3"
                 >
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-900">{task.label}</div>
-                      <div className="text-xs text-slate-500">{task.hint}</div>
-                    </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{task.label}</div>
+                    <div className="text-xs text-slate-500">{task.hint}</div>
                   </div>
-                  <div className="mt-3 grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label>Provider</Label>
-                      <Select
-                        value={route.provider}
-                        onValueChange={(value) => {
-                          setModelRouting((prev) => ({
-                            ...prev,
-                            [task.id]: {
-                              ...prev[task.id],
-                              provider: value as ProviderId
-                            }
-                          }));
-                        }}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select provider" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="anthropic">Anthropic</SelectItem>
-                          <SelectItem value="openaiCompatible">OpenAI Compatible</SelectItem>
-                          <SelectItem value="mock">Mock</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Model</Label>
-                      <Input
-                        value={route.model}
-                        onChange={(e) => {
-                          const nextValue = e.target.value;
-                          setModelRouting((prev) => ({
-                            ...prev,
-                            [task.id]: {
-                              ...prev[task.id],
-                              model: nextValue
-                            }
-                          }));
-                        }}
-                      />
-                    </div>
+                  <div className="mt-3 space-y-1">
+                    <Label>Model</Label>
+                    <Select
+                      value={selectedId}
+                      onValueChange={(value) => {
+                        setRouting((prev) => ({
+                          ...prev,
+                          [task.id]: value
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {catalog.map((entry) => (
+                          <SelectItem key={entry.id} value={entry.id}>
+                            {entry.label?.trim() || entry.model} ({entry.provider})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               );
             })}
+            {!hasCatalog && (
+              <div className="rounded border border-dashed border-slate-200 p-4 text-xs text-slate-500">
+                Add models in the Models tab to configure routing.
+              </div>
+            )}
           </div>
         )}
 
@@ -283,22 +552,75 @@ export function SettingsDialog() {
             Cancel
           </Button>
           <Button
-            onClick={() =>
-              updateSettings.mutate({
-                providers: {
-                  anthropic: anthropicKey || undefined,
-                  openaiCompatible:
-                    openaiKey && openaiBaseUrl
-                      ? { apiKey: openaiKey, baseUrl: openaiBaseUrl }
-                      : undefined
-                },
-                models: TASKS.map((task) => ({
+            onClick={() => {
+              const resolvedCatalog = (catalog.length ? catalog : buildDefaultCatalog()).map(
+                (entry) => {
+                  const label = entry.label.trim();
+                  const apiKey = entry.providerConfig.apiKey.trim();
+                  const baseUrl = entry.providerConfig.baseUrl.trim();
+                  const providerConfig =
+                    entry.provider === "anthropic"
+                      ? apiKey
+                        ? { apiKey }
+                        : undefined
+                      : entry.provider === "openaiCompatible"
+                        ? apiKey || baseUrl
+                          ? {
+                              ...(apiKey ? { apiKey } : {}),
+                              ...(baseUrl ? { baseUrl } : {})
+                            }
+                          : undefined
+                        : undefined;
+                  return {
+                    id: entry.id,
+                    provider: entry.provider,
+                    model: entry.model.trim(),
+                    label: label || undefined,
+                    providerConfig
+                  };
+                }
+              );
+              const resolvedModels = TASKS.map((task) => {
+                const entry = resolvedCatalog.find((item) => item.id === routing[task.id]) ?? resolvedCatalog[0];
+                return {
                   task: task.id,
-                  provider: modelRouting[task.id].provider,
-                  model: modelRouting[task.id].model.trim()
-                }))
-              })
-            }
+                  provider: entry.provider,
+                  model: entry.model
+                };
+              });
+              const providerDefaults = resolvedCatalog.reduce<{
+                anthropic?: string;
+                openaiCompatible?: { apiKey: string; baseUrl: string };
+              }>((acc, entry) => {
+                if (entry.provider === "anthropic" && entry.providerConfig?.apiKey) {
+                  acc.anthropic ??= entry.providerConfig.apiKey;
+                }
+                if (
+                  entry.provider === "openaiCompatible" &&
+                  entry.providerConfig?.apiKey &&
+                  entry.providerConfig?.baseUrl
+                ) {
+                  acc.openaiCompatible ??= {
+                    apiKey: entry.providerConfig.apiKey,
+                    baseUrl: entry.providerConfig.baseUrl
+                  };
+                }
+                return acc;
+              }, {});
+
+              updateSettings.mutate({
+                llm: {
+                  providers: providerDefaults,
+                  models: resolvedModels,
+                  catalog: resolvedCatalog
+                },
+                search: {
+                  provider: searchProvider as "brave" | "serper" | "duckduckgo",
+                  apiKey: searchApiKey || undefined,
+                  endpoint: searchEndpoint || undefined
+                }
+              });
+            }}
             disabled={saveDisabled}
             type="button"
           >
