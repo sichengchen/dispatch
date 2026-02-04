@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { sources } from "@dispatch/db";
 import { t } from "../trpc";
-import { scrapeRSS } from "../services/scraper";
+import { scrapeSource } from "../services/scraper";
 
 export const sourcesRouter = t.router({
   list: t.procedure.query(({ ctx }) => {
@@ -57,7 +57,7 @@ export const sourcesRouter = t.router({
   refresh: t.procedure
     .input(z.object({ id: z.number().int().positive() }))
     .mutation(async ({ input }) => {
-      const result = await scrapeRSS(input.id);
+      const result = await scrapeSource(input.id);
       return { ok: true, ...result };
     })
 });

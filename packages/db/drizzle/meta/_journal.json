@@ -15,6 +15,13 @@
       "when": 1770103414943,
       "tag": "0001_add_summary_and_last_error",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1770176037103,
+      "tag": "0002_glamorous_william_stryker",
+      "breakpoints": true
     }
   ]
 }

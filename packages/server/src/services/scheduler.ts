@@ -1,7 +1,7 @@
 import schedule from "node-schedule";
 import { db, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { scrapeRSS } from "./scraper";
+import { enqueueScrape } from "./scraper";
 
 const DEFAULT_CRON = "0 * * * *"; // hourly
 
@@ -18,7 +18,7 @@ export function startScheduler(cron = DEFAULT_CRON) {
       .all();
 
     const results = await Promise.allSettled(
-      activeSources.map((source) => scrapeRSS(source.id as number))
+      activeSources.map((source) => enqueueScrape(source.id as number))
     );
 
     results.forEach((result, index) => {

@@ -11,6 +11,7 @@ export const sources = sqliteTable(
     lastFetchedAt: integer("last_fetched_at", { mode: "timestamp_ms" }),
     lastErrorAt: integer("last_error_at", { mode: "timestamp_ms" }),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+    scrapingStrategy: text("scraping_strategy", { enum: ["rss", "html", "spa"] }),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`)

@@ -14,6 +14,6 @@ if (fs.existsSync(envPath)) {
 if (!process.env.DISPATCH_DB_PATH) {
   process.env.DISPATCH_DB_PATH = path.resolve(
     __dirname,
-    "../../db/dispatch.dev.db"
+    "../../../dispatch.dev.db"
   );
 }
