@@ -71,8 +71,8 @@ function formatWeight(weight: number | null | undefined): string {
 export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
   const utils = trpc.useUtils();
   const { data: digest } = trpc.digests.latest.useQuery();
-  const { data: articles = [], isLoading } = trpc.articles.list.useQuery(
-    { page: 1, pageSize: 200 },
+  const { data: articles = [], isLoading, error } = trpc.articles.list.useQuery(
+    { page: 1, pageSize: 100 },
     { enabled: true }
   );
   const generateDigest = trpc.digests.generate.useMutation({
@@ -126,12 +126,17 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
         {isLoading && (
           <div className="text-sm text-slate-500">Loading digest content…</div>
         )}
-        {!isLoading && topics.length === 0 && (
+        {error && (
+          <div className="text-sm text-rose-600">
+            Failed to load digest data: {error.message}
+          </div>
+        )}
+        {!isLoading && !error && topics.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
             No articles yet. Add sources to generate a digest.
           </div>
         )}
-        {!isLoading && topics.length > 0 && (
+        {!isLoading && !error && topics.length > 0 && (
           <div className="space-y-4">
             {topics.map((topic) => (
               <div key={topic.name} className="rounded-xl border border-slate-200 bg-white p-4">

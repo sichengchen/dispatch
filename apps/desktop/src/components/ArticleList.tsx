@@ -14,11 +14,11 @@ export function ArticleList() {
     }
   });
 
-  const { data: articles = [], isLoading } = trpc.articles.list.useQuery(
+  const { data: articles = [], isLoading, error } = trpc.articles.list.useQuery(
     {
       sourceId: selectedSourceId ?? undefined,
       page: 1,
-      pageSize: 500
+      pageSize: 100
     },
     { enabled: true }
   );
@@ -38,6 +38,14 @@ export function ArticleList() {
 
   if (isLoading) {
     return <div className="text-sm text-slate-500">Loading...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-sm text-rose-600">
+        Failed to load articles: {error.message}
+      </div>
+    );
   }
 
   if (articles.length === 0) {

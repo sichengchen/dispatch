@@ -21,8 +21,8 @@ function formatWeight(weight: number | null | undefined): string {
 }
 
 export function HomeArticlesList({ onSelectArticle }: HomeArticlesListProps) {
-  const { data: articles = [], isLoading } = trpc.articles.list.useQuery(
-    { page: 1, pageSize: 300 },
+  const { data: articles = [], isLoading, error } = trpc.articles.list.useQuery(
+    { page: 1, pageSize: 100 },
     { enabled: true }
   );
 
@@ -41,12 +41,17 @@ export function HomeArticlesList({ onSelectArticle }: HomeArticlesListProps) {
         {isLoading && (
           <div className="text-sm text-slate-500">Loading articles…</div>
         )}
-        {!isLoading && ordered.length === 0 && (
+        {error && (
+          <div className="text-sm text-rose-600">
+            Failed to load articles: {error.message}
+          </div>
+        )}
+        {!isLoading && !error && ordered.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
             No articles yet.
           </div>
         )}
-        {!isLoading && ordered.length > 0 && (
+        {!isLoading && !error && ordered.length > 0 && (
           <ul className="list-disc space-y-4 pl-5 text-sm text-slate-800">
             {ordered.map((article) => (
               <li key={article.id}>
