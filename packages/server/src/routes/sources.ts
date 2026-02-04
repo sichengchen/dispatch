@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { sources } from "@dispatch/db";
 import { t } from "../trpc";
 import { discoverSources } from "../services/discovery";
@@ -54,6 +54,25 @@ export const sourcesRouter = t.router({
       }
 
       return { ok: true };
+    }),
+  deleteMany: t.procedure
+    .input(
+      z.object({
+        ids: z.array(z.number().int().positive()).min(1)
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      const uniqueIds = Array.from(new Set(input.ids));
+      const result = ctx.db
+        .delete(sources)
+        .where(inArray(sources.id, uniqueIds))
+        .run();
+
+      if (result.changes === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Sources not found" });
+      }
+
+      return { ok: true, deleted: result.changes };
     }),
   refresh: t.procedure
     .input(z.object({ id: z.number().int().positive() }))
