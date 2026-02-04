@@ -4,7 +4,7 @@ import * as lancedb from "@lancedb/lancedb";
 import type { Connection, Table } from "@lancedb/lancedb";
 import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { getModelConfig, type LlmConfig, type ProviderId } from "@dispatch/lib";
+import { getModelConfig, type LlmConfig } from "@dispatch/lib";
 import { getLlmConfig, getProviderKeys } from "./settings";
 
 const TABLE_NAME = "articles_vectors";
@@ -52,9 +52,12 @@ function shouldUseMockEmbedding(configOverride?: LlmConfig): boolean {
   if (process.env.DISPATCH_DISABLE_LLM === "1") return true;
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, "embed");
-  if (modelConfig.provider === "mock") return true;
-  if (configOverride?.models?.length) {
-    return configOverride.models.every((model) => model.provider === "mock");
+  if (modelConfig.providerType === "mock") return true;
+  if (configOverride?.assignment?.length) {
+    return configOverride.assignment.every((assignment) => {
+      const entry = configOverride.catalog?.find((item) => item.id === assignment.modelId);
+      return entry?.providerType === "mock";
+    });
   }
   return false;
 }
@@ -101,25 +104,19 @@ function truncateForEmbedding(text: string): string {
   return text.slice(0, maxChars);
 }
 
-function getCatalogEntry(config: LlmConfig, provider: ProviderId, model: string) {
-  return config.catalog?.find(
-    (entry) => entry.provider === provider && entry.model === model
-  );
-}
-
 function resolveEmbeddingConfig(configOverride?: LlmConfig) {
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, "embed");
 
-  if (modelConfig.provider === "mock") {
+  if (modelConfig.providerType === "mock") {
     return { mode: "mock" as const };
   }
 
-  if (modelConfig.provider !== "openaiCompatible") {
-    throw new Error("Embedding provider must be openaiCompatible or mock.");
+  if (modelConfig.providerType !== "openai") {
+    throw new Error("Embedding provider must be openai or mock.");
   }
 
-  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  const entry = config.catalog?.find((item) => item.id === modelConfig.modelId);
   if (entry?.capabilities && !entry.capabilities.includes("embedding")) {
     throw new Error(
       "Selected embeddings model is not marked for embeddings. Update the model capabilities in Settings."
@@ -127,9 +124,9 @@ function resolveEmbeddingConfig(configOverride?: LlmConfig) {
   }
   const providerKeys = getProviderKeys();
   const apiKey =
-    entry?.providerConfig?.apiKey?.trim() || providerKeys.openaiCompatible?.apiKey;
+    entry?.providerConfig?.apiKey?.trim() || providerKeys.openai?.apiKey;
   const baseUrl =
-    entry?.providerConfig?.baseUrl?.trim() || providerKeys.openaiCompatible?.baseUrl;
+    entry?.providerConfig?.baseUrl?.trim() || providerKeys.openai?.baseUrl;
   const normalizedBaseUrl = baseUrl?.replace(/\/$/, "");
   const inferredEndpoint = normalizedBaseUrl ? `${normalizedBaseUrl}/embeddings` : undefined;
   const endpoint =

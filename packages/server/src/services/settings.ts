@@ -6,7 +6,7 @@ import { getDefaultLlmConfig } from "@dispatch/lib";
 
 const providerKeysSchema = z.object({
   anthropic: z.string().min(1).optional(),
-  openaiCompatible: z
+  openai: z
     .object({
       apiKey: z.string().min(1),
       baseUrl: z.string().url()
@@ -14,15 +14,14 @@ const providerKeysSchema = z.object({
     .optional()
 });
 
-const modelConfigSchema = z.object({
+const assignmentSchema = z.object({
   task: z.enum(["summarize", "classify", "grade", "embed"]),
-  provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
-  model: z.string().min(1)
+  modelId: z.string().min(1)
 });
 
 const catalogSchema: z.ZodType<ModelCatalogEntry> = z.object({
   id: z.string().min(1),
-  provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
+  providerType: z.enum(["anthropic", "openai", "mock"]),
   model: z.string().min(1),
   label: z.string().min(1).optional(),
   capabilities: z.array(z.enum(["chat", "embedding"])).optional(),
@@ -36,7 +35,7 @@ const catalogSchema: z.ZodType<ModelCatalogEntry> = z.object({
 
 const llmConfigSchema: z.ZodType<LlmConfig> = z.object({
   providers: providerKeysSchema,
-  models: z.array(modelConfigSchema),
+  assignment: z.array(assignmentSchema),
   catalog: z.array(catalogSchema).optional()
 });
 
@@ -51,7 +50,7 @@ const uiConfigSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  llm: llmConfigSchema,
+  models: llmConfigSchema,
   search: searchConfigSchema.optional(),
   ui: uiConfigSchema.optional()
 });
@@ -106,7 +105,7 @@ export function getSettingsPath(): string {
 export function loadSettings(): Settings {
   const filePath = getSettingsPath();
   if (!fs.existsSync(filePath)) {
-    return { llm: getDefaultLlmConfig() };
+    return { models: getDefaultLlmConfig() };
   }
 
   const raw = fs.readFileSync(filePath, "utf-8");
@@ -115,34 +114,16 @@ export function loadSettings(): Settings {
     parsed = JSON.parse(raw) as Partial<Settings>;
   } catch (err) {
     console.warn("Failed to parse settings file, using defaults.", err);
-    return { llm: getDefaultLlmConfig() };
+    return { models: getDefaultLlmConfig() };
   }
   const merged = {
-    llm: parsed.llm ?? getDefaultLlmConfig(),
+    models: parsed.models ?? getDefaultLlmConfig(),
     search: parsed.search,
     ui: parsed.ui
   };
 
-  const fallback = getDefaultLlmConfig();
-  const migrated = (() => {
-    const llm = merged.llm as LlmConfig;
-    const providers = { ...llm.providers };
-    delete (providers as { gemini?: string }).gemini;
-    const models = llm.models.filter(
-      (model) => (model.provider as string) !== "gemini"
-    );
-    const hasEmbed = models.some((model) => model.task === "embed");
-    return {
-      providers,
-      models: hasEmbed ? models : [...models, { task: "embed", provider: "mock", model: "mock" }],
-      catalog: Array.isArray((llm as LlmConfig).catalog)
-        ? (llm as LlmConfig).catalog
-        : fallback.catalog
-    } satisfies LlmConfig;
-  })();
-
   return settingsSchema.parse({
-    llm: migrated,
+    models: merged.models,
     search: merged.search,
     ui: merged.ui
   });
@@ -158,14 +139,14 @@ export function saveSettings(next: Settings): Settings {
 
 export function updateLlmConfig(next: LlmConfig): LlmConfig {
   return saveSettings({
-    llm: llmConfigSchema.parse(next),
+    models: llmConfigSchema.parse(next),
     search: getSearchConfig(),
     ui: getUiConfig()
-  }).llm;
+  }).models;
 }
 
 export function getLlmConfig(): LlmConfig {
-  return loadSettings().llm;
+  return loadSettings().models;
 }
 
 export function getProviderKeys(): ProviderKeyMap {

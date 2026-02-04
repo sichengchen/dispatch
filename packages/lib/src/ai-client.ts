@@ -3,11 +3,11 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 
 export type LlmTask = "summarize" | "classify" | "grade" | "embed";
-export type ProviderId = "anthropic" | "openaiCompatible" | "mock";
+export type ProviderType = "anthropic" | "openai" | "mock";
 
 export type ProviderKeyMap = {
   anthropic?: string;
-  openaiCompatible?: { apiKey: string; baseUrl: string };
+  openai?: { apiKey: string; baseUrl: string };
 };
 
 export type ModelProviderConfig = {
@@ -17,22 +17,28 @@ export type ModelProviderConfig = {
 
 export type ModelCatalogEntry = {
   id: string;
-  provider: ProviderId;
+  providerType: ProviderType;
   model: string;
   label?: string;
   capabilities?: Array<"chat" | "embedding">;
   providerConfig?: ModelProviderConfig;
 };
 
+export type ModelAssignment = {
+  task: LlmTask;
+  modelId: string;
+};
+
 export type ModelConfig = {
   task: LlmTask;
-  provider: ProviderId;
+  modelId: string;
+  providerType: ProviderType;
   model: string;
 };
 
 export type LlmConfig = {
   providers: ProviderKeyMap;
-  models: ModelConfig[];
+  assignment: ModelAssignment[];
   catalog?: ModelCatalogEntry[];
 };
 
@@ -40,43 +46,70 @@ export function getDefaultLlmConfig(): LlmConfig {
   const defaultModel = "claude-3-5-sonnet-20240620";
   return {
     providers: {},
-    models: [
+    assignment: [
       {
         task: "summarize",
-        provider: "anthropic",
-        model: defaultModel
+        modelId: `anthropic:${defaultModel}`
       },
       {
         task: "embed",
-        provider: "mock",
-        model: "mock"
+        modelId: "mock:mock"
       }
     ],
     catalog: [
       {
         id: `anthropic:${defaultModel}`,
-        provider: "anthropic",
+        providerType: "anthropic",
         model: defaultModel,
-        label: "Claude 3.5 Sonnet"
+        label: "Claude 3.5 Sonnet",
+        capabilities: ["chat"]
+      },
+      {
+        id: "mock:mock",
+        providerType: "mock",
+        model: "mock",
+        label: "Mock",
+        capabilities: ["chat", "embedding"]
       }
     ]
   };
 }
 
 export function getModelConfig(config: LlmConfig, task: LlmTask): ModelConfig {
-  const match = config.models.find((model) => model.task === task);
-  if (match) return match;
-  if (task === "embed") {
+  const assignment = config.assignment.find((item) => item.task === task);
+  const fromCatalog = assignment
+    ? config.catalog?.find((entry) => entry.id === assignment.modelId)
+    : undefined;
+
+  if (assignment && fromCatalog) {
     return {
       task,
-      provider: "mock",
-      model: "mock"
+      modelId: fromCatalog.id,
+      providerType: fromCatalog.providerType,
+      model: fromCatalog.model
     };
   }
+
+  const fallback = getDefaultLlmConfig();
+  const fallbackAssignment = fallback.assignment.find((item) => item.task === task);
+  const fallbackEntry = fallbackAssignment
+    ? fallback.catalog?.find((entry) => entry.id === fallbackAssignment.modelId)
+    : undefined;
+
+  if (fallbackAssignment && fallbackEntry) {
+    return {
+      task,
+      modelId: fallbackEntry.id,
+      providerType: fallbackEntry.providerType,
+      model: fallbackEntry.model
+    };
+  }
+
   return {
     task,
-    provider: "anthropic",
-    model: "claude-3-5-sonnet-20240620"
+    modelId: "mock:mock",
+    providerType: "mock",
+    model: "mock"
   };
 }
 
@@ -85,7 +118,7 @@ export function createProviderMap(
   overrides?: ProviderKeyMap
 ) {
   const anthropicKey = overrides?.anthropic ?? keys.anthropic;
-  const openaiCompatibleCfg = overrides?.openaiCompatible ?? keys.openaiCompatible;
+  const openaiCfg = overrides?.openai ?? keys.openai;
   return {
     anthropic: (modelName: string): LanguageModel => {
       if (!anthropicKey) {
@@ -93,10 +126,10 @@ export function createProviderMap(
       }
       return createAnthropic({ apiKey: anthropicKey })(modelName);
     },
-    openaiCompatible: (modelName: string): LanguageModel => {
-      const cfg = openaiCompatibleCfg;
+    openai: (modelName: string): LanguageModel => {
+      const cfg = openaiCfg;
       if (!cfg?.apiKey || !cfg.baseUrl) {
-        throw new Error("OpenAI-compatible config is missing");
+        throw new Error("OpenAI config is missing");
       }
       return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl })(modelName);
     }

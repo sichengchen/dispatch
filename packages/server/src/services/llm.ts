@@ -7,7 +7,7 @@ import {
   getModelConfig,
   type LlmConfig,
   type LlmTask,
-  type ProviderId,
+  type ProviderType,
   type ProviderKeyMap,
   type ModelConfig
 } from "@dispatch/lib";
@@ -178,53 +178,47 @@ function parseJsonFromLlm<T>(raw: string, schema: z.ZodType<T>): T {
 // Generic LLM caller
 // ---------------------------------------------------------------------------
 
-function getCatalogEntry(
-  config: LlmConfig,
-  provider: ProviderId,
-  model: string
-) {
-  return config.catalog?.find(
-    (entry) => entry.provider === provider && entry.model === model
-  );
+function getCatalogEntry(config: LlmConfig, modelId: string) {
+  return config.catalog?.find((entry) => entry.id === modelId);
 }
 
 function resolveOpenAiApiKey(config: LlmConfig, modelConfig: ModelConfig) {
-  if (modelConfig.provider !== "openaiCompatible") {
+  if (modelConfig.providerType !== "openai") {
     return null;
   }
-  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  const entry = getCatalogEntry(config, modelConfig.modelId);
   const entryKey = entry?.providerConfig?.apiKey?.trim();
-  return entryKey || config.providers.openaiCompatible?.apiKey || null;
+  return entryKey || config.providers.openai?.apiKey || null;
 }
 
 function resolveOpenAiBaseUrl(config: LlmConfig, modelConfig: ModelConfig) {
-  if (modelConfig.provider !== "openaiCompatible") {
+  if (modelConfig.providerType !== "openai") {
     return null;
   }
-  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  const entry = getCatalogEntry(config, modelConfig.modelId);
   const entryBaseUrl = entry?.providerConfig?.baseUrl?.trim();
-  return entryBaseUrl || config.providers.openaiCompatible?.baseUrl || null;
+  return entryBaseUrl || config.providers.openai?.baseUrl || null;
 }
 
 function resolveProviderOverrides(
   config: LlmConfig,
   modelConfig: ModelConfig
 ): ProviderKeyMap | undefined {
-  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  const entry = getCatalogEntry(config, modelConfig.modelId);
   if (!entry?.providerConfig) return undefined;
 
-  if (modelConfig.provider === "anthropic") {
+  if (modelConfig.providerType === "anthropic") {
     const apiKey = entry.providerConfig.apiKey?.trim();
     return apiKey ? { anthropic: apiKey } : undefined;
   }
 
-  if (modelConfig.provider === "openaiCompatible") {
+  if (modelConfig.providerType === "openai") {
     const apiKey =
-      entry.providerConfig.apiKey?.trim() || config.providers.openaiCompatible?.apiKey;
+      entry.providerConfig.apiKey?.trim() || config.providers.openai?.apiKey;
     const baseUrl =
-      entry.providerConfig.baseUrl?.trim() || config.providers.openaiCompatible?.baseUrl;
+      entry.providerConfig.baseUrl?.trim() || config.providers.openai?.baseUrl;
     if (!apiKey || !baseUrl) return undefined;
-    return { openaiCompatible: { apiKey, baseUrl } };
+    return { openai: { apiKey, baseUrl } };
   }
 
   return undefined;
@@ -239,11 +233,11 @@ async function callLlm(
   const modelConfig = getModelConfig(config, task);
   const providerOverrides = resolveProviderOverrides(config, modelConfig);
 
-  if (modelConfig.provider === "mock") {
+  if (modelConfig.providerType === "mock") {
     return `Mock ${task} response`;
   }
 
-  if (modelConfig.provider === "openaiCompatible") {
+  if (modelConfig.providerType === "openai") {
     const chatEndpoint = process.env.DISPATCH_LLM_CHAT_ENDPOINT;
     const baseUrl = resolveOpenAiBaseUrl(config, modelConfig);
     if (chatEndpoint && !baseUrl) {
@@ -293,10 +287,10 @@ async function callLlm(
   }
 
   const providerMap = createProviderMap(config.providers, providerOverrides);
-  const provider = providerMap[modelConfig.provider];
+  const provider = providerMap[modelConfig.providerType];
 
   if (!provider) {
-    throw new Error(`Unsupported provider: ${modelConfig.provider}`);
+    throw new Error(`Unsupported provider: ${modelConfig.providerType}`);
   }
 
   const model = provider(modelConfig.model);
@@ -325,7 +319,7 @@ export async function summarizeArticle(
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, "summarize");
 
-  if (modelConfig.provider === "mock") {
+  if (modelConfig.providerType === "mock") {
     const short = trimmed.split("\n")[0].slice(0, 140);
     return summarySchema.parse(`Mock summary: ${short}`);
   }
@@ -353,7 +347,7 @@ export async function classifyArticle(
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, "classify");
 
-  if (modelConfig.provider === "mock") {
+  if (modelConfig.providerType === "mock") {
     return ["technology", "general"];
   }
 
@@ -396,7 +390,7 @@ export async function gradeArticle(
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, "grade");
 
-  if (modelConfig.provider === "mock") {
+  if (modelConfig.providerType === "mock") {
     return { score: 5, justification: "Mock grade" };
   }
 
@@ -438,7 +432,7 @@ export async function summarizeArticleFull(
   const config = configOverride ?? getLlmConfig();
   const modelConfig = getModelConfig(config, "summarize");
 
-  if (modelConfig.provider === "mock") {
+  if (modelConfig.providerType === "mock") {
     const short = trimmed.split("\n")[0].slice(0, 100);
     return {
       oneLiner: `Mock summary: ${short}`,

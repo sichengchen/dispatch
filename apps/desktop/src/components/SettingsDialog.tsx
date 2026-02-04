@@ -21,11 +21,11 @@ import {
 
 type Task = "summarize" | "classify" | "grade" | "embed";
 
-type ProviderId = "anthropic" | "openaiCompatible" | "mock";
+type ProviderType = "anthropic" | "openai" | "mock";
 
 type CatalogEntry = {
   id: string;
-  provider: ProviderId;
+  providerType: ProviderType;
   model: string;
   label: string;
   capabilities: Array<"chat" | "embedding">;
@@ -48,7 +48,7 @@ const TASKS: Array<{ id: Task; label: string; hint: string }> = [
 
 const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
 
-function createFallbackId(provider: ProviderId, model: string) {
+function createFallbackId(provider: ProviderType, model: string) {
   return `${provider}:${model || "model"}`;
 }
 
@@ -63,7 +63,7 @@ function buildDefaultCatalog(): CatalogEntry[] {
   return [
     {
       id: createFallbackId("anthropic", DEFAULT_MODEL),
-      provider: "anthropic",
+      providerType: "anthropic",
       model: DEFAULT_MODEL,
       label: "Claude 3.5 Sonnet",
       capabilities: ["chat"],
@@ -77,12 +77,9 @@ function buildDefaultCatalog(): CatalogEntry[] {
 
 function resolveCatalogEntry(
   entries: CatalogEntry[],
-  provider: ProviderId,
-  model: string
+  modelId: string
 ) {
-  return entries.find(
-    (entry) => entry.provider === provider && entry.model === model
-  );
+  return entries.find((entry) => entry.id === modelId);
 }
 
 export function SettingsDialog() {
@@ -112,22 +109,22 @@ export function SettingsDialog() {
   useEffect(() => {
     if (!settingsQuery.data || !open) return;
     const cfg = settingsQuery.data;
-    const llm = cfg.llm;
+    const llm = cfg.models;
 
     setSearchProvider(cfg.search?.provider ?? "brave");
     setSearchApiKey(cfg.search?.apiKey ?? "");
     setSearchEndpoint(cfg.search?.endpoint ?? "");
     setVerboseMode(cfg.ui?.verbose ?? false);
 
-  const nextCatalog = llm.catalog && llm.catalog.length > 0
+    const nextCatalog = llm.catalog && llm.catalog.length > 0
       ? llm.catalog.map((entry) => ({
           id: entry.id,
-          provider: entry.provider as ProviderId,
+          providerType: entry.providerType as ProviderType,
           model: entry.model,
           label: entry.label ?? "",
           capabilities:
             entry.capabilities ??
-            (entry.provider === "mock"
+            (entry.providerType === "mock"
               ? ["chat", "embedding"]
               : ["chat"]),
           providerConfig: {
@@ -145,16 +142,15 @@ export function SettingsDialog() {
     };
 
     for (const task of TASKS) {
-      const taskConfig = llm.models.find((model) => model.task === task.id);
-      if (taskConfig) {
-        let entry = resolveCatalogEntry(nextCatalog, taskConfig.provider as ProviderId, taskConfig.model);
+      const assignment = llm.assignment.find((item) => item.task === task.id);
+      if (assignment) {
+        let entry = resolveCatalogEntry(nextCatalog, assignment.modelId);
         if (!entry) {
-          const id = createFallbackId(taskConfig.provider as ProviderId, taskConfig.model);
           entry = {
-            id,
-            provider: taskConfig.provider as ProviderId,
-            model: taskConfig.model,
-            label: "",
+            id: assignment.modelId,
+            providerType: "mock",
+            model: "unknown",
+            label: "Missing model",
             capabilities: ["chat"],
             providerConfig: {
               apiKey: "",
@@ -172,7 +168,7 @@ export function SettingsDialog() {
     }
 
     const supportsTask = (entry: CatalogEntry, task: Task) => {
-      if (entry.provider === "mock") return true;
+      if (entry.providerType === "mock") return true;
       const capabilities = entry.capabilities ?? [];
       if (task === "embed") return capabilities.includes("embedding");
       return capabilities.includes("chat") || capabilities.length === 0;
@@ -186,7 +182,7 @@ export function SettingsDialog() {
       if (compatible) return compatible;
       const mockEntry: CatalogEntry = {
         id: createFallbackId("mock", "mock"),
-        provider: "mock",
+        providerType: "mock",
         model: "mock",
         label: "Mock Embedding",
         capabilities: ["chat", "embedding"],
@@ -220,10 +216,10 @@ export function SettingsDialog() {
 
   const missingModelName = catalog.some((entry) => !entry.model.trim());
   const missingProviderConfig = catalog.some((entry) => {
-    if (entry.provider === "anthropic") {
+    if (entry.providerType === "anthropic") {
       return !entry.providerConfig.apiKey.trim();
     }
-    if (entry.provider === "openaiCompatible") {
+    if (entry.providerType === "openai") {
       return !entry.providerConfig.apiKey.trim() || !entry.providerConfig.baseUrl.trim();
     }
     return false;
@@ -380,7 +376,7 @@ export function SettingsDialog() {
                     ...prev,
                     {
                       id: generateId(),
-                      provider: "anthropic",
+                      providerType: "anthropic",
                       model: "",
                       label: "",
                       capabilities: ["chat"],
@@ -409,17 +405,17 @@ export function SettingsDialog() {
                         <div className="space-y-1">
                           <Label>Provider</Label>
                           <Select
-                            value={entry.provider}
+                            value={entry.providerType}
                             onValueChange={(value) => {
-                              const nextProvider = value as ProviderId;
+                              const nextProvider = value as ProviderType;
                               setCatalog((prev) =>
                                 prev.map((item) =>
                                   item.id === entry.id
                                     ? {
                                         ...item,
-                                        provider: nextProvider,
+                                        providerType: nextProvider,
                                         capabilities:
-                                          nextProvider === "openaiCompatible" ||
+                                          nextProvider === "openai" ||
                                           nextProvider === "mock"
                                             ? item.capabilities
                                             : ["chat"],
@@ -438,7 +434,7 @@ export function SettingsDialog() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="anthropic">Anthropic</SelectItem>
-                              <SelectItem value="openaiCompatible">OpenAI Compatible</SelectItem>
+                              <SelectItem value="openai">OpenAI Compatible</SelectItem>
                               <SelectItem value="mock">Mock</SelectItem>
                             </SelectContent>
                           </Select>
@@ -507,8 +503,8 @@ export function SettingsDialog() {
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="chat">Chat only</SelectItem>
-                              {(entry.provider === "openaiCompatible" ||
-                                entry.provider === "mock") && (
+                              {(entry.providerType === "openai" ||
+                                entry.providerType === "mock") && (
                                 <>
                                   <SelectItem value="embedding">Embeddings only</SelectItem>
                                   <SelectItem value="both">Chat + Embeddings</SelectItem>
@@ -517,7 +513,7 @@ export function SettingsDialog() {
                             </SelectContent>
                           </Select>
                         </div>
-                        {entry.provider === "anthropic" && (
+                        {entry.providerType === "anthropic" && (
                           <div className="space-y-1">
                             <Label>Anthropic API Key</Label>
                             <Input
@@ -541,7 +537,7 @@ export function SettingsDialog() {
                             />
                           </div>
                         )}
-                        {entry.provider === "openaiCompatible" && (
+                        {entry.providerType === "openai" && (
                           <>
                             <div className="space-y-1">
                               <Label>OpenAI-Compatible Base URL</Label>
@@ -608,14 +604,14 @@ export function SettingsDialog() {
                                   if (task.id === "embed") {
                                     const compatible = remaining.find(
                                       (item) =>
-                                        item.provider === "mock" ||
+                                        item.providerType === "mock" ||
                                         item.capabilities.includes("embedding")
                                     );
                                     next[task.id] = compatible?.id ?? fallbackId;
                                   } else {
                                     const compatible = remaining.find(
                                       (item) =>
-                                        item.provider === "mock" ||
+                                        item.providerType === "mock" ||
                                         item.capabilities.includes("chat") ||
                                         item.capabilities.length === 0
                                     );
@@ -649,7 +645,7 @@ export function SettingsDialog() {
             {TASKS.map((task) => {
               const selectedId = routing[task.id];
               const options = catalog.filter((entry) => {
-                if (entry.provider === "mock") return true;
+                if (entry.providerType === "mock") return true;
                 if (task.id === "embed") return entry.capabilities.includes("embedding");
                 return entry.capabilities.includes("chat") || entry.capabilities.length === 0;
               });
@@ -679,7 +675,7 @@ export function SettingsDialog() {
                       <SelectContent>
                         {options.map((entry) => (
                           <SelectItem key={entry.id} value={entry.id}>
-                            {entry.label?.trim() || entry.model} ({entry.provider})
+                            {entry.label?.trim() || entry.model} ({entry.providerType})
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -723,11 +719,11 @@ export function SettingsDialog() {
                     ? entry.capabilities
                     : ["chat"];
                   const providerConfig =
-                    entry.provider === "anthropic"
+                    entry.providerType === "anthropic"
                       ? apiKey
                         ? { apiKey }
                         : undefined
-                      : entry.provider === "openaiCompatible"
+                      : entry.providerType === "openai"
                         ? apiKey || baseUrl
                           ? {
                               ...(apiKey ? { apiKey } : {}),
@@ -737,7 +733,7 @@ export function SettingsDialog() {
                         : undefined;
                   return {
                     id: entry.id,
-                    provider: entry.provider,
+                    providerType: entry.providerType,
                     model: entry.model.trim(),
                     label: label || undefined,
                     capabilities,
@@ -748,13 +744,13 @@ export function SettingsDialog() {
               const ensureEmbeddingEntry = () => {
                 const compatible = resolvedCatalog.find(
                   (entry) =>
-                    entry.provider === "mock" ||
+                    entry.providerType === "mock" ||
                     entry.capabilities?.includes("embedding")
                 );
                 if (compatible) return compatible;
                 const mockEntry: CatalogEntry = {
                   id: createFallbackId("mock", "mock"),
-                  provider: "mock",
+                  providerType: "mock",
                   model: "mock",
                   label: "Mock Embedding",
                   capabilities: ["chat", "embedding"],
@@ -771,7 +767,7 @@ export function SettingsDialog() {
                 let entry = resolvedCatalog.find((item) => item.id === routing[task.id]) ?? resolvedCatalog[0];
                 if (task.id === "embed") {
                   const isCompatible =
-                    entry?.provider === "mock" ||
+                    entry?.providerType === "mock" ||
                     entry?.capabilities?.includes("embedding");
                   if (!isCompatible) {
                     entry = ensureEmbeddingEntry();
@@ -779,23 +775,22 @@ export function SettingsDialog() {
                 }
                 return {
                   task: task.id,
-                  provider: entry.provider,
-                  model: entry.model
+                  modelId: entry.id
                 };
               });
               const providerDefaults = resolvedCatalog.reduce<{
                 anthropic?: string;
-                openaiCompatible?: { apiKey: string; baseUrl: string };
+                openai?: { apiKey: string; baseUrl: string };
               }>((acc, entry) => {
-                if (entry.provider === "anthropic" && entry.providerConfig?.apiKey) {
+                if (entry.providerType === "anthropic" && entry.providerConfig?.apiKey) {
                   acc.anthropic ??= entry.providerConfig.apiKey;
                 }
                 if (
-                  entry.provider === "openaiCompatible" &&
+                  entry.providerType === "openai" &&
                   entry.providerConfig?.apiKey &&
                   entry.providerConfig?.baseUrl
                 ) {
-                  acc.openaiCompatible ??= {
+                  acc.openai ??= {
                     apiKey: entry.providerConfig.apiKey,
                     baseUrl: entry.providerConfig.baseUrl
                   };
@@ -804,9 +799,9 @@ export function SettingsDialog() {
               }, {});
 
               updateSettings.mutate({
-                llm: {
+                models: {
                   providers: providerDefaults,
-                  models: resolvedModels,
+                  assignment: resolvedModels,
                   catalog: resolvedCatalog
                 },
                 search: {

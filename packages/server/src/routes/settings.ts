@@ -9,7 +9,7 @@ import {
 
 const providerKeysSchema = z.object({
   anthropic: z.string().min(1).optional(),
-  openaiCompatible: z
+  openai: z
     .object({
       apiKey: z.string().min(1),
       baseUrl: z.string().url()
@@ -17,15 +17,14 @@ const providerKeysSchema = z.object({
     .optional()
 });
 
-const modelConfigSchema = z.object({
+const assignmentSchema = z.object({
   task: z.enum(["summarize", "classify", "grade", "embed"]),
-  provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
-  model: z.string().min(1)
+  modelId: z.string().min(1)
 });
 
 const catalogSchema = z.object({
   id: z.string().min(1),
-  provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
+  providerType: z.enum(["anthropic", "openai", "mock"]),
   model: z.string().min(1),
   label: z.string().min(1).optional(),
   capabilities: z.array(z.enum(["chat", "embedding"])).optional(),
@@ -39,7 +38,7 @@ const catalogSchema = z.object({
 
 const llmConfigSchema = z.object({
   providers: providerKeysSchema,
-  models: z.array(modelConfigSchema),
+  assignment: z.array(assignmentSchema),
   catalog: z.array(catalogSchema).optional()
 });
 
@@ -54,7 +53,7 @@ const uiConfigSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  llm: llmConfigSchema,
+  models: llmConfigSchema,
   search: searchConfigSchema.optional(),
   ui: uiConfigSchema.optional()
 });
@@ -62,13 +61,13 @@ const settingsSchema = z.object({
 export const settingsRouter = t.router({
   get: t.procedure.query(() => {
     return {
-      llm: getLlmConfig(),
+      models: getLlmConfig(),
       search: getSearchConfig(),
       ui: getUiConfig()
     };
   }),
   update: t.procedure.input(settingsSchema).mutation(({ input }) => {
     const next = saveSettings(input);
-    return next.llm;
+    return next.models;
   })
 });

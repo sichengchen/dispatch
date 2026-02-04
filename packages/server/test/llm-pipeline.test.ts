@@ -14,10 +14,19 @@ let testCounter = 0;
 
 const mockConfig: LlmConfig = {
   providers: {},
-  models: [
-    { task: "summarize", provider: "mock", model: "mock" },
-    { task: "classify", provider: "mock", model: "mock" },
-    { task: "grade", provider: "mock", model: "mock" }
+  assignment: [
+    { task: "summarize", modelId: "mock:mock" },
+    { task: "classify", modelId: "mock:mock" },
+    { task: "grade", modelId: "mock:mock" },
+    { task: "embed", modelId: "mock:mock" }
+  ],
+  catalog: [
+    {
+      id: "mock:mock",
+      providerType: "mock",
+      model: "mock",
+      capabilities: ["chat", "embedding"]
+    }
   ]
 };
 

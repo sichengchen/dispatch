@@ -5,7 +5,7 @@ import {
   getModelConfig,
   type LlmConfig,
   type ModelConfig,
-  type ProviderId,
+  type ProviderType,
   type ProviderKeyMap
 } from "@dispatch/lib";
 import { getLlmConfig, getSearchConfig } from "./settings";
@@ -288,39 +288,36 @@ function shouldSkipLlm(configOverride?: LlmConfig) {
   if (process.env.DISPATCH_DISABLE_LLM === "1") return true;
   if (process.env.DISPATCH_DISCOVERY_MODE === "mock") return true;
   if (!configOverride) return false;
-  if (!configOverride.models?.length) return false;
-  return configOverride.models.every((model) => model.provider === "mock");
+  if (!configOverride.assignment?.length) return false;
+  return configOverride.assignment.every((assignment) => {
+    const entry = configOverride.catalog?.find((item) => item.id === assignment.modelId);
+    return entry?.providerType === "mock";
+  });
 }
 
-function getCatalogEntry(
-  config: LlmConfig,
-  provider: ProviderId,
-  model: string
-) {
-  return config.catalog?.find(
-    (entry) => entry.provider === provider && entry.model === model
-  );
+function getCatalogEntry(config: LlmConfig, modelId: string) {
+  return config.catalog?.find((entry) => entry.id === modelId);
 }
 
 function resolveProviderOverrides(
   config: LlmConfig,
   modelConfig: ModelConfig
 ): ProviderKeyMap | undefined {
-  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  const entry = getCatalogEntry(config, modelConfig.modelId);
   if (!entry?.providerConfig) return undefined;
 
-  if (modelConfig.provider === "anthropic") {
+  if (modelConfig.providerType === "anthropic") {
     const apiKey = entry.providerConfig.apiKey?.trim();
     return apiKey ? { anthropic: apiKey } : undefined;
   }
 
-  if (modelConfig.provider === "openaiCompatible") {
+  if (modelConfig.providerType === "openai") {
     const apiKey =
-      entry.providerConfig.apiKey?.trim() || config.providers.openaiCompatible?.apiKey;
+      entry.providerConfig.apiKey?.trim() || config.providers.openai?.apiKey;
     const baseUrl =
-      entry.providerConfig.baseUrl?.trim() || config.providers.openaiCompatible?.baseUrl;
+      entry.providerConfig.baseUrl?.trim() || config.providers.openai?.baseUrl;
     if (!apiKey || !baseUrl) return undefined;
-    return { openaiCompatible: { apiKey, baseUrl } };
+    return { openai: { apiKey, baseUrl } };
   }
 
   return undefined;
@@ -328,16 +325,16 @@ function resolveProviderOverrides(
 
 function getDiscoveryModel(config: LlmConfig) {
   const modelConfig = getModelConfig(config, "summarize");
-  if (modelConfig.provider === "mock") {
+  if (modelConfig.providerType === "mock") {
     return null;
   }
   const providerMap = createProviderMap(
     config.providers,
     resolveProviderOverrides(config, modelConfig)
   );
-  const provider = providerMap[modelConfig.provider];
+  const provider = providerMap[modelConfig.providerType];
   if (!provider) {
-    throw new Error(`Unsupported provider: ${modelConfig.provider}`);
+    throw new Error(`Unsupported provider: ${modelConfig.providerType}`);
   }
   return provider(modelConfig.model);
 }
