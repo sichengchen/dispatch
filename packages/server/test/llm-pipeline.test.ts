@@ -78,13 +78,42 @@ describe("LLM Pipeline (Mock)", () => {
 
   describe("gradeArticle (mock)", () => {
     it("returns mock grade", async () => {
-      const result = await gradeArticle("Some content", "Test Source", mockConfig);
+      const result = await gradeArticle(
+        "Some content",
+        { sourceName: "Test Source", tags: [] },
+        mockConfig
+      );
       expect(result).toEqual({ score: 5, justification: "Mock grade" });
     });
 
     it("returns default for empty content", async () => {
-      const result = await gradeArticle("", "Test Source", mockConfig);
+      const result = await gradeArticle(
+        "",
+        { sourceName: "Test Source", tags: [] },
+        mockConfig
+      );
       expect(result).toEqual({ score: 1, justification: "Empty content" });
+    });
+
+    it("applies interest weights when configured", async () => {
+      const result = await gradeArticle(
+        "Some content",
+        { sourceName: "Test Source", tags: ["ai"] },
+        mockConfig,
+        {
+          weights: {
+            importancy: 1,
+            quality: 0,
+            interest: 1,
+            source: 0
+          },
+          interestByTag: {
+            ai: 10
+          },
+          sourceWeights: {}
+        }
+      );
+      expect(result.score).toBe(8);
     });
   });
 

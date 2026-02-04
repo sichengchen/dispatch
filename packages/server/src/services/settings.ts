@@ -38,10 +38,30 @@ const uiConfigSchema = z.object({
   verbose: z.boolean().optional()
 });
 
+const gradingWeightsSchema = z.object({
+  importancy: z.number().nonnegative(),
+  quality: z.number().nonnegative(),
+  interest: z.number().nonnegative(),
+  source: z.number().nonnegative()
+});
+
+const gradingConfigSchema = z.object({
+  weights: gradingWeightsSchema.optional(),
+  interestByTag: z.record(z.string(), z.number().min(-10).max(10)).optional(),
+  sourceWeights: z.record(z.string(), z.number().min(-10).max(10)).optional(),
+  clamp: z
+    .object({
+      min: z.number().min(1).max(10).optional(),
+      max: z.number().min(1).max(10).optional()
+    })
+    .optional()
+});
+
 const settingsSchema = z.object({
   models: modelsConfigSchema,
   search: searchConfigSchema.optional(),
-  ui: uiConfigSchema.optional()
+  ui: uiConfigSchema.optional(),
+  grading: gradingConfigSchema.optional()
 });
 
 export type SearchConfig = {
@@ -54,7 +74,36 @@ export type UiConfig = {
   verbose?: boolean;
 };
 
+export type GradingWeights = z.infer<typeof gradingWeightsSchema>;
+
+export type GradingConfig = {
+  weights?: GradingWeights;
+  interestByTag?: Record<string, number>;
+  sourceWeights?: Record<string, number>;
+  clamp?: {
+    min?: number;
+    max?: number;
+  };
+};
+
 export type Settings = z.infer<typeof settingsSchema>;
+
+export function getDefaultGradingConfig(): GradingConfig {
+  return {
+    weights: {
+      importancy: 0.5,
+      quality: 0.5,
+      interest: 0,
+      source: 0
+    },
+    interestByTag: {},
+    sourceWeights: {},
+    clamp: {
+      min: 1,
+      max: 10
+    }
+  };
+}
 
 function findWorkspaceRoot(startDir: string) {
   let current = startDir;
@@ -94,7 +143,10 @@ export function getSettingsPath(): string {
 export function loadSettings(): Settings {
   const filePath = getSettingsPath();
   if (!fs.existsSync(filePath)) {
-    return { models: getDefaultModelsConfig() };
+    return {
+      models: getDefaultModelsConfig(),
+      grading: getDefaultGradingConfig()
+    };
   }
 
   const raw = fs.readFileSync(filePath, "utf-8");
@@ -108,13 +160,15 @@ export function loadSettings(): Settings {
   const merged = {
     models: parsed.models ?? getDefaultModelsConfig(),
     search: parsed.search,
-    ui: parsed.ui
+    ui: parsed.ui,
+    grading: parsed.grading ?? getDefaultGradingConfig()
   };
 
   return settingsSchema.parse({
     models: merged.models,
     search: merged.search,
-    ui: merged.ui
+    ui: merged.ui,
+    grading: merged.grading
   });
 }
 
@@ -130,7 +184,8 @@ export function updateModelsConfig(next: ModelsConfig): ModelsConfig {
   return saveSettings({
     models: modelsConfigSchema.parse(next),
     search: getSearchConfig(),
-    ui: getUiConfig()
+    ui: getUiConfig(),
+    grading: getGradingConfig()
   }).models;
 }
 
@@ -144,4 +199,8 @@ export function getSearchConfig(): SearchConfig {
 
 export function getUiConfig(): UiConfig {
   return loadSettings().ui ?? {};
+}
+
+export function getGradingConfig(): GradingConfig {
+  return loadSettings().grading ?? getDefaultGradingConfig();
 }

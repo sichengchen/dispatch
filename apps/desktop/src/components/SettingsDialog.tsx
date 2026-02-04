@@ -40,6 +40,19 @@ type Tab = "general" | "discover" | "models" | "router";
 
 type RoutingState = Record<Task, string>;
 
+type GradingWeights = {
+  importancy: string;
+  quality: string;
+  interest: string;
+  source: string;
+};
+
+type ScoreRow = {
+  id: string;
+  key: string;
+  score: string;
+};
+
 const TASKS: Array<{ id: Task; label: string; hint: string }> = [
   { id: "summarize", label: "Summarize", hint: "One-liner and key points" },
   { id: "classify", label: "Classify", hint: "Topic tags" },
@@ -48,6 +61,13 @@ const TASKS: Array<{ id: Task; label: string; hint: string }> = [
 ];
 
 const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
+
+const DEFAULT_GRADING_WEIGHTS: GradingWeights = {
+  importancy: "0.5",
+  quality: "0.5",
+  interest: "0",
+  source: "0"
+};
 
 function createFallbackId(provider: ProviderType, model: string) {
   return `${provider}:${model || "model"}`;
@@ -58,6 +78,33 @@ function generateId() {
     return crypto.randomUUID();
   }
   return `model-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+}
+
+function createScoreRow(): ScoreRow {
+  return {
+    id: generateId(),
+    key: "",
+    score: "0"
+  };
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  if (!Number.isFinite(value)) return min;
+  return Math.min(max, Math.max(min, value));
+}
+
+function parseNumber(value: string, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function buildScoreRows(map?: Record<string, number>): ScoreRow[] {
+  if (!map) return [];
+  return Object.entries(map).map(([key, score]) => ({
+    id: generateId(),
+    key,
+    score: String(score)
+  }));
 }
 
 function buildDefaultCatalog(): CatalogEntry[] {
@@ -98,6 +145,11 @@ export function SettingsDialog() {
   const [searchApiKey, setSearchApiKey] = useState("");
   const [searchEndpoint, setSearchEndpoint] = useState("");
   const [verboseMode, setVerboseMode] = useState(false);
+  const [gradingWeights, setGradingWeights] = useState<GradingWeights>(
+    DEFAULT_GRADING_WEIGHTS
+  );
+  const [interestScores, setInterestScores] = useState<ScoreRow[]>([]);
+  const [sourceScores, setSourceScores] = useState<ScoreRow[]>([]);
   const [catalog, setCatalog] = useState<CatalogEntry[]>(buildDefaultCatalog());
   const [routing, setRouting] = useState<RoutingState>(() => ({
     summarize: createFallbackId("anthropic", DEFAULT_MODEL),
@@ -116,6 +168,15 @@ export function SettingsDialog() {
     setSearchApiKey(cfg.search?.apiKey ?? "");
     setSearchEndpoint(cfg.search?.endpoint ?? "");
     setVerboseMode(cfg.ui?.verbose ?? false);
+    const nextWeights = cfg.grading?.weights;
+    setGradingWeights({
+      importancy: String(nextWeights?.importancy ?? DEFAULT_GRADING_WEIGHTS.importancy),
+      quality: String(nextWeights?.quality ?? DEFAULT_GRADING_WEIGHTS.quality),
+      interest: String(nextWeights?.interest ?? DEFAULT_GRADING_WEIGHTS.interest),
+      source: String(nextWeights?.source ?? DEFAULT_GRADING_WEIGHTS.source)
+    });
+    setInterestScores(buildScoreRows(cfg.grading?.interestByTag));
+    setSourceScores(buildScoreRows(cfg.grading?.sourceWeights));
 
     const nextCatalog = llm.catalog && llm.catalog.length > 0
       ? llm.catalog.map((entry) => ({
@@ -234,7 +295,7 @@ export function SettingsDialog() {
       <DialogTrigger asChild>
         <Button size="sm" variant="outline">Settings</Button>
       </DialogTrigger>
-      <DialogContent className="w-[640px]">
+      <DialogContent className="w-[640px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
@@ -290,6 +351,207 @@ export function SettingsDialog() {
                   }}
                 />
                 <Label htmlFor="verbose-mode">Verbose mode</Label>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="text-sm font-semibold text-slate-900">Grading</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Configure the grade equation. Weights auto-normalize.
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Importancy weight</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={gradingWeights.importancy}
+                    onChange={(e) => {
+                      setGradingWeights((prev) => ({
+                        ...prev,
+                        importancy: e.target.value
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Quality weight</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={gradingWeights.quality}
+                    onChange={(e) => {
+                      setGradingWeights((prev) => ({
+                        ...prev,
+                        quality: e.target.value
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Interest weight</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={gradingWeights.interest}
+                    onChange={(e) => {
+                      setGradingWeights((prev) => ({
+                        ...prev,
+                        interest: e.target.value
+                      }));
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Source weight</Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={gradingWeights.source}
+                    onChange={(e) => {
+                      setGradingWeights((prev) => ({
+                        ...prev,
+                        source: e.target.value
+                      }));
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-semibold text-slate-700">Interest by tag</div>
+                    <div className="text-[11px] text-slate-500">
+                      Scores range from -10 to 10.
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    type="button"
+                    onClick={() => {
+                      setInterestScores((prev) => [...prev, createScoreRow()]);
+                    }}
+                  >
+                    + Add Tag
+                  </Button>
+                </div>
+                {interestScores.length === 0 && (
+                  <div className="text-xs text-slate-500">No tag weights yet.</div>
+                )}
+                {interestScores.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[1fr_120px_auto] gap-2">
+                    <Input
+                      placeholder="ai"
+                      value={row.key}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setInterestScores((prev) =>
+                          prev.map((item) =>
+                            item.id === row.id ? { ...item, key: nextValue } : item
+                          )
+                        );
+                      }}
+                    />
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value={row.score}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setInterestScores((prev) =>
+                          prev.map((item) =>
+                            item.id === row.id ? { ...item, score: nextValue } : item
+                          )
+                        );
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() => {
+                        setInterestScores((prev) =>
+                          prev.filter((item) => item.id !== row.id)
+                        );
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-xs font-semibold text-slate-700">Source weights</div>
+                    <div className="text-[11px] text-slate-500">
+                      Match by source ID, name, or domain. Scores range from -10 to 10.
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    type="button"
+                    onClick={() => {
+                      setSourceScores((prev) => [...prev, createScoreRow()]);
+                    }}
+                  >
+                    + Add Source
+                  </Button>
+                </div>
+                {sourceScores.length === 0 && (
+                  <div className="text-xs text-slate-500">No source weights yet.</div>
+                )}
+                {sourceScores.map((row) => (
+                  <div key={row.id} className="grid grid-cols-[1fr_120px_auto] gap-2">
+                    <Input
+                      placeholder="source id, name, or domain"
+                      value={row.key}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setSourceScores((prev) =>
+                          prev.map((item) =>
+                            item.id === row.id ? { ...item, key: nextValue } : item
+                          )
+                        );
+                      }}
+                    />
+                    <Input
+                      type="number"
+                      min="-10"
+                      max="10"
+                      step="1"
+                      value={row.score}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setSourceScores((prev) =>
+                          prev.map((item) =>
+                            item.id === row.id ? { ...item, score: nextValue } : item
+                          )
+                        );
+                      }}
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      type="button"
+                      onClick={() => {
+                        setSourceScores((prev) =>
+                          prev.filter((item) => item.id !== row.id)
+                        );
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -711,6 +973,30 @@ export function SettingsDialog() {
           </Button>
           <Button
             onClick={() => {
+              const buildScoreMap = (rows: ScoreRow[]) => {
+                const map: Record<string, number> = {};
+                for (const row of rows) {
+                  const key = row.key.trim();
+                  if (!key) continue;
+                  const value = clampNumber(parseNumber(row.score, 0), -10, 10);
+                  map[key.toLowerCase()] = value;
+                }
+                return map;
+              };
+
+              const weights = {
+                importancy: Math.max(
+                  0,
+                  parseNumber(gradingWeights.importancy, 0.5)
+                ),
+                quality: Math.max(0, parseNumber(gradingWeights.quality, 0.5)),
+                interest: Math.max(0, parseNumber(gradingWeights.interest, 0)),
+                source: Math.max(0, parseNumber(gradingWeights.source, 0))
+              };
+
+              const interestByTag = buildScoreMap(interestScores);
+              const sourceWeights = buildScoreMap(sourceScores);
+
               const resolvedCatalog = (catalog.length ? catalog : buildDefaultCatalog()).map(
                 (entry) => {
                   const label = entry.label.trim();
@@ -792,6 +1078,15 @@ export function SettingsDialog() {
                 },
                 ui: {
                   verbose: verboseMode
+                },
+                grading: {
+                  weights,
+                  interestByTag: Object.keys(interestByTag).length
+                    ? interestByTag
+                    : undefined,
+                  sourceWeights: Object.keys(sourceWeights).length
+                    ? sourceWeights
+                    : undefined
                 }
               });
             }}

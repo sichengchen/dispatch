@@ -4,6 +4,7 @@ import {
   getModelsConfig,
   getSearchConfig,
   getUiConfig,
+  getGradingConfig,
   saveSettings
 } from "../services/settings";
 
@@ -41,10 +42,30 @@ const uiConfigSchema = z.object({
   verbose: z.boolean().optional()
 });
 
+const gradingWeightsSchema = z.object({
+  importancy: z.number().nonnegative(),
+  quality: z.number().nonnegative(),
+  interest: z.number().nonnegative(),
+  source: z.number().nonnegative()
+});
+
+const gradingConfigSchema = z.object({
+  weights: gradingWeightsSchema.optional(),
+  interestByTag: z.record(z.string(), z.number().min(-10).max(10)).optional(),
+  sourceWeights: z.record(z.string(), z.number().min(-10).max(10)).optional(),
+  clamp: z
+    .object({
+      min: z.number().min(1).max(10).optional(),
+      max: z.number().min(1).max(10).optional()
+    })
+    .optional()
+});
+
 const settingsSchema = z.object({
   models: modelsConfigSchema,
   search: searchConfigSchema.optional(),
-  ui: uiConfigSchema.optional()
+  ui: uiConfigSchema.optional(),
+  grading: gradingConfigSchema.optional()
 });
 
 export const settingsRouter = t.router({
@@ -52,7 +73,8 @@ export const settingsRouter = t.router({
     return {
       models: getModelsConfig(),
       search: getSearchConfig(),
-      ui: getUiConfig()
+      ui: getUiConfig(),
+      grading: getGradingConfig()
     };
   }),
   update: t.procedure.input(settingsSchema).mutation(({ input }) => {

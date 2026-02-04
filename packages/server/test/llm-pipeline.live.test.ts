@@ -86,7 +86,7 @@ describeLive("LLM Pipeline (Live)", () => {
     it("returns score and justification", { timeout: 120000 }, async () => {
       const result = await gradeArticle(
         sampleArticle,
-        "MIT News",
+        { sourceName: "MIT News", tags: ["ai"] },
         getLocalLlmConfig()
       );
       expect(result.score).toBeGreaterThanOrEqual(1);
@@ -96,7 +96,11 @@ describeLive("LLM Pipeline (Live)", () => {
     });
 
     it("returns default for empty content", async () => {
-      const result = await gradeArticle("", "Test", getLocalLlmConfig());
+      const result = await gradeArticle(
+        "",
+        { sourceName: "Test", tags: [] },
+        getLocalLlmConfig()
+      );
       expect(result.score).toBe(1);
       expect(result.justification).toBe("Empty content");
     });
