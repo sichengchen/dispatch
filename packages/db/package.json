@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "generate": "drizzle-kit generate",
-    "migrate": "drizzle-kit migrate",
+    "migrate": "pnpm rebuild better-sqlite3 && drizzle-kit migrate",
     "seed": "node --import tsx/esm src/seed.ts",
     "verify": "node --import tsx/esm src/verify.ts",
     "test": "pnpm run build"
