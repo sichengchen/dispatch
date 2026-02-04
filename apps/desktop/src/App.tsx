@@ -1,6 +1,7 @@
 import { trpc } from "./lib/trpc";
 import { useUiStore } from "./store/ui";
 import { AddSourceDialog } from "./components/AddSourceDialog";
+import { DiscoverSourcesDialog } from "./components/DiscoverSourcesDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SourceList } from "./components/SourceList";
 import { ArticleList } from "./components/ArticleList";
@@ -23,6 +24,7 @@ export default function App() {
         </div>
         <div className="flex items-center gap-2">
           <AddSourceDialog />
+          <DiscoverSourcesDialog />
           <SettingsDialog />
         </div>
       </div>

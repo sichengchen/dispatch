@@ -3,6 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { eq } from "drizzle-orm";
 import { sources } from "@dispatch/db";
 import { t } from "../trpc";
+import { discoverSources } from "../services/discovery";
 import { scrapeSource } from "../services/scraper";
 
 export const sourcesRouter = t.router({
@@ -59,5 +60,11 @@ export const sourcesRouter = t.router({
     .mutation(async ({ input }) => {
       const result = await scrapeSource(input.id);
       return { ok: true, ...result };
+    }),
+  discover: t.procedure
+    .input(z.object({ query: z.string().min(3).max(200) }))
+    .mutation(async ({ input }) => {
+      const suggestions = await discoverSources(input.query);
+      return suggestions;
     })
 });
