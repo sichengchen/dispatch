@@ -113,6 +113,17 @@ async function checkServerHealthy(port: number) {
   }
 }
 
+async function waitForServerHealthy(port: number, timeoutMs: number) {
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (await checkServerHealthy(port)) {
+      return true
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250))
+  }
+  return false
+}
+
 async function findHealthyServerInRange(start: number, end: number) {
   for (let port = start; port <= end; port += 1) {
     if (await checkServerHealthy(port)) {
@@ -127,9 +138,17 @@ async function resolveServerPort() {
     if (await checkServerHealthy(serverPort)) {
       return { reuse: true }
     }
+    if (!process.env.DISPATCH_PORT && VITE_DEV_SERVER_URL) {
+      if (await waitForServerHealthy(serverPort, 1500)) {
+        return { reuse: true }
+      }
+    }
     if (await checkPortAvailable(serverPort)) {
       process.env.DISPATCH_PORT = String(serverPort)
       return { reuse: false }
+    }
+    if (await waitForServerHealthy(serverPort, 1500)) {
+      return { reuse: true }
     }
   }
 

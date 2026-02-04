@@ -10,7 +10,7 @@
     "test:secrets": "scripts/check-secrets.sh"
   },
   "devDependencies": {
-    "turbo": "^2.0.0",
-    "typescript": "^5.5.0"
+    "turbo": "^2.8.3",
+    "typescript": "^5.9.3"
   }
 }

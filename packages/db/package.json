@@ -13,13 +13,13 @@
     "verify": "tsx src/verify.ts"
   },
   "dependencies": {
-    "better-sqlite3": "^11.0.0",
-    "drizzle-orm": "^0.35.0"
+    "better-sqlite3": "^12.6.2",
+    "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.26.0",
-    "tsx": "^4.19.0",
-    "@types/better-sqlite3": "^7.6.10",
-    "@types/node": "^20.14.10"
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^25.2.0",
+    "drizzle-kit": "^0.31.8",
+    "tsx": "^4.21.0"
   }
 }

@@ -1,5 +1,9 @@
 import { ipcRenderer, contextBridge } from 'electron'
 
+const serverHost = process.env.DISPATCH_HOST ?? '127.0.0.1'
+const serverPort = process.env.DISPATCH_PORT ?? '3001'
+const serverUrl = `http://${serverHost}:${serverPort}`
+
 // --------- Expose some API to the Renderer process ---------
 contextBridge.exposeInMainWorld('ipcRenderer', {
   on(...args: Parameters<typeof ipcRenderer.on>) {
@@ -19,12 +23,15 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     return ipcRenderer.invoke(channel, ...omit)
   },
 
-  // You can expose other APTs you need here.
+  // You can expose other APIs you need here.
   // ...
 })
 
 contextBridge.exposeInMainWorld('dispatchApi', {
   request(payload: { path: string; init?: { method?: string; headers?: Record<string, string>; body?: string } }) {
     return ipcRenderer.invoke('dispatch:request', payload)
+  },
+  getServerUrl() {
+    return serverUrl
   },
 })

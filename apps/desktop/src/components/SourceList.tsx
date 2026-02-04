@@ -88,6 +88,7 @@ export function SourceList() {
                 ? "bg-slate-900 text-white"
                 : "hover:bg-slate-100"
             }`}
+            aria-label={`Select source: ${source.name}`}
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">

@@ -73,7 +73,13 @@ export function loadSettings(): Settings {
   }
 
   const raw = fs.readFileSync(filePath, "utf-8");
-  const parsed = JSON.parse(raw) as Partial<Settings>;
+  let parsed: Partial<Settings>;
+  try {
+    parsed = JSON.parse(raw) as Partial<Settings>;
+  } catch (err) {
+    console.warn("Failed to parse settings file, using defaults.", err);
+    return { llm: getDefaultLlmConfig() };
+  }
   const merged = {
     llm: parsed.llm ?? getDefaultLlmConfig()
   };

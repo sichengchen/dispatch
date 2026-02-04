@@ -18,12 +18,13 @@ type DispatchApiResponse = {
 
 interface Window {
   ipcRenderer?: {
-    on: (...args: any[]) => void;
-    off: (...args: any[]) => void;
-    send: (...args: any[]) => void;
-    invoke: (...args: any[]) => Promise<any>;
+    on: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
+    off: (channel: string, listener: (event: unknown, ...args: unknown[]) => void) => void;
+    send: (channel: string, ...args: unknown[]) => void;
+    invoke: (channel: string, ...args: unknown[]) => Promise<unknown>;
   };
   dispatchApi?: {
     request: (payload: DispatchApiRequest) => Promise<DispatchApiResponse>;
+    getServerUrl?: () => string;
   };
 }

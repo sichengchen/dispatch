@@ -9,3 +9,4 @@ PLAN.md
 .agent/
 test-results/
 .mcp.json
+.npmrc

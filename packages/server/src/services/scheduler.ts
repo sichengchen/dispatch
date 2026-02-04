@@ -17,12 +17,18 @@ export function startScheduler(cron = DEFAULT_CRON) {
       .where(eq(sources.isActive, true))
       .all();
 
-    for (const source of activeSources) {
-      try {
-        await scrapeRSS(source.id as number);
-      } catch (err) {
-        console.error("Scheduled scrape failed", err);
+    const results = await Promise.allSettled(
+      activeSources.map((source) => scrapeRSS(source.id as number))
+    );
+
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        const source = activeSources[index];
+        console.error("Scheduled scrape failed", {
+          sourceId: source?.id,
+          error: result.reason
+        });
       }
-    }
+    });
   });
 }

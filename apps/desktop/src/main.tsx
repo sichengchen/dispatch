@@ -9,10 +9,14 @@ import "highlight.js/styles/github.css";
 import "./index.css";
 
 const queryClient = new QueryClient();
+const serverUrl =
+  window.dispatchApi?.getServerUrl?.() ??
+  import.meta.env.VITE_DISPATCH_SERVER_URL ??
+  "http://localhost:3001";
 const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "http://localhost:3001/trpc",
+      url: new URL("/trpc", serverUrl).toString(),
       fetch: ipcFetch
     })
   ]

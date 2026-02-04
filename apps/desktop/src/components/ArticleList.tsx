@@ -42,6 +42,7 @@ export function ArticleList() {
               ? "border-slate-900 bg-slate-50"
               : "border-slate-200 hover:border-slate-300"
           }`}
+          aria-label={`Read article: ${article.title}`}
         >
           <div className="flex items-center justify-between">
             <div className="font-medium text-slate-900">{article.title}</div>
