@@ -17,6 +17,11 @@ type DigestContent = {
   }[];
 };
 
+function capitalizeFirst(value: string): string {
+  if (!value) return value;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
 function parseDigestContent(raw?: string | null): DigestContent | null {
   if (!raw) return null;
   try {
@@ -103,9 +108,7 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
       </CardHeader>
       <CardContent className="space-y-5">
         {overviewLine && (
-          <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-            {overviewLine}
-          </div>
+          <p className="text-sm leading-7 text-slate-700">{overviewLine}</p>
         )}
         {isLoading && (
           <div className="text-sm text-slate-500">Loading digest content…</div>
@@ -135,7 +138,7 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
             {parsed.topics.map((topic) => (
               <div key={topic.topic} className="space-y-3">
                 <div className="text-sm font-semibold text-slate-900">
-                  {topic.topic}
+                  {capitalizeFirst(topic.topic)}
                 </div>
                 <div className="space-y-2 text-sm text-slate-700">
                   {topic.keyPoints.map((point, index) => (

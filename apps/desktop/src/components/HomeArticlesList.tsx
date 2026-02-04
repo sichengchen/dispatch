@@ -13,6 +13,8 @@ type ArticleRow = {
   summary: string | null;
   sourceName: string | null;
   grade: number | null;
+  importancy?: number | null;
+  quality?: number | null;
 };
 
 function formatWeight(weight: number | null | undefined): string {
@@ -63,7 +65,16 @@ export function HomeArticlesList({ onSelectArticle }: HomeArticlesListProps) {
                   >
                     {article.title}
                   </button>
-                  <Badge variant="secondary">
+                  <Badge
+                    variant="secondary"
+                    title={
+                      article.importancy != null || article.quality != null
+                        ? `Weight ${formatWeight(article.grade)} · importancy ${formatWeight(
+                            article.importancy
+                          )} · quality ${formatWeight(article.quality)}`
+                        : `Weight ${formatWeight(article.grade)}`
+                    }
+                  >
                     Weight {formatWeight(article.grade)}
                   </Badge>
                   <span className="text-xs text-slate-500">

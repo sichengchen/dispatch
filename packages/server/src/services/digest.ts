@@ -128,13 +128,14 @@ Rules:
 - Group by the provided Topic sections.
 - Merge overlapping information across articles.
 - Produce GENERAL key points for each topic (no repetition).
-- For each key point and detail sentence, include references as article numbers.
+- The overview should be a short paragraph (3-6 sentences) with light analysis of the issues.
+- For each key point, include references as article numbers.
 - If a point is supported by multiple articles, include multiple refs.
 - Return STRICT JSON, no markdown.
 
 JSON schema:
 {
-  "overview": "1-2 sentence overview",
+  "overview": "Paragraph overview with brief analysis",
   "topics": [
     {
       "topic": "Topic name",
