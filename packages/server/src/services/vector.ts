@@ -4,8 +4,8 @@ import * as lancedb from "@lancedb/lancedb";
 import type { Connection, Table } from "@lancedb/lancedb";
 import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { getModelConfig, type LlmConfig } from "@dispatch/lib";
-import { getLlmConfig } from "./settings";
+import { getModelConfig, type ModelsConfig } from "@dispatch/lib";
+import { getModelsConfig } from "./settings";
 
 const TABLE_NAME = "articles_vectors";
 const DEFAULT_MAX_CHARS = 6000;
@@ -47,10 +47,10 @@ function getVectorDbPath(): string {
   return path.resolve(process.cwd(), "dispatch.vectors");
 }
 
-function shouldUseMockEmbedding(configOverride?: LlmConfig): boolean {
+function shouldUseMockEmbedding(configOverride?: ModelsConfig): boolean {
   if (process.env.DISPATCH_VECTOR_EMBEDDING_MODE === "mock") return true;
   if (process.env.DISPATCH_DISABLE_LLM === "1") return true;
-  const config = configOverride ?? getLlmConfig();
+  const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, "embed");
   if (modelConfig.providerType === "mock") return true;
   if (configOverride?.assignment?.length) {
@@ -104,8 +104,8 @@ function truncateForEmbedding(text: string): string {
   return text.slice(0, maxChars);
 }
 
-function resolveEmbeddingConfig(configOverride?: LlmConfig) {
-  const config = configOverride ?? getLlmConfig();
+function resolveEmbeddingConfig(configOverride?: ModelsConfig) {
+  const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, "embed");
 
   if (modelConfig.providerType === "mock") {
@@ -156,7 +156,7 @@ function extractEmbedding(payload: unknown): number[] | null {
   return null;
 }
 
-async function embedText(text: string, configOverride?: LlmConfig): Promise<number[] | null> {
+async function embedText(text: string, configOverride?: ModelsConfig): Promise<number[] | null> {
   const trimmed = text.trim();
   if (!trimmed) return null;
 
@@ -243,7 +243,7 @@ export async function upsertArticleVector(
     cleanContent?: string | null;
     summary?: string | null;
   },
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<void> {
   const content = buildEmbeddingText(article);
   if (!content) return;
@@ -273,7 +273,7 @@ export async function upsertArticleVector(
 export async function getRelatedArticles(
   articleId: number,
   topK = 5,
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<number[]> {
   if (topK <= 0) return [];
 

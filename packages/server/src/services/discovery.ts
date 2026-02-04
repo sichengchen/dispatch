@@ -3,12 +3,12 @@ import { generateText, tool, zodSchema } from "ai";
 import {
   createProviderMap,
   getModelConfig,
-  type LlmConfig,
+  type ModelsConfig,
   type ModelConfig,
   type ProviderType,
   type ProviderKeyMap
 } from "@dispatch/lib";
-import { getLlmConfig, getSearchConfig } from "./settings";
+import { getModelsConfig, getSearchConfig } from "./settings";
 
 const suggestionSchema = z.object({
   name: z.string().min(1),
@@ -284,7 +284,7 @@ const webSearchTool = tool({
   }
 });
 
-function shouldSkipLlm(configOverride?: LlmConfig) {
+function shouldSkipLlm(configOverride?: ModelsConfig) {
   if (process.env.DISPATCH_DISABLE_LLM === "1") return true;
   if (process.env.DISPATCH_DISCOVERY_MODE === "mock") return true;
   if (!configOverride) return false;
@@ -295,12 +295,12 @@ function shouldSkipLlm(configOverride?: LlmConfig) {
   });
 }
 
-function getCatalogEntry(config: LlmConfig, modelId: string) {
+function getCatalogEntry(config: ModelsConfig, modelId: string) {
   return config.catalog?.find((entry) => entry.id === modelId);
 }
 
 function resolveProviderOverrides(
-  config: LlmConfig,
+  config: ModelsConfig,
   modelConfig: ModelConfig
 ): ProviderKeyMap | undefined {
   const entry = getCatalogEntry(config, modelConfig.modelId);
@@ -321,7 +321,7 @@ function resolveProviderOverrides(
   return undefined;
 }
 
-function getDiscoveryModel(config: LlmConfig) {
+function getDiscoveryModel(config: ModelsConfig) {
   const modelConfig = getModelConfig(config, "summarize");
   if (modelConfig.providerType === "mock") {
     return null;
@@ -338,13 +338,13 @@ function getDiscoveryModel(config: LlmConfig) {
   return provider(modelConfig.model);
 }
 
-export async function discoverSources(query: string, configOverride?: LlmConfig) {
+export async function discoverSources(query: string, configOverride?: ModelsConfig) {
   const trimmed = query.trim();
   if (trimmed.length < 3) {
     return [];
   }
 
-  const config = configOverride ?? getLlmConfig();
+  const config = configOverride ?? getModelsConfig();
 
   if (shouldSkipLlm(configOverride)) {
     const response = await searchWeb(trimmed, 8, getSearchConfig());

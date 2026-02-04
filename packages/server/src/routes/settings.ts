@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { t } from "../trpc";
 import {
-  getLlmConfig,
+  getModelsConfig,
   getSearchConfig,
   getUiConfig,
   saveSettings
@@ -26,7 +26,7 @@ const catalogSchema = z.object({
     .optional()
 });
 
-const llmConfigSchema = z.object({
+const modelsConfigSchema = z.object({
   assignment: z.array(assignmentSchema),
   catalog: z.array(catalogSchema).optional()
 });
@@ -42,7 +42,7 @@ const uiConfigSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  models: llmConfigSchema,
+  models: modelsConfigSchema,
   search: searchConfigSchema.optional(),
   ui: uiConfigSchema.optional()
 });
@@ -50,7 +50,7 @@ const settingsSchema = z.object({
 export const settingsRouter = t.router({
   get: t.procedure.query(() => {
     return {
-      models: getLlmConfig(),
+      models: getModelsConfig(),
       search: getSearchConfig(),
       ui: getUiConfig()
     };

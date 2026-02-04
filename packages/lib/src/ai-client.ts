@@ -36,12 +36,12 @@ export type ModelConfig = {
   model: string;
 };
 
-export type LlmConfig = {
+export type ModelsConfig = {
   assignment: ModelAssignment[];
   catalog?: ModelCatalogEntry[];
 };
 
-export function getDefaultLlmConfig(): LlmConfig {
+export function getDefaultModelsConfig(): ModelsConfig {
   const defaultModel = "claude-3-5-sonnet-20240620";
   return {
     assignment: [
@@ -73,7 +73,7 @@ export function getDefaultLlmConfig(): LlmConfig {
   };
 }
 
-export function getModelConfig(config: LlmConfig, task: LlmTask): ModelConfig {
+export function getModelConfig(config: ModelsConfig, task: LlmTask): ModelConfig {
   const assignment = config.assignment.find((item) => item.task === task);
   const fromCatalog = assignment
     ? config.catalog?.find((entry) => entry.id === assignment.modelId)
@@ -88,7 +88,7 @@ export function getModelConfig(config: LlmConfig, task: LlmTask): ModelConfig {
     };
   }
 
-  const fallback = getDefaultLlmConfig();
+  const fallback = getDefaultModelsConfig();
   const fallbackAssignment = fallback.assignment.find((item) => item.task === task);
   const fallbackEntry = fallbackAssignment
     ? fallback.catalog?.find((entry) => entry.id === fallbackAssignment.modelId)

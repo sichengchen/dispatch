@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach } from "vitest";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import type { LlmConfig } from "@dispatch/lib";
+import type { ModelsConfig } from "@dispatch/lib";
 import {
   classifyArticle,
   gradeArticle,
@@ -12,7 +12,7 @@ import {
 
 let testCounter = 0;
 
-const mockConfig: LlmConfig = {
+const mockConfig: ModelsConfig = {
   assignment: [
     { task: "summarize", modelId: "mock:mock" },
     { task: "classify", modelId: "mock:mock" },

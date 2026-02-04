@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { LlmConfig } from "@dispatch/lib";
+import type { ModelsConfig } from "@dispatch/lib";
 import { summarizeArticle } from "../src/services/llm";
 
 const isLive = process.env.DISPATCH_LIVE === "1";
 const describeLive = isLive ? describe : describe.skip;
 
-function getLocalLlmConfig(): LlmConfig {
+function getLocalLlmConfig(): ModelsConfig {
   const baseUrl =
     process.env.DISPATCH_LLM_BASE_URL ?? process.env.OPENAI_BASE_URL;
   const model =
@@ -69,7 +69,7 @@ account for shifting food availability and more frequent extreme weather events.
     const baseConfig = getLocalLlmConfig();
     const previousChatEndpoint = process.env.DISPATCH_LLM_CHAT_ENDPOINT;
     delete process.env.DISPATCH_LLM_CHAT_ENDPOINT;
-    const invalidConfig: LlmConfig = {
+    const invalidConfig: ModelsConfig = {
       assignment: [
         {
           task: "summarize",

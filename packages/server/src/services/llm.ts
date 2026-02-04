@@ -5,13 +5,13 @@ import { eq } from "drizzle-orm";
 import {
   createProviderMap,
   getModelConfig,
-  type LlmConfig,
+  type ModelsConfig,
   type LlmTask,
   type ProviderType,
   type ProviderKeyMap,
   type ModelConfig
 } from "@dispatch/lib";
-import { getLlmConfig } from "./settings";
+import { getModelsConfig } from "./settings";
 import { upsertArticleVector } from "./vector";
 import { clearPipelineEvents, recordPipelineEvent } from "./pipeline-log";
 
@@ -178,11 +178,11 @@ function parseJsonFromLlm<T>(raw: string, schema: z.ZodType<T>): T {
 // Generic LLM caller
 // ---------------------------------------------------------------------------
 
-function getCatalogEntry(config: LlmConfig, modelId: string) {
+function getCatalogEntry(config: ModelsConfig, modelId: string) {
   return config.catalog?.find((entry) => entry.id === modelId);
 }
 
-function resolveOpenAiApiKey(config: LlmConfig, modelConfig: ModelConfig) {
+function resolveOpenAiApiKey(config: ModelsConfig, modelConfig: ModelConfig) {
   if (modelConfig.providerType !== "openai") {
     return null;
   }
@@ -191,7 +191,7 @@ function resolveOpenAiApiKey(config: LlmConfig, modelConfig: ModelConfig) {
   return entryKey || null;
 }
 
-function resolveOpenAiBaseUrl(config: LlmConfig, modelConfig: ModelConfig) {
+function resolveOpenAiBaseUrl(config: ModelsConfig, modelConfig: ModelConfig) {
   if (modelConfig.providerType !== "openai") {
     return null;
   }
@@ -201,7 +201,7 @@ function resolveOpenAiBaseUrl(config: LlmConfig, modelConfig: ModelConfig) {
 }
 
 function resolveProviderOverrides(
-  config: LlmConfig,
+  config: ModelsConfig,
   modelConfig: ModelConfig
 ): ProviderKeyMap | undefined {
   const entry = getCatalogEntry(config, modelConfig.modelId);
@@ -225,9 +225,9 @@ function resolveProviderOverrides(
 async function callLlm(
   task: LlmTask,
   prompt: string,
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<string> {
-  const config = configOverride ?? getLlmConfig();
+  const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, task);
   const entry = getCatalogEntry(config, modelConfig.modelId);
   const providerOverrides = resolveProviderOverrides(config, modelConfig);
@@ -316,14 +316,14 @@ async function callLlm(
 
 export async function summarizeArticle(
   content: string,
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<string> {
   const trimmed = content.trim();
   if (!trimmed) {
     throw new Error("Cannot summarize empty content");
   }
 
-  const config = configOverride ?? getLlmConfig();
+  const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, "summarize");
 
   if (modelConfig.providerType === "mock") {
@@ -346,12 +346,12 @@ export async function summarizeArticle(
 
 export async function classifyArticle(
   content: string,
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<string[]> {
   const trimmed = content.trim();
   if (!trimmed) return [];
 
-  const config = configOverride ?? getLlmConfig();
+  const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, "classify");
 
   if (modelConfig.providerType === "mock") {
@@ -389,12 +389,12 @@ ${trimmed}`;
 export async function gradeArticle(
   content: string,
   sourceName: string,
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<{ score: number; justification: string }> {
   const trimmed = content.trim();
   if (!trimmed) return { score: 1, justification: "Empty content" };
 
-  const config = configOverride ?? getLlmConfig();
+  const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, "grade");
 
   if (modelConfig.providerType === "mock") {
@@ -429,14 +429,14 @@ ${trimmed.slice(0, 3000)}`;
 
 export async function summarizeArticleFull(
   content: string,
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<{ oneLiner: string; keyPoints: string[] }> {
   const trimmed = content.trim();
   if (!trimmed) {
     throw new Error("Cannot summarize empty content");
   }
 
-  const config = configOverride ?? getLlmConfig();
+  const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, "summarize");
 
   if (modelConfig.providerType === "mock") {
@@ -477,7 +477,7 @@ ${trimmed}`;
 
 export async function processArticle(
   articleId: number,
-  configOverride?: LlmConfig
+  configOverride?: ModelsConfig
 ): Promise<void> {
   clearPipelineEvents(articleId);
   const article = db

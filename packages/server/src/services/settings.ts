@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { LlmConfig, ModelCatalogEntry } from "@dispatch/lib";
-import { getDefaultLlmConfig } from "@dispatch/lib";
+import type { ModelsConfig, ModelCatalogEntry } from "@dispatch/lib";
+import { getDefaultModelsConfig } from "@dispatch/lib";
 
 const assignmentSchema = z.object({
   task: z.enum(["summarize", "classify", "grade", "embed"]),
@@ -23,7 +23,7 @@ const catalogSchema: z.ZodType<ModelCatalogEntry> = z.object({
     .optional()
 });
 
-const llmConfigSchema: z.ZodType<LlmConfig> = z.object({
+const modelsConfigSchema: z.ZodType<ModelsConfig> = z.object({
   assignment: z.array(assignmentSchema),
   catalog: z.array(catalogSchema).optional()
 });
@@ -39,7 +39,7 @@ const uiConfigSchema = z.object({
 });
 
 const settingsSchema = z.object({
-  models: llmConfigSchema,
+  models: modelsConfigSchema,
   search: searchConfigSchema.optional(),
   ui: uiConfigSchema.optional()
 });
@@ -94,7 +94,7 @@ export function getSettingsPath(): string {
 export function loadSettings(): Settings {
   const filePath = getSettingsPath();
   if (!fs.existsSync(filePath)) {
-    return { models: getDefaultLlmConfig() };
+    return { models: getDefaultModelsConfig() };
   }
 
   const raw = fs.readFileSync(filePath, "utf-8");
@@ -103,10 +103,10 @@ export function loadSettings(): Settings {
     parsed = JSON.parse(raw) as Partial<Settings>;
   } catch (err) {
     console.warn("Failed to parse settings file, using defaults.", err);
-    return { models: getDefaultLlmConfig() };
+    return { models: getDefaultModelsConfig() };
   }
   const merged = {
-    models: parsed.models ?? getDefaultLlmConfig(),
+    models: parsed.models ?? getDefaultModelsConfig(),
     search: parsed.search,
     ui: parsed.ui
   };
@@ -126,15 +126,15 @@ export function saveSettings(next: Settings): Settings {
   return validated;
 }
 
-export function updateLlmConfig(next: LlmConfig): LlmConfig {
+export function updateModelsConfig(next: ModelsConfig): ModelsConfig {
   return saveSettings({
-    models: llmConfigSchema.parse(next),
+    models: modelsConfigSchema.parse(next),
     search: getSearchConfig(),
     ui: getUiConfig()
   }).models;
 }
 
-export function getLlmConfig(): LlmConfig {
+export function getModelsConfig(): ModelsConfig {
   return loadSettings().models;
 }
 
