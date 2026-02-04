@@ -1,7 +1,56 @@
-import { db, articles, sources, digests } from "@dispatch/db";
-import { desc, gte, and, isNotNull, eq } from "drizzle-orm";
+import { db, articles, digests } from "@dispatch/db";
+import { desc, gte, and, isNotNull } from "drizzle-orm";
+import { z } from "zod";
 import { callLlm } from "./llm";
 import { getDigestConfig } from "./settings";
+
+const digestTopicSchema = z.object({
+  topic: z.string().min(1),
+  keyPoints: z
+    .array(
+      z.object({
+        text: z.string().min(1),
+        refs: z.array(z.number().int().positive()).min(1)
+      })
+    )
+    .min(1)
+});
+
+const digestSchema = z.object({
+  overview: z.string().min(1),
+  topics: z.array(digestTopicSchema).min(1)
+});
+
+function stripReasoning(raw: string): string {
+  let text = raw;
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  text = text.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "");
+  text = text.replace(/```(?:thought|analysis)[\s\S]*?```/gi, "");
+  return text.trim();
+}
+
+function parseDigestJson(raw: string) {
+  const cleaned = stripReasoning(raw);
+  const jsonMatch =
+    cleaned.match(/```(?:json)?\s*([\s\S]*?)```/) ??
+    cleaned.match(/(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch?.[1]?.trim() ?? cleaned;
+  const parsed = JSON.parse(jsonStr);
+  return digestSchema.parse(parsed);
+}
+
+function parseTags(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((tag) => typeof tag === "string") as string[];
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return [];
+}
 
 export async function generateDigest(options?: {
   topN?: number;
@@ -18,13 +67,9 @@ export async function generateDigest(options?: {
       id: articles.id,
       title: articles.title,
       summary: articles.summary,
-      keyPoints: articles.keyPoints,
-      grade: articles.grade,
       tags: articles.tags,
-      sourceName: sources.name,
     })
     .from(articles)
-    .leftJoin(sources, eq(articles.sourceId, sources.id))
     .where(
       and(
         gte(articles.publishedAt, cutoff),
@@ -49,38 +94,68 @@ export async function generateDigest(options?: {
     };
   }
 
-  const articlesBlock = topArticles
-    .map((a, i) => {
-      const kp = a.keyPoints
-        ? (JSON.parse(a.keyPoints) as string[])
-        : [];
-      return [
-        `${i + 1}. "${a.title}" (Grade: ${a.grade}/10, Source: ${a.sourceName ?? "Unknown"})`,
-        `   Summary: ${a.summary ?? "No summary"}`,
-        kp.length > 0
-          ? `   Key points:\n${kp.map((p) => `   - ${p}`).join("\n")}`
-          : "",
-      ]
-        .filter(Boolean)
+  const articleIds = topArticles.map((a) => a.id);
+  const articlesWithTopic = topArticles.map((article, index) => ({
+    index: index + 1,
+    id: article.id,
+    title: article.title,
+    summary: article.summary ?? "No summary",
+    topic: parseTags(article.tags)[0] ?? "Other"
+  }));
+
+  const topics = new Map<string, typeof articlesWithTopic>();
+  for (const article of articlesWithTopic) {
+    const bucket = topics.get(article.topic) ?? [];
+    bucket.push(article);
+    topics.set(article.topic, bucket);
+  }
+
+  const topicsBlock = Array.from(topics.entries())
+    .map(([topic, items]) => {
+      const list = items
+        .map(
+          (item) =>
+            `  [${item.index}] ${item.title}\n     Summary: ${item.summary}`
+        )
         .join("\n");
+      return `Topic: ${topic}\n${list}`;
     })
     .join("\n\n");
 
-  const prompt = `You are a news briefing editor. Create a concise daily briefing from these top-rated articles from the last ${hoursBack} hours.
+  const prompt = `You are a news briefing editor. Use the summaries below to create a topic-based digest.
 
-Structure the briefing as:
-1. A brief 1-2 sentence overview of today's main themes
-2. A section for each major topic/story, citing the relevant article(s)
-3. A brief "Also notable" section for remaining items
+Rules:
+- Group by the provided Topic sections.
+- Merge overlapping information across articles.
+- Produce GENERAL key points for each topic (no repetition).
+- For each key point and detail sentence, include references as article numbers.
+- If a point is supported by multiple articles, include multiple refs.
+- Return STRICT JSON, no markdown.
 
-Keep the tone professional and informative. Use plain text, no markdown.
+JSON schema:
+{
+  "overview": "1-2 sentence overview",
+  "topics": [
+    {
+      "topic": "Topic name",
+      "keyPoints": [
+        { "text": "Key point", "refs": [1,3] }
+      ]
+    }
+  ]
+}
 
-Articles:
-${articlesBlock}`;
+Topics with articles:
+${topicsBlock}`;
 
-  const content = await callLlm("digest", prompt);
-
-  const articleIds = topArticles.map((a) => a.id);
+  const raw = await callLlm("digest", prompt);
+  let content: string;
+  try {
+    const parsed = parseDigestJson(raw);
+    content = JSON.stringify(parsed);
+  } catch {
+    content = raw;
+  }
   const result = db
     .insert(digests)
     .values({

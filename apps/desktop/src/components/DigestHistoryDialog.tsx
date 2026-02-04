@@ -15,6 +15,21 @@ type DigestHistoryDialogProps = {
   onSelectArticle?: (id: number) => void;
 };
 
+type DigestContent = {
+  overview?: string;
+  topics?: Array<{ topic: string }>;
+};
+
+function getDigestPreview(content: string): string {
+  try {
+    const parsed = JSON.parse(content) as DigestContent;
+    if (parsed?.overview) return parsed.overview;
+  } catch {
+    // ignore parse errors
+  }
+  return content;
+}
+
 export function DigestHistoryDialog({
   onSelectArticle
 }: DigestHistoryDialogProps) {
@@ -64,7 +79,7 @@ export function DigestHistoryDialog({
                   </div>
                   <Separator className="my-3" />
                   <div className="whitespace-pre-line text-sm text-slate-700">
-                    {digest.content}
+                    {getDigestPreview(digest.content)}
                   </div>
                   {digest.articleIds.length > 0 && (
                     <div className="mt-3 flex flex-wrap gap-2">
