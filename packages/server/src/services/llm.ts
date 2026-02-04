@@ -1,9 +1,33 @@
 import { z } from "zod";
 import { generateText } from "ai";
-import { createProviderMap, getModelConfig, type LlmConfig } from "@dispatch/lib";
+import { db, articles } from "@dispatch/db";
+import { eq } from "drizzle-orm";
+import { createProviderMap, getModelConfig, type LlmConfig, type LlmTask } from "@dispatch/lib";
 import { getLlmConfig } from "./settings";
 
+// ---------------------------------------------------------------------------
+// Zod schemas
+// ---------------------------------------------------------------------------
+
 const summarySchema = z.string().min(1);
+
+const classifySchema = z.object({
+  tags: z.array(z.string().min(1)).min(1)
+});
+
+const gradeSchema = z.object({
+  score: z.number().int().min(1).max(10),
+  justification: z.string().min(1)
+});
+
+const fullSummarySchema = z.object({
+  oneLiner: z.string().min(1),
+  keyPoints: z.array(z.string().min(1)).min(1)
+});
+
+// ---------------------------------------------------------------------------
+// Text extraction / sanitization helpers
+// ---------------------------------------------------------------------------
 
 function extractText(value: unknown): string | null {
   if (typeof value === "string") return value;
@@ -55,7 +79,6 @@ function sanitizeSummary(raw: string): string {
   if (!raw) return raw;
   let text = raw;
 
-  // If the model returned JSON, extract common summary fields.
   const trimmed = text.trim();
   if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
     try {
@@ -73,12 +96,10 @@ function sanitizeSummary(raw: string): string {
     }
   }
 
-  // Strip common "thinking" wrappers used by reasoning models.
   text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
   text = text.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "");
   text = text.replace(/```(?:thought|analysis)[\s\S]*?```/gi, "");
 
-  // If a "final" marker exists, keep only the last segment after it.
   const markers = ["final:", "answer:", "summary:"];
   const lower = text.toLowerCase();
   for (const marker of markers) {
@@ -89,7 +110,6 @@ function sanitizeSummary(raw: string): string {
     }
   }
 
-  // Remove any leading labels and collapse whitespace/newlines.
   text = text.replace(/^(summary|final|answer)\s*[:\-]\s*/i, "");
   text = text
     .split(/\r?\n/)
@@ -98,7 +118,6 @@ function sanitizeSummary(raw: string): string {
     .join(" ")
     .trim();
 
-  // If reasoning markers still exist, keep only the last paragraph/line.
   const reasoningHints =
     /(thoughts?|reasoning|analysis|chain[-\s]?of[-\s]?thought|cot)\s*[:：]/i;
   if (reasoningHints.test(text)) {
@@ -111,7 +130,6 @@ function sanitizeSummary(raw: string): string {
     }
   }
 
-  // Enforce concise output: prefer the last sentence when text is too long.
   const maxLength = 300;
   if (text.length > maxLength) {
     const sentences = text
@@ -129,21 +147,37 @@ function sanitizeSummary(raw: string): string {
   return text;
 }
 
-export async function summarizeArticle(
-  content: string,
+function stripReasoning(raw: string): string {
+  let text = raw;
+  text = text.replace(/<think>[\s\S]*?<\/think>/gi, "");
+  text = text.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "");
+  text = text.replace(/```(?:thought|analysis)[\s\S]*?```/gi, "");
+  return text.trim();
+}
+
+function parseJsonFromLlm<T>(raw: string, schema: z.ZodType<T>): T {
+  const cleaned = stripReasoning(raw);
+  // Try to extract JSON from markdown fences or raw text
+  const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/) ?? cleaned.match(/(\{[\s\S]*\})/);
+  const jsonStr = jsonMatch?.[1]?.trim() ?? cleaned;
+  const parsed = JSON.parse(jsonStr);
+  return schema.parse(parsed);
+}
+
+// ---------------------------------------------------------------------------
+// Generic LLM caller
+// ---------------------------------------------------------------------------
+
+async function callLlm(
+  task: LlmTask,
+  prompt: string,
   configOverride?: LlmConfig
 ): Promise<string> {
-  const trimmed = content.trim();
-  if (!trimmed) {
-    throw new Error("Cannot summarize empty content");
-  }
-
   const config = configOverride ?? getLlmConfig();
-  const modelConfig = getModelConfig(config, "summarize");
+  const modelConfig = getModelConfig(config, task);
 
   if (modelConfig.provider === "mock") {
-    const short = trimmed.split("\n")[0].slice(0, 140);
-    return summarySchema.parse(`Mock summary: ${short}`);
+    return `Mock ${task} response`;
   }
 
   if (modelConfig.provider === "openaiCompatible") {
@@ -158,9 +192,8 @@ export async function summarizeArticle(
         },
         body: JSON.stringify({
           model: modelConfig.model,
-          system_prompt:
-            "Summarize the article in a single concise sentence. Avoid markdown.",
-          input: trimmed
+          system_prompt: prompt.split("\n\n")[0],
+          input: prompt
         })
       });
 
@@ -191,8 +224,7 @@ export async function summarizeArticle(
         throw new Error("Local LLM chat endpoint returned no text.");
       }
 
-      const cleaned = sanitizeSummary(candidate.trim());
-      return summarySchema.parse(cleaned || candidate.trim());
+      return candidate.trim();
     }
   }
 
@@ -204,17 +236,236 @@ export async function summarizeArticle(
   }
 
   const model = provider(modelConfig.model);
+  const { text } = await generateText({
+    model,
+    prompt,
+    temperature: 0.2
+  });
+
+  return text.trim();
+}
+
+// ---------------------------------------------------------------------------
+// Summarize (one-liner) — backward-compatible, returns a plain string
+// ---------------------------------------------------------------------------
+
+export async function summarizeArticle(
+  content: string,
+  configOverride?: LlmConfig
+): Promise<string> {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error("Cannot summarize empty content");
+  }
+
+  const config = configOverride ?? getLlmConfig();
+  const modelConfig = getModelConfig(config, "summarize");
+
+  if (modelConfig.provider === "mock") {
+    const short = trimmed.split("\n")[0].slice(0, 140);
+    return summarySchema.parse(`Mock summary: ${short}`);
+  }
+
   const prompt =
     "Summarize the article in a single concise sentence. Avoid markdown.\n\nArticle:\n" +
     trimmed;
 
-  const { text } = await generateText({
-    model,
-    prompt,
-    temperature: 0.2,
-    maxTokens: 120
-  });
+  const raw = await callLlm("summarize", prompt, configOverride);
+  const cleaned = sanitizeSummary(raw);
+  return summarySchema.parse(cleaned || raw);
+}
 
-  const cleaned = sanitizeSummary(text.trim());
-  return summarySchema.parse(cleaned || text.trim());
+// ---------------------------------------------------------------------------
+// Classify — returns topic tags
+// ---------------------------------------------------------------------------
+
+export async function classifyArticle(
+  content: string,
+  configOverride?: LlmConfig
+): Promise<string[]> {
+  const trimmed = content.trim();
+  if (!trimmed) return [];
+
+  const config = configOverride ?? getLlmConfig();
+  const modelConfig = getModelConfig(config, "classify");
+
+  if (modelConfig.provider === "mock") {
+    return ["technology", "general"];
+  }
+
+  const prompt = `Classify the following article into topic tags. Return a JSON object with a "tags" field containing an array of 1-5 lowercase topic tags (e.g., "technology", "ai", "finance", "health", "science", "politics", "sports", "entertainment").
+
+Respond ONLY with valid JSON, no markdown or explanation.
+
+Example response: {"tags": ["technology", "ai"]}
+
+Article:
+${trimmed}`;
+
+  const raw = await callLlm("classify", prompt, configOverride);
+  try {
+    const result = parseJsonFromLlm(raw, classifySchema);
+    return result.tags.map((t) => t.toLowerCase().trim()).slice(0, 5);
+  } catch {
+    console.warn("Failed to parse classify response, extracting tags from text");
+    const words = raw
+      .replace(/[^a-zA-Z,\s]/g, "")
+      .split(/[,\s]+/)
+      .map((w) => w.toLowerCase().trim())
+      .filter((w) => w.length > 2 && w.length < 30);
+    return words.length > 0 ? words.slice(0, 5) : ["uncategorized"];
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Grade — returns score 1-10 with justification
+// ---------------------------------------------------------------------------
+
+export async function gradeArticle(
+  content: string,
+  sourceName: string,
+  configOverride?: LlmConfig
+): Promise<{ score: number; justification: string }> {
+  const trimmed = content.trim();
+  if (!trimmed) return { score: 1, justification: "Empty content" };
+
+  const config = configOverride ?? getLlmConfig();
+  const modelConfig = getModelConfig(config, "grade");
+
+  if (modelConfig.provider === "mock") {
+    return { score: 5, justification: "Mock grade" };
+  }
+
+  const prompt = `Grade the following article on a scale of 1-10 based on information density, depth, and relevance. Consider the source "${sourceName}" in your assessment.
+
+Return a JSON object with:
+- "score": integer 1-10
+- "justification": one sentence explaining the score
+
+Respond ONLY with valid JSON, no markdown or explanation.
+
+Example response: {"score": 7, "justification": "In-depth technical analysis with actionable insights."}
+
+Article:
+${trimmed.slice(0, 3000)}`;
+
+  const raw = await callLlm("grade", prompt, configOverride);
+  try {
+    return parseJsonFromLlm(raw, gradeSchema);
+  } catch {
+    console.warn("Failed to parse grade response, using default");
+    return { score: 5, justification: "Could not parse grade response" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Summarize (full) — returns oneLiner + keyPoints
+// ---------------------------------------------------------------------------
+
+export async function summarizeArticleFull(
+  content: string,
+  configOverride?: LlmConfig
+): Promise<{ oneLiner: string; keyPoints: string[] }> {
+  const trimmed = content.trim();
+  if (!trimmed) {
+    throw new Error("Cannot summarize empty content");
+  }
+
+  const config = configOverride ?? getLlmConfig();
+  const modelConfig = getModelConfig(config, "summarize");
+
+  if (modelConfig.provider === "mock") {
+    const short = trimmed.split("\n")[0].slice(0, 100);
+    return {
+      oneLiner: `Mock summary: ${short}`,
+      keyPoints: ["Mock key point 1", "Mock key point 2"]
+    };
+  }
+
+  const prompt = `Summarize the following article. Return a JSON object with:
+- "oneLiner": a single concise sentence summarizing the article
+- "keyPoints": an array of 2-5 key takeaway bullet points (each a short sentence)
+
+Respond ONLY with valid JSON, no markdown or explanation.
+
+Example response: {"oneLiner": "Researchers find new method for...", "keyPoints": ["Key finding one.", "Key finding two."]}
+
+Article:
+${trimmed}`;
+
+  const raw = await callLlm("summarize", prompt, configOverride);
+  try {
+    return parseJsonFromLlm(raw, fullSummarySchema);
+  } catch {
+    // Fallback: use the raw text as a one-liner
+    const cleaned = sanitizeSummary(raw);
+    return {
+      oneLiner: cleaned || raw.slice(0, 300),
+      keyPoints: []
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Pipeline orchestrator: classify → grade → summarize
+// ---------------------------------------------------------------------------
+
+export async function processArticle(
+  articleId: number,
+  configOverride?: LlmConfig
+): Promise<void> {
+  const article = db
+    .select()
+    .from(articles)
+    .where(eq(articles.id, articleId))
+    .get();
+
+  if (!article) {
+    throw new Error(`Article ${articleId} not found`);
+  }
+
+  const content = article.cleanContent || article.rawHtml || article.title;
+  if (!content) {
+    console.warn(`Article ${articleId} has no content to process`);
+    return;
+  }
+
+  // 1. Classify
+  let tags: string[] = [];
+  try {
+    tags = await classifyArticle(content, configOverride);
+  } catch (err) {
+    console.error(`[pipeline] classify failed for article ${articleId}`, err);
+  }
+
+  // 2. Grade
+  let grade = { score: 5, justification: "" };
+  try {
+    grade = await gradeArticle(content, article.title, configOverride);
+  } catch (err) {
+    console.error(`[pipeline] grade failed for article ${articleId}`, err);
+  }
+
+  // 3. Summarize (full)
+  let summary = article.summary ?? "";
+  let keyPoints: string[] = [];
+  try {
+    const full = await summarizeArticleFull(content, configOverride);
+    summary = full.oneLiner;
+    keyPoints = full.keyPoints;
+  } catch (err) {
+    console.error(`[pipeline] summarize failed for article ${articleId}`, err);
+  }
+
+  // 4. Persist results
+  db.update(articles)
+    .set({
+      tags: JSON.stringify(tags),
+      grade: grade.score,
+      summary,
+      keyPoints: JSON.stringify(keyPoints),
+      processedAt: new Date()
+    })
+    .where(eq(articles.id, articleId))
+    .run();
 }

@@ -52,10 +52,47 @@ export function ArticleList() {
               {article.isRead ? "Read" : "Unread"}
             </span>
           </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {article.sourceName ?? "Unknown source"} ·{" "}
-            {new Date(article.publishedAt ?? article.fetchedAt).toLocaleString()}
+          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+            <span>
+              {article.sourceName ?? "Unknown source"} ·{" "}
+              {new Date(article.publishedAt ?? article.fetchedAt).toLocaleString()}
+            </span>
+            {article.grade != null && (
+              <span
+                className={`rounded px-1.5 py-0.5 font-medium ${
+                  article.grade >= 7
+                    ? "bg-emerald-100 text-emerald-700"
+                    : article.grade >= 4
+                      ? "bg-amber-100 text-amber-700"
+                      : "bg-red-100 text-red-700"
+                }`}
+              >
+                {article.grade}/10
+              </span>
+            )}
           </div>
+          {article.tags && (() => {
+            try {
+              const parsed = JSON.parse(article.tags) as string[];
+              if (parsed.length > 0) {
+                return (
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {parsed.slice(0, 3).map((tag) => (
+                      <span
+                        key={tag}
+                        className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                );
+              }
+              return null;
+            } catch {
+              return null;
+            }
+          })()}
           <div className="mt-1 text-xs text-slate-500">{article.summary ?? "No summary yet."}</div>
         </button>
       ))}

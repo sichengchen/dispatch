@@ -33,6 +33,10 @@ export const articles = sqliteTable(
     rawHtml: text("raw_html"),
     cleanContent: text("clean_content"),
     summary: text("summary"),
+    tags: text("tags"),
+    grade: integer("grade"),
+    keyPoints: text("key_points"),
+    processedAt: integer("processed_at", { mode: "timestamp_ms" }),
     publishedAt: integer("published_at", { mode: "timestamp_ms" }),
     fetchedAt: integer("fetched_at", { mode: "timestamp_ms" })
       .notNull()

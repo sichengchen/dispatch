@@ -5,7 +5,7 @@ import { chromium } from "playwright";
 import PQueue from "p-queue";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { summarizeArticle } from "./llm";
+import { processArticle } from "./llm";
 
 const parser = new Parser();
 
@@ -133,20 +133,7 @@ export async function scrapeRSS(sourceId: number): Promise<ScrapeResult> {
       }
 
       inserted += 1;
-      if (process.env.DISPATCH_DISABLE_LLM === "1") {
-        continue;
-      }
-      try {
-        const summary = await summarizeArticle(content || item.title || "");
-        if (summary) {
-          db.update(articles)
-            .set({ summary })
-            .where(eq(articles.url, url))
-            .run();
-        }
-      } catch (err) {
-        console.error("LLM summary failed", err);
-      }
+      await processIfEnabled(url);
     }
 
     db.update(sources)
@@ -192,21 +179,19 @@ function insertArticleFromContent(
   return { inserted: result.changes > 0 };
 }
 
-async function summarizeIfEnabled(
-  content: string,
-  articleUrl: string
-): Promise<void> {
+async function processIfEnabled(articleUrl: string): Promise<void> {
   if (process.env.DISPATCH_DISABLE_LLM === "1") return;
   try {
-    const summary = await summarizeArticle(content);
-    if (summary) {
-      db.update(articles)
-        .set({ summary })
-        .where(eq(articles.url, articleUrl))
-        .run();
+    const row = db
+      .select({ id: articles.id })
+      .from(articles)
+      .where(eq(articles.url, articleUrl))
+      .get();
+    if (row) {
+      await processArticle(row.id);
     }
   } catch (err) {
-    console.error("LLM summary failed", err);
+    console.error("LLM pipeline failed", err);
   }
 }
 
@@ -292,7 +277,7 @@ async function runTier(
       if (!content) throw new Error("L2 returned no content");
       const { inserted } = insertArticleFromContent(sourceId, source.url, content);
       if (inserted) {
-        await summarizeIfEnabled(content.content, source.url);
+        await processIfEnabled(source.url);
       }
       return { inserted: inserted ? 1 : 0, skipped: inserted ? 0 : 1 };
     }
@@ -301,7 +286,7 @@ async function runTier(
       if (!content) throw new Error("L3 returned no content");
       const { inserted } = insertArticleFromContent(sourceId, source.url, content);
       if (inserted) {
-        await summarizeIfEnabled(content.content, source.url);
+        await processIfEnabled(source.url);
       }
       return { inserted: inserted ? 1 : 0, skipped: inserted ? 0 : 1 };
     }
