@@ -10,6 +10,7 @@
     "build:e2e": "tsc && vite build",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
+    "test": "pnpm run test:types",
     "test:types": "pnpm --filter @dispatch/db build && pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/server build && pnpm --filter @dispatch/api build && tsc -p tsconfig.json --noEmit",
     "test:e2e": "DISPATCH_E2E=1 DISPATCH_SERVER_TIMEOUT_MS=30000 DISPATCH_DB_PATH=$PWD/.e2e/dispatch.db DISPATCH_SETTINGS_PATH=$PWD/.e2e/dispatch.settings.json DISPATCH_DISABLE_SCHEDULER=1 sh -c \"mkdir -p $PWD/.e2e && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && pnpm run build:e2e && playwright test\""
   },

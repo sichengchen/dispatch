@@ -9,8 +9,9 @@
     "build": "tsc -p tsconfig.json",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "seed": "tsx src/seed.ts",
-    "verify": "tsx src/verify.ts"
+    "seed": "node --import tsx/esm src/seed.ts",
+    "verify": "node --import tsx/esm src/verify.ts",
+    "test": "pnpm run build"
   },
   "dependencies": {
     "better-sqlite3": "^12.6.2",

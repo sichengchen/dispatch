@@ -8,6 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "pnpm --filter @dispatch/db build && pnpm --filter @dispatch/lib build && node --import tsx/esm src/index.ts",
+    "test": "pnpm test:backend && pnpm exec vitest run -c vitest.config.ts test/llm-pipeline.test.ts",
     "test:backend": "pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && vitest run -c vitest.config.ts test/backend-hono-trpc.test.ts",
     "test:scraper": "DISPATCH_DISABLE_LLM=1 pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && vitest run -c vitest.config.ts test/scraper-rss.test.ts",
     "test:scraper:advanced": "DISPATCH_DISABLE_LLM=1 pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && vitest run -c vitest.config.ts test/scraper-advanced.test.ts",
