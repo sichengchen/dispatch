@@ -4,8 +4,8 @@ import * as lancedb from "@lancedb/lancedb";
 import type { Connection, Table } from "@lancedb/lancedb";
 import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import type { LlmConfig } from "@dispatch/lib";
-import { getProviderKeys } from "./settings";
+import { getModelConfig, type LlmConfig, type ProviderId } from "@dispatch/lib";
+import { getLlmConfig, getProviderKeys } from "./settings";
 
 const TABLE_NAME = "articles_vectors";
 const DEFAULT_MAX_CHARS = 6000;
@@ -50,6 +50,9 @@ function getVectorDbPath(): string {
 function shouldUseMockEmbedding(configOverride?: LlmConfig): boolean {
   if (process.env.DISPATCH_VECTOR_EMBEDDING_MODE === "mock") return true;
   if (process.env.DISPATCH_DISABLE_LLM === "1") return true;
+  const config = configOverride ?? getLlmConfig();
+  const modelConfig = getModelConfig(config, "embed");
+  if (modelConfig.provider === "mock") return true;
   if (configOverride?.models?.length) {
     return configOverride.models.every((model) => model.provider === "mock");
   }
@@ -98,17 +101,45 @@ function truncateForEmbedding(text: string): string {
   return text.slice(0, maxChars);
 }
 
-function resolveEmbeddingConfig() {
-  const model = process.env.DISPATCH_LLM_EMBEDDING_MODEL?.trim();
-  const endpoint = process.env.DISPATCH_LLM_EMBEDDING_ENDPOINT?.trim();
+function getCatalogEntry(config: LlmConfig, provider: ProviderId, model: string) {
+  return config.catalog?.find(
+    (entry) => entry.provider === provider && entry.model === model
+  );
+}
+
+function resolveEmbeddingConfig(configOverride?: LlmConfig) {
+  const config = configOverride ?? getLlmConfig();
+  const modelConfig = getModelConfig(config, "embed");
+
+  if (modelConfig.provider === "mock") {
+    return { mode: "mock" as const };
+  }
+
+  if (modelConfig.provider !== "openaiCompatible") {
+    throw new Error("Embedding provider must be openaiCompatible or mock.");
+  }
+
+  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  if (entry?.capabilities && !entry.capabilities.includes("embedding")) {
+    throw new Error(
+      "Selected embeddings model is not marked for embeddings. Update the model capabilities in Settings."
+    );
+  }
   const providerKeys = getProviderKeys();
-  const baseUrl = providerKeys.openaiCompatible?.baseUrl?.replace(/\/$/, "");
-  const inferredEndpoint = baseUrl ? `${baseUrl}/embeddings` : undefined;
+  const apiKey =
+    entry?.providerConfig?.apiKey?.trim() || providerKeys.openaiCompatible?.apiKey;
+  const baseUrl =
+    entry?.providerConfig?.baseUrl?.trim() || providerKeys.openaiCompatible?.baseUrl;
+  const normalizedBaseUrl = baseUrl?.replace(/\/$/, "");
+  const inferredEndpoint = normalizedBaseUrl ? `${normalizedBaseUrl}/embeddings` : undefined;
+  const endpoint =
+    process.env.DISPATCH_LLM_EMBEDDING_ENDPOINT?.trim() || inferredEndpoint;
 
   return {
-    model,
-    endpoint: endpoint || inferredEndpoint,
-    apiKey: providerKeys.openaiCompatible?.apiKey
+    mode: "remote" as const,
+    model: modelConfig.model,
+    endpoint,
+    apiKey
   };
 }
 
@@ -137,10 +168,14 @@ async function embedText(text: string, configOverride?: LlmConfig): Promise<numb
     return buildMockEmbedding(trimmed);
   }
 
-  const { endpoint, apiKey, model } = resolveEmbeddingConfig();
+  const resolved = resolveEmbeddingConfig(configOverride);
+  if (resolved.mode === "mock") {
+    return buildMockEmbedding(trimmed);
+  }
+  const { endpoint, apiKey, model } = resolved;
   if (!endpoint || !model) {
     throw new Error(
-      "Embedding endpoint/model not configured. Set DISPATCH_LLM_EMBEDDING_ENDPOINT and DISPATCH_LLM_EMBEDDING_MODEL."
+      "Embedding endpoint/model not configured. Set an Embeddings model + base URL in Settings, or set DISPATCH_LLM_EMBEDDING_ENDPOINT and DISPATCH_LLM_EMBEDDING_MODEL."
     );
   }
 

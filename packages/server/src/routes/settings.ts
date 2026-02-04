@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { t } from "../trpc";
-import { getLlmConfig, getSearchConfig, saveSettings } from "../services/settings";
+import {
+  getLlmConfig,
+  getSearchConfig,
+  getUiConfig,
+  saveSettings
+} from "../services/settings";
 
 const providerKeysSchema = z.object({
   anthropic: z.string().min(1).optional(),
@@ -13,7 +18,7 @@ const providerKeysSchema = z.object({
 });
 
 const modelConfigSchema = z.object({
-  task: z.enum(["summarize", "classify", "grade"]),
+  task: z.enum(["summarize", "classify", "grade", "embed"]),
   provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
   model: z.string().min(1)
 });
@@ -23,6 +28,7 @@ const catalogSchema = z.object({
   provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
   model: z.string().min(1),
   label: z.string().min(1).optional(),
+  capabilities: z.array(z.enum(["chat", "embedding"])).optional(),
   providerConfig: z
     .object({
       apiKey: z.string().min(1).optional(),
@@ -43,16 +49,22 @@ const searchConfigSchema = z.object({
   endpoint: z.string().url().optional()
 });
 
+const uiConfigSchema = z.object({
+  verbose: z.boolean().optional()
+});
+
 const settingsSchema = z.object({
   llm: llmConfigSchema,
-  search: searchConfigSchema.optional()
+  search: searchConfigSchema.optional(),
+  ui: uiConfigSchema.optional()
 });
 
 export const settingsRouter = t.router({
   get: t.procedure.query(() => {
     return {
       llm: getLlmConfig(),
-      search: getSearchConfig()
+      search: getSearchConfig(),
+      ui: getUiConfig()
     };
   }),
   update: t.procedure.input(settingsSchema).mutation(({ input }) => {

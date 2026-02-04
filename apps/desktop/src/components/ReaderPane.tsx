@@ -20,11 +20,17 @@ export function ReaderPane({ article }: { article: ReaderArticle | null }) {
   const setSelectedSourceId = useUiStore((state) => state.setSelectedSourceId);
 
   const articleId = article?.id ?? null;
+  const { data: settings } = trpc.settings.get.useQuery();
+  const verboseMode = settings?.ui?.verbose ?? false;
   const { data: related = [], isLoading: isLoadingRelated } =
     trpc.articles.related.useQuery(
       { id: articleId ?? 0, topK: 5 },
       { enabled: articleId != null }
     );
+  const { data: pipelineLog = [] } = trpc.articles.pipelineLog.useQuery(
+    { id: articleId ?? 0 },
+    { enabled: articleId != null && verboseMode }
+  );
 
   if (!article) {
     return (
@@ -149,6 +155,50 @@ export function ReaderPane({ article }: { article: ReaderArticle | null }) {
           </div>
         )}
       </div>
+
+      {verboseMode && (
+        <div className="mt-6 border-t border-slate-200 pt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-700">Pipeline</h3>
+            <span className="text-xs text-slate-400">Verbose mode</span>
+          </div>
+          {pipelineLog.length === 0 ? (
+            <div className="text-xs text-slate-500">No pipeline events yet.</div>
+          ) : (
+            <div className="space-y-2 text-xs text-slate-600">
+              {pipelineLog.map((event, index) => (
+                <div
+                  key={`${event.at}-${index}`}
+                  className="flex flex-wrap items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1"
+                >
+                  <span className="font-medium text-slate-700">
+                    {event.step}
+                  </span>
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                      event.status === "success"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : event.status === "error"
+                          ? "bg-rose-100 text-rose-700"
+                          : event.status === "skip"
+                            ? "bg-slate-200 text-slate-700"
+                            : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {event.status}
+                  </span>
+                  <span className="text-slate-400">
+                    {new Date(event.at).toLocaleTimeString()}
+                  </span>
+                  {event.message && (
+                    <span className="text-slate-500">{event.message}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

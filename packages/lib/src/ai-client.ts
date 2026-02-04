@@ -2,7 +2,7 @@ import type { LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 
-export type LlmTask = "summarize" | "classify" | "grade";
+export type LlmTask = "summarize" | "classify" | "grade" | "embed";
 export type ProviderId = "anthropic" | "openaiCompatible" | "mock";
 
 export type ProviderKeyMap = {
@@ -20,6 +20,7 @@ export type ModelCatalogEntry = {
   provider: ProviderId;
   model: string;
   label?: string;
+  capabilities?: Array<"chat" | "embedding">;
   providerConfig?: ModelProviderConfig;
 };
 
@@ -44,6 +45,11 @@ export function getDefaultLlmConfig(): LlmConfig {
         task: "summarize",
         provider: "anthropic",
         model: defaultModel
+      },
+      {
+        task: "embed",
+        provider: "mock",
+        model: "mock"
       }
     ],
     catalog: [
@@ -60,6 +66,13 @@ export function getDefaultLlmConfig(): LlmConfig {
 export function getModelConfig(config: LlmConfig, task: LlmTask): ModelConfig {
   const match = config.models.find((model) => model.task === task);
   if (match) return match;
+  if (task === "embed") {
+    return {
+      task,
+      provider: "mock",
+      model: "mock"
+    };
+  }
   return {
     task,
     provider: "anthropic",

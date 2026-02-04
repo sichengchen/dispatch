@@ -15,7 +15,7 @@ const providerKeysSchema = z.object({
 });
 
 const modelConfigSchema = z.object({
-  task: z.enum(["summarize", "classify", "grade"]),
+  task: z.enum(["summarize", "classify", "grade", "embed"]),
   provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
   model: z.string().min(1)
 });
@@ -25,6 +25,7 @@ const catalogSchema: z.ZodType<ModelCatalogEntry> = z.object({
   provider: z.enum(["anthropic", "openaiCompatible", "mock"]),
   model: z.string().min(1),
   label: z.string().min(1).optional(),
+  capabilities: z.array(z.enum(["chat", "embedding"])).optional(),
   providerConfig: z
     .object({
       apiKey: z.string().min(1).optional(),
@@ -45,15 +46,24 @@ const searchConfigSchema = z.object({
   endpoint: z.string().url().optional()
 });
 
+const uiConfigSchema = z.object({
+  verbose: z.boolean().optional()
+});
+
 const settingsSchema = z.object({
   llm: llmConfigSchema,
-  search: searchConfigSchema.optional()
+  search: searchConfigSchema.optional(),
+  ui: uiConfigSchema.optional()
 });
 
 export type SearchConfig = {
   provider?: "brave" | "serper" | "duckduckgo";
   apiKey?: string;
   endpoint?: string;
+};
+
+export type UiConfig = {
+  verbose?: boolean;
 };
 
 export type Settings = z.infer<typeof settingsSchema>;
@@ -109,7 +119,8 @@ export function loadSettings(): Settings {
   }
   const merged = {
     llm: parsed.llm ?? getDefaultLlmConfig(),
-    search: parsed.search
+    search: parsed.search,
+    ui: parsed.ui
   };
 
   const fallback = getDefaultLlmConfig();
@@ -120,16 +131,21 @@ export function loadSettings(): Settings {
     const models = llm.models.filter(
       (model) => (model.provider as string) !== "gemini"
     );
+    const hasEmbed = models.some((model) => model.task === "embed");
     return {
       providers,
-      models: models.length ? models : fallback.models,
+      models: hasEmbed ? models : [...models, { task: "embed", provider: "mock", model: "mock" }],
       catalog: Array.isArray((llm as LlmConfig).catalog)
         ? (llm as LlmConfig).catalog
         : fallback.catalog
     } satisfies LlmConfig;
   })();
 
-  return settingsSchema.parse({ llm: migrated, search: merged.search });
+  return settingsSchema.parse({
+    llm: migrated,
+    search: merged.search,
+    ui: merged.ui
+  });
 }
 
 export function saveSettings(next: Settings): Settings {
@@ -141,7 +157,11 @@ export function saveSettings(next: Settings): Settings {
 }
 
 export function updateLlmConfig(next: LlmConfig): LlmConfig {
-  return saveSettings({ llm: llmConfigSchema.parse(next), search: getSearchConfig() }).llm;
+  return saveSettings({
+    llm: llmConfigSchema.parse(next),
+    search: getSearchConfig(),
+    ui: getUiConfig()
+  }).llm;
 }
 
 export function getLlmConfig(): LlmConfig {
@@ -154,4 +174,8 @@ export function getProviderKeys(): ProviderKeyMap {
 
 export function getSearchConfig(): SearchConfig {
   return loadSettings().search ?? {};
+}
+
+export function getUiConfig(): UiConfig {
+  return loadSettings().ui ?? {};
 }

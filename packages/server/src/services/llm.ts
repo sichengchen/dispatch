@@ -13,6 +13,7 @@ import {
 } from "@dispatch/lib";
 import { getLlmConfig } from "./settings";
 import { upsertArticleVector } from "./vector";
+import { clearPipelineEvents, recordPipelineEvent } from "./pipeline-log";
 
 // ---------------------------------------------------------------------------
 // Zod schemas
@@ -196,6 +197,15 @@ function resolveOpenAiApiKey(config: LlmConfig, modelConfig: ModelConfig) {
   return entryKey || config.providers.openaiCompatible?.apiKey || null;
 }
 
+function resolveOpenAiBaseUrl(config: LlmConfig, modelConfig: ModelConfig) {
+  if (modelConfig.provider !== "openaiCompatible") {
+    return null;
+  }
+  const entry = getCatalogEntry(config, modelConfig.provider, modelConfig.model);
+  const entryBaseUrl = entry?.providerConfig?.baseUrl?.trim();
+  return entryBaseUrl || config.providers.openaiCompatible?.baseUrl || null;
+}
+
 function resolveProviderOverrides(
   config: LlmConfig,
   modelConfig: ModelConfig
@@ -235,7 +245,8 @@ async function callLlm(
 
   if (modelConfig.provider === "openaiCompatible") {
     const chatEndpoint = process.env.DISPATCH_LLM_CHAT_ENDPOINT;
-    if (chatEndpoint) {
+    const baseUrl = resolveOpenAiBaseUrl(config, modelConfig);
+    if (chatEndpoint && !baseUrl) {
       const apiKey = resolveOpenAiApiKey(config, modelConfig);
       const response = await fetch(chatEndpoint, {
         method: "POST",
@@ -467,6 +478,7 @@ export async function processArticle(
   articleId: number,
   configOverride?: LlmConfig
 ): Promise<void> {
+  clearPipelineEvents(articleId);
   const article = db
     .select()
     .from(articles)
@@ -480,34 +492,59 @@ export async function processArticle(
   const content = article.cleanContent || article.rawHtml || article.title;
   if (!content) {
     console.warn(`Article ${articleId} has no content to process`);
+    recordPipelineEvent(articleId, "classify", "skip", "No content");
     return;
   }
 
   // 1. Classify
   let tags: string[] = [];
   try {
+    recordPipelineEvent(articleId, "classify", "start");
     tags = await classifyArticle(content, configOverride);
+    recordPipelineEvent(articleId, "classify", "success");
   } catch (err) {
     console.error(`[pipeline] classify failed for article ${articleId}`, err);
+    recordPipelineEvent(
+      articleId,
+      "classify",
+      "error",
+      err instanceof Error ? err.message : String(err)
+    );
   }
 
   // 2. Grade
   let grade = { score: 5, justification: "" };
   try {
+    recordPipelineEvent(articleId, "grade", "start");
     grade = await gradeArticle(content, article.title, configOverride);
+    recordPipelineEvent(articleId, "grade", "success");
   } catch (err) {
     console.error(`[pipeline] grade failed for article ${articleId}`, err);
+    recordPipelineEvent(
+      articleId,
+      "grade",
+      "error",
+      err instanceof Error ? err.message : String(err)
+    );
   }
 
   // 3. Summarize (full)
   let summary = article.summary ?? "";
   let keyPoints: string[] = [];
   try {
+    recordPipelineEvent(articleId, "summarize", "start");
     const full = await summarizeArticleFull(content, configOverride);
     summary = full.oneLiner;
     keyPoints = full.keyPoints;
+    recordPipelineEvent(articleId, "summarize", "success");
   } catch (err) {
     console.error(`[pipeline] summarize failed for article ${articleId}`, err);
+    recordPipelineEvent(
+      articleId,
+      "summarize",
+      "error",
+      err instanceof Error ? err.message : String(err)
+    );
   }
 
   // 4. Persist results
@@ -524,11 +561,19 @@ export async function processArticle(
 
   // 5. Vectorize for related-articles search
   try {
+    recordPipelineEvent(articleId, "vectorize", "start");
     await upsertArticleVector(
       { ...article, summary },
       configOverride
     );
+    recordPipelineEvent(articleId, "vectorize", "success");
   } catch (err) {
     console.error(`[pipeline] vectorization failed for article ${articleId}`, err);
+    recordPipelineEvent(
+      articleId,
+      "vectorize",
+      "error",
+      err instanceof Error ? err.message : String(err)
+    );
   }
 }

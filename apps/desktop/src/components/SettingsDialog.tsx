@@ -19,7 +19,7 @@ import {
   SelectValue
 } from "./ui/select";
 
-type Task = "summarize" | "classify" | "grade";
+type Task = "summarize" | "classify" | "grade" | "embed";
 
 type ProviderId = "anthropic" | "openaiCompatible" | "mock";
 
@@ -28,20 +28,22 @@ type CatalogEntry = {
   provider: ProviderId;
   model: string;
   label: string;
+  capabilities: Array<"chat" | "embedding">;
   providerConfig: {
     apiKey: string;
     baseUrl: string;
   };
 };
 
-type Tab = "models" | "router";
+type Tab = "general" | "discover" | "models" | "router";
 
 type RoutingState = Record<Task, string>;
 
 const TASKS: Array<{ id: Task; label: string; hint: string }> = [
   { id: "summarize", label: "Summarize", hint: "One-liner and key points" },
   { id: "classify", label: "Classify", hint: "Topic tags" },
-  { id: "grade", label: "Grade", hint: "Quality score" }
+  { id: "grade", label: "Grade", hint: "Quality score" },
+  { id: "embed", label: "Embeddings", hint: "Related articles" }
 ];
 
 const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
@@ -64,6 +66,7 @@ function buildDefaultCatalog(): CatalogEntry[] {
       provider: "anthropic",
       model: DEFAULT_MODEL,
       label: "Claude 3.5 Sonnet",
+      capabilities: ["chat"],
       providerConfig: {
         apiKey: "",
         baseUrl: ""
@@ -84,7 +87,7 @@ function resolveCatalogEntry(
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<Tab>("models");
+  const [activeTab, setActiveTab] = useState<Tab>("general");
   const settingsQuery = trpc.settings.get.useQuery();
   const updateSettings = trpc.settings.update.useMutation({
     onSuccess: () => {
@@ -96,11 +99,13 @@ export function SettingsDialog() {
   const [searchProvider, setSearchProvider] = useState("brave");
   const [searchApiKey, setSearchApiKey] = useState("");
   const [searchEndpoint, setSearchEndpoint] = useState("");
+  const [verboseMode, setVerboseMode] = useState(false);
   const [catalog, setCatalog] = useState<CatalogEntry[]>(buildDefaultCatalog());
   const [routing, setRouting] = useState<RoutingState>(() => ({
     summarize: createFallbackId("anthropic", DEFAULT_MODEL),
     classify: createFallbackId("anthropic", DEFAULT_MODEL),
-    grade: createFallbackId("anthropic", DEFAULT_MODEL)
+    grade: createFallbackId("anthropic", DEFAULT_MODEL),
+    embed: createFallbackId("mock", "mock")
   }));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -112,13 +117,19 @@ export function SettingsDialog() {
     setSearchProvider(cfg.search?.provider ?? "brave");
     setSearchApiKey(cfg.search?.apiKey ?? "");
     setSearchEndpoint(cfg.search?.endpoint ?? "");
+    setVerboseMode(cfg.ui?.verbose ?? false);
 
-    const nextCatalog = llm.catalog && llm.catalog.length > 0
+  const nextCatalog = llm.catalog && llm.catalog.length > 0
       ? llm.catalog.map((entry) => ({
           id: entry.id,
           provider: entry.provider as ProviderId,
           model: entry.model,
           label: entry.label ?? "",
+          capabilities:
+            entry.capabilities ??
+            (entry.provider === "mock"
+              ? ["chat", "embedding"]
+              : ["chat"]),
           providerConfig: {
             apiKey: entry.providerConfig?.apiKey ?? "",
             baseUrl: entry.providerConfig?.baseUrl ?? ""
@@ -129,7 +140,8 @@ export function SettingsDialog() {
     const nextRouting: RoutingState = {
       summarize: "",
       classify: "",
-      grade: ""
+      grade: "",
+      embed: ""
     };
 
     for (const task of TASKS) {
@@ -143,6 +155,7 @@ export function SettingsDialog() {
             provider: taskConfig.provider as ProviderId,
             model: taskConfig.model,
             label: "",
+            capabilities: ["chat"],
             providerConfig: {
               apiKey: "",
               baseUrl: ""
@@ -158,9 +171,42 @@ export function SettingsDialog() {
       nextCatalog.push(...buildDefaultCatalog());
     }
 
+    const supportsTask = (entry: CatalogEntry, task: Task) => {
+      if (entry.provider === "mock") return true;
+      const capabilities = entry.capabilities ?? [];
+      if (task === "embed") return capabilities.includes("embedding");
+      return capabilities.includes("chat") || capabilities.length === 0;
+    };
+
+    const getEmbeddingFallback = () => {
+      const compatible = nextCatalog.find(
+        (entry) =>
+          supportsTask(entry, "embed")
+      );
+      if (compatible) return compatible;
+      const mockEntry: CatalogEntry = {
+        id: createFallbackId("mock", "mock"),
+        provider: "mock",
+        model: "mock",
+        label: "Mock Embedding",
+        capabilities: ["chat", "embedding"],
+        providerConfig: {
+          apiKey: "",
+          baseUrl: ""
+        }
+      };
+      nextCatalog.push(mockEntry);
+      return mockEntry;
+    };
+
     for (const task of TASKS) {
       if (!nextRouting[task.id]) {
-        nextRouting[task.id] = nextCatalog[0].id;
+        if (task.id === "embed") {
+          nextRouting[task.id] = getEmbeddingFallback().id;
+        } else {
+          const fallback = nextCatalog.find((entry) => supportsTask(entry, task.id));
+          nextRouting[task.id] = (fallback ?? nextCatalog[0]).id;
+        }
       }
     }
 
@@ -193,10 +239,26 @@ export function SettingsDialog() {
       </DialogTrigger>
       <DialogContent className="w-[640px]">
         <DialogHeader>
-          <DialogTitle>LLM Settings</DialogTitle>
+          <DialogTitle>Settings</DialogTitle>
         </DialogHeader>
 
         <div className="mt-2 flex gap-2">
+          <Button
+            size="sm"
+            variant={activeTab === "general" ? "default" : "outline"}
+            onClick={() => setActiveTab("general")}
+            type="button"
+          >
+            General
+          </Button>
+          <Button
+            size="sm"
+            variant={activeTab === "discover" ? "default" : "outline"}
+            onClick={() => setActiveTab("discover")}
+            type="button"
+          >
+            Discover
+          </Button>
           <Button
             size="sm"
             variant={activeTab === "models" ? "default" : "outline"}
@@ -214,6 +276,92 @@ export function SettingsDialog() {
             Router
           </Button>
         </div>
+
+        {activeTab === "general" && (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="text-sm font-semibold text-slate-900">Diagnostics</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Show detailed pipeline steps for each article.
+              </div>
+              <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                  checked={verboseMode}
+                  onChange={(e) => setVerboseMode(e.target.checked)}
+                />
+                Verbose mode
+              </label>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "discover" && (
+          <div className="mt-4 space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="text-sm font-semibold text-slate-900">Search</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Configure the web search provider for source discovery.
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Provider</Label>
+                  <Select
+                    value={searchProvider}
+                    onValueChange={(value) => {
+                      setSearchProvider(value);
+                      setErrorMessage(null);
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="brave">Brave Search</SelectItem>
+                      <SelectItem value="serper">Serper (Google)</SelectItem>
+                      <SelectItem value="duckduckgo">DuckDuckGo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {searchNeedsKey && (
+                  <div className="space-y-1">
+                    <Label>API Key</Label>
+                    <Input
+                      value={searchApiKey}
+                      onChange={(e) => {
+                        setSearchApiKey(e.target.value);
+                        setErrorMessage(null);
+                      }}
+                    />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Label>Endpoint (optional)</Label>
+                  <Input
+                    placeholder={
+                      searchProvider === "serper"
+                        ? "https://google.serper.dev/search"
+                        : searchProvider === "duckduckgo"
+                          ? "https://api.duckduckgo.com/"
+                          : "https://api.search.brave.com/res/v1/web/search"
+                    }
+                    value={searchEndpoint}
+                    onChange={(e) => {
+                      setSearchEndpoint(e.target.value);
+                      setErrorMessage(null);
+                    }}
+                  />
+                </div>
+              </div>
+              {missingSearchConfig && (
+                <div className="mt-2 text-xs text-amber-700">
+                  This provider requires an API key.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {activeTab === "models" && (
           <div className="mt-4 space-y-4">
@@ -235,6 +383,7 @@ export function SettingsDialog() {
                       provider: "anthropic",
                       model: "",
                       label: "",
+                      capabilities: ["chat"],
                       providerConfig: {
                         apiKey: "",
                         baseUrl: ""
@@ -262,12 +411,18 @@ export function SettingsDialog() {
                           <Select
                             value={entry.provider}
                             onValueChange={(value) => {
+                              const nextProvider = value as ProviderId;
                               setCatalog((prev) =>
                                 prev.map((item) =>
                                   item.id === entry.id
                                     ? {
                                         ...item,
-                                        provider: value as ProviderId,
+                                        provider: nextProvider,
+                                        capabilities:
+                                          nextProvider === "openaiCompatible" ||
+                                          nextProvider === "mock"
+                                            ? item.capabilities
+                                            : ["chat"],
                                         providerConfig: {
                                           apiKey: "",
                                           baseUrl: ""
@@ -319,6 +474,48 @@ export function SettingsDialog() {
                               );
                             }}
                           />
+                        </div>
+                        <div className="space-y-1">
+                          <Label>Capabilities</Label>
+                          <Select
+                            value={
+                              entry.capabilities.includes("chat") &&
+                              entry.capabilities.includes("embedding")
+                                ? "both"
+                                : entry.capabilities.includes("embedding")
+                                  ? "embedding"
+                                  : "chat"
+                            }
+                            onValueChange={(value) => {
+                              const nextCapabilities =
+                                value === "both"
+                                  ? (["chat", "embedding"] as const)
+                                  : value === "embedding"
+                                    ? (["embedding"] as const)
+                                    : (["chat"] as const);
+                              setCatalog((prev) =>
+                                prev.map((item) =>
+                                  item.id === entry.id
+                                    ? { ...item, capabilities: [...nextCapabilities] }
+                                    : item
+                                )
+                              );
+                            }}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select capability" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="chat">Chat only</SelectItem>
+                              {(entry.provider === "openaiCompatible" ||
+                                entry.provider === "mock") && (
+                                <>
+                                  <SelectItem value="embedding">Embeddings only</SelectItem>
+                                  <SelectItem value="both">Chat + Embeddings</SelectItem>
+                                </>
+                              )}
+                            </SelectContent>
+                          </Select>
                         </div>
                         {entry.provider === "anthropic" && (
                           <div className="space-y-1">
@@ -408,7 +605,22 @@ export function SettingsDialog() {
                               const next: RoutingState = { ...prev };
                               for (const task of TASKS) {
                                 if (next[task.id] === entry.id) {
-                                  next[task.id] = fallbackId;
+                                  if (task.id === "embed") {
+                                    const compatible = remaining.find(
+                                      (item) =>
+                                        item.provider === "mock" ||
+                                        item.capabilities.includes("embedding")
+                                    );
+                                    next[task.id] = compatible?.id ?? fallbackId;
+                                  } else {
+                                    const compatible = remaining.find(
+                                      (item) =>
+                                        item.provider === "mock" ||
+                                        item.capabilities.includes("chat") ||
+                                        item.capabilities.length === 0
+                                    );
+                                    next[task.id] = compatible?.id ?? fallbackId;
+                                  }
                                 }
                               }
                               return next;
@@ -424,68 +636,6 @@ export function SettingsDialog() {
               })}
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-3">
-              <div className="text-sm font-semibold text-slate-900">Search</div>
-              <div className="mt-1 text-xs text-slate-500">
-                Configure the web search provider for source discovery.
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label>Provider</Label>
-                  <Select
-                    value={searchProvider}
-                    onValueChange={(value) => {
-                      setSearchProvider(value);
-                      setErrorMessage(null);
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="brave">Brave Search</SelectItem>
-                      <SelectItem value="serper">Serper (Google)</SelectItem>
-                      <SelectItem value="duckduckgo">DuckDuckGo</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                {searchNeedsKey && (
-                  <div className="space-y-1">
-                    <Label>API Key</Label>
-                    <Input
-                      value={searchApiKey}
-                      onChange={(e) => {
-                        setSearchApiKey(e.target.value);
-                        setErrorMessage(null);
-                      }}
-                    />
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <Label>Endpoint (optional)</Label>
-                  <Input
-                    placeholder={
-                      searchProvider === "serper"
-                        ? "https://google.serper.dev/search"
-                        : searchProvider === "duckduckgo"
-                          ? "https://api.duckduckgo.com/"
-                          : "https://api.search.brave.com/res/v1/web/search"
-                    }
-                    value={searchEndpoint}
-                    onChange={(e) => {
-                      setSearchEndpoint(e.target.value);
-                      setErrorMessage(null);
-                    }}
-                  />
-                </div>
-              </div>
-              {missingSearchConfig && (
-                <div className="mt-2 text-xs text-amber-700">
-                  This provider requires an API key.
-                </div>
-              )}
-            </div>
-
             {missingProviderConfig && (
               <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
                 Some selected providers are missing credentials.
@@ -498,6 +648,11 @@ export function SettingsDialog() {
           <div className="mt-4 space-y-3">
             {TASKS.map((task) => {
               const selectedId = routing[task.id];
+              const options = catalog.filter((entry) => {
+                if (entry.provider === "mock") return true;
+                if (task.id === "embed") return entry.capabilities.includes("embedding");
+                return entry.capabilities.includes("chat") || entry.capabilities.length === 0;
+              });
               return (
                 <div
                   key={task.id}
@@ -522,13 +677,18 @@ export function SettingsDialog() {
                         <SelectValue placeholder="Select model" />
                       </SelectTrigger>
                       <SelectContent>
-                        {catalog.map((entry) => (
+                        {options.map((entry) => (
                           <SelectItem key={entry.id} value={entry.id}>
                             {entry.label?.trim() || entry.model} ({entry.provider})
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {options.length === 0 && (
+                      <div className="text-xs text-amber-700">
+                        Add a compatible model in Models.
+                      </div>
+                    )}
                   </div>
                 </div>
               );
@@ -558,6 +718,10 @@ export function SettingsDialog() {
                   const label = entry.label.trim();
                   const apiKey = entry.providerConfig.apiKey.trim();
                   const baseUrl = entry.providerConfig.baseUrl.trim();
+                  const capabilities: Array<"chat" | "embedding"> = entry.capabilities
+                    .length
+                    ? entry.capabilities
+                    : ["chat"];
                   const providerConfig =
                     entry.provider === "anthropic"
                       ? apiKey
@@ -576,12 +740,43 @@ export function SettingsDialog() {
                     provider: entry.provider,
                     model: entry.model.trim(),
                     label: label || undefined,
+                    capabilities,
                     providerConfig
                   };
                 }
               );
+              const ensureEmbeddingEntry = () => {
+                const compatible = resolvedCatalog.find(
+                  (entry) =>
+                    entry.provider === "mock" ||
+                    entry.capabilities?.includes("embedding")
+                );
+                if (compatible) return compatible;
+                const mockEntry: CatalogEntry = {
+                  id: createFallbackId("mock", "mock"),
+                  provider: "mock",
+                  model: "mock",
+                  label: "Mock Embedding",
+                  capabilities: ["chat", "embedding"],
+                  providerConfig: {
+                    apiKey: "",
+                    baseUrl: ""
+                  }
+                };
+                resolvedCatalog.push(mockEntry);
+                return mockEntry;
+              };
+
               const resolvedModels = TASKS.map((task) => {
-                const entry = resolvedCatalog.find((item) => item.id === routing[task.id]) ?? resolvedCatalog[0];
+                let entry = resolvedCatalog.find((item) => item.id === routing[task.id]) ?? resolvedCatalog[0];
+                if (task.id === "embed") {
+                  const isCompatible =
+                    entry?.provider === "mock" ||
+                    entry?.capabilities?.includes("embedding");
+                  if (!isCompatible) {
+                    entry = ensureEmbeddingEntry();
+                  }
+                }
                 return {
                   task: task.id,
                   provider: entry.provider,
@@ -618,6 +813,9 @@ export function SettingsDialog() {
                   provider: searchProvider as "brave" | "serper" | "duckduckgo",
                   apiKey: searchApiKey || undefined,
                   endpoint: searchEndpoint || undefined
+                },
+                ui: {
+                  verbose: verboseMode
                 }
               });
             }}
