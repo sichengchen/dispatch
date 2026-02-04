@@ -35,6 +35,8 @@ export const articles = sqliteTable(
     summary: text("summary"),
     tags: text("tags"),
     grade: integer("grade"),
+    importancy: integer("importancy"),
+    quality: integer("quality"),
     keyPoints: text("key_points"),
     processedAt: integer("processed_at", { mode: "timestamp_ms" }),
     publishedAt: integer("published_at", { mode: "timestamp_ms" }),

@@ -14,9 +14,12 @@ import {
 import {
   getGradingConfig,
   getModelsConfig,
-  type GradingConfig,
-  type GradingWeights
+  type GradingConfig
 } from "./settings";
+import {
+  computeFinalGrade,
+  type GradeInputs
+} from "./grading";
 import { upsertArticleVector } from "./vector";
 import { clearPipelineEvents, recordPipelineEvent } from "./pipeline-log";
 
@@ -178,121 +181,6 @@ function parseJsonFromLlm<T>(raw: string, schema: z.ZodType<T>): T {
   const jsonStr = jsonMatch?.[1]?.trim() ?? cleaned;
   const parsed = JSON.parse(jsonStr);
   return schema.parse(parsed);
-}
-
-type GradeInputs = {
-  sourceId?: number;
-  sourceName?: string;
-  sourceUrl?: string;
-  tags?: string[];
-};
-
-const DEFAULT_GRADING_WEIGHTS: GradingWeights = {
-  importancy: 0.5,
-  quality: 0.5,
-  interest: 0,
-  source: 0
-};
-
-function clampNumber(value: number, min: number, max: number): number {
-  if (!Number.isFinite(value)) return min;
-  return Math.min(max, Math.max(min, value));
-}
-
-function normalizeKey(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function normalizeScoreMap(
-  map: Record<string, number> | undefined
-): Record<string, number> {
-  if (!map) return {};
-  const normalized: Record<string, number> = {};
-  for (const [rawKey, rawValue] of Object.entries(map)) {
-    const key = normalizeKey(rawKey);
-    if (!key) continue;
-    const value = Number(rawValue);
-    if (!Number.isFinite(value)) continue;
-    normalized[key] = clampNumber(value, -10, 10);
-  }
-  return normalized;
-}
-
-function normalizeWeights(
-  weights: Partial<GradingWeights> | undefined,
-  fallback: GradingWeights
-): GradingWeights {
-  const sanitize = (value: number | undefined, fallbackValue: number) => {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return Math.max(0, fallbackValue);
-    return Math.max(0, num);
-  };
-  const safe = {
-    importancy: sanitize(weights?.importancy, fallback.importancy),
-    quality: sanitize(weights?.quality, fallback.quality),
-    interest: sanitize(weights?.interest, fallback.interest),
-    source: sanitize(weights?.source, fallback.source)
-  };
-  const sum = safe.importancy + safe.quality + safe.interest + safe.source;
-  if (sum <= 0) {
-    const fallbackSum =
-      fallback.importancy + fallback.quality + fallback.interest + fallback.source || 1;
-    return {
-      importancy: fallback.importancy / fallbackSum,
-      quality: fallback.quality / fallbackSum,
-      interest: fallback.interest / fallbackSum,
-      source: fallback.source / fallbackSum
-    };
-  }
-  return {
-    importancy: safe.importancy / sum,
-    quality: safe.quality / sum,
-    interest: safe.interest / sum,
-    source: safe.source / sum
-  };
-}
-
-function computeInterestScore(
-  tags: string[] | undefined,
-  interestByTag: Record<string, number>
-): number {
-  if (!tags || tags.length === 0) return 0;
-  const normalized = normalizeScoreMap(interestByTag);
-  const scores = tags
-    .map((tag) => normalized[normalizeKey(tag)])
-    .filter((value) => typeof value === "number") as number[];
-  if (scores.length === 0) return 0;
-  return scores.reduce((sum, value) => sum + value, 0) / scores.length;
-}
-
-function computeSourceScore(
-  inputs: GradeInputs,
-  sourceWeights: Record<string, number>
-): number {
-  const normalized = normalizeScoreMap(sourceWeights);
-  const candidates: string[] = [];
-  if (typeof inputs.sourceId === "number") {
-    candidates.push(String(inputs.sourceId));
-  }
-  if (inputs.sourceName) {
-    candidates.push(inputs.sourceName);
-  }
-  if (inputs.sourceUrl) {
-    try {
-      const hostname = new URL(inputs.sourceUrl).hostname;
-      candidates.push(hostname);
-      candidates.push(hostname.replace(/^www\./, ""));
-    } catch {
-      // ignore invalid URLs
-    }
-  }
-  for (const candidate of candidates) {
-    const key = normalizeKey(candidate);
-    if (key in normalized) {
-      return normalized[key];
-    }
-  }
-  return 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -512,24 +400,23 @@ export async function gradeArticle(
   inputs: GradeInputs,
   configOverride?: ModelsConfig,
   gradingOverride?: GradingConfig
-): Promise<{ score: number; justification: string }> {
+): Promise<{
+  score: number;
+  justification: string;
+  importancy: number;
+  quality: number;
+}> {
   const trimmed = content.trim();
-  if (!trimmed) return { score: 1, justification: "Empty content" };
+  if (!trimmed) {
+    return {
+      score: 1,
+      justification: "Empty content",
+      importancy: 1,
+      quality: 1
+    };
+  }
 
   const gradingConfig = gradingOverride ?? getGradingConfig();
-  const weights = normalizeWeights(gradingConfig.weights, DEFAULT_GRADING_WEIGHTS);
-  const interestScore = computeInterestScore(
-    inputs.tags,
-    gradingConfig.interestByTag ?? {}
-  );
-  const sourceScore = computeSourceScore(
-    inputs,
-    gradingConfig.sourceWeights ?? {}
-  );
-  const clampMin = clampNumber(gradingConfig.clamp?.min ?? 1, 1, 10);
-  const clampMax = clampNumber(gradingConfig.clamp?.max ?? 10, 1, 10);
-  const clampLow = Math.min(clampMin, clampMax);
-  const clampHigh = Math.max(clampMin, clampMax);
 
   const config = configOverride ?? getModelsConfig();
   const modelConfig = getModelConfig(config, "grade");
@@ -568,14 +455,18 @@ ${trimmed.slice(0, 3000)}`;
     }
   }
 
-  const rawScore =
-    base.importancy * weights.importancy +
-    base.quality * weights.quality +
-    interestScore * weights.interest +
-    sourceScore * weights.source;
+  const { score } = computeFinalGrade(
+    { importancy: base.importancy, quality: base.quality },
+    inputs,
+    gradingConfig
+  );
 
-  const score = Math.round(clampNumber(rawScore, clampLow, clampHigh));
-  return { score, justification: base.justification };
+  return {
+    score,
+    justification: base.justification,
+    importancy: base.importancy,
+    quality: base.quality
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -675,7 +566,7 @@ export async function processArticle(
   }
 
   // 2. Grade
-  let grade = { score: 5, justification: "" };
+  let grade = { score: 5, justification: "", importancy: 5, quality: 5 };
   try {
     recordPipelineEvent(articleId, "grade", "start");
     grade = await gradeArticle(
@@ -723,6 +614,8 @@ export async function processArticle(
     .set({
       tags: JSON.stringify(tags),
       grade: grade.score,
+      importancy: grade.importancy,
+      quality: grade.quality,
       summary,
       keyPoints: JSON.stringify(keyPoints),
       processedAt: new Date()

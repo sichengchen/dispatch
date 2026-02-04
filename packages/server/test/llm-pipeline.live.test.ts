@@ -92,6 +92,10 @@ describeLive("LLM Pipeline (Live)", () => {
       expect(result.score).toBeGreaterThanOrEqual(1);
       expect(result.score).toBeLessThanOrEqual(10);
       expect(Number.isInteger(result.score)).toBe(true);
+      expect(result.importancy).toBeGreaterThanOrEqual(1);
+      expect(result.importancy).toBeLessThanOrEqual(10);
+      expect(result.quality).toBeGreaterThanOrEqual(1);
+      expect(result.quality).toBeLessThanOrEqual(10);
       expect(result.justification.length).toBeGreaterThan(0);
     });
 
@@ -103,6 +107,8 @@ describeLive("LLM Pipeline (Live)", () => {
       );
       expect(result.score).toBe(1);
       expect(result.justification).toBe("Empty content");
+      expect(result.importancy).toBe(1);
+      expect(result.quality).toBe(1);
     });
   });
 

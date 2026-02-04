@@ -83,7 +83,12 @@ describe("LLM Pipeline (Mock)", () => {
         { sourceName: "Test Source", tags: [] },
         mockConfig
       );
-      expect(result).toEqual({ score: 5, justification: "Mock grade" });
+      expect(result).toEqual({
+        score: 5,
+        justification: "Mock grade",
+        importancy: 5,
+        quality: 5
+      });
     });
 
     it("returns default for empty content", async () => {
@@ -92,7 +97,12 @@ describe("LLM Pipeline (Mock)", () => {
         { sourceName: "Test Source", tags: [] },
         mockConfig
       );
-      expect(result).toEqual({ score: 1, justification: "Empty content" });
+      expect(result).toEqual({
+        score: 1,
+        justification: "Empty content",
+        importancy: 1,
+        quality: 1
+      });
     });
 
     it("applies interest weights when configured", async () => {
@@ -114,6 +124,8 @@ describe("LLM Pipeline (Mock)", () => {
         }
       );
       expect(result.score).toBe(8);
+      expect(result.importancy).toBe(5);
+      expect(result.quality).toBe(5);
     });
   });
 
@@ -145,6 +157,8 @@ describe("LLM Pipeline (Mock)", () => {
       expect(updated).toBeDefined();
       expect(updated!.summary).toContain("Mock summary");
       expect(updated!.grade).toBe(5);
+      expect(updated!.importancy).toBe(5);
+      expect(updated!.quality).toBe(5);
       expect(updated!.processedAt).toBeTruthy();
 
       const tags = JSON.parse(updated!.tags!) as string[];

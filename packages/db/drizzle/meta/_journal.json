@@ -29,6 +29,13 @@
       "when": 1770176833065,
       "tag": "0003_rainy_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1770226578000,
+      "tag": "0004_add_grade_components",
+      "breakpoints": true
     }
   ]
 }

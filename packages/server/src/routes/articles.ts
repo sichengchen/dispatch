@@ -5,6 +5,49 @@ import { articles, sources } from "@dispatch/db";
 import { t } from "../trpc";
 import { getRelatedArticles } from "../services/vector";
 import { getPipelineEvents } from "../services/pipeline-log";
+import { computeFinalGrade } from "../services/grading";
+import { getGradingConfig } from "../services/settings";
+
+function parseTags(raw: string | null): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      return parsed.filter((tag) => typeof tag === "string") as string[];
+    }
+  } catch {
+    // ignore parse errors
+  }
+  return [];
+}
+
+function resolveComputedGrade(
+  row: {
+  grade: number | null;
+  importancy: number | null;
+  quality: number | null;
+  tags: string | null;
+  sourceId: number;
+  sourceName: string | null;
+  sourceUrl: string | null;
+  },
+  gradingConfig: ReturnType<typeof getGradingConfig>
+): number | null {
+  if (row.importancy == null || row.quality == null) {
+    return row.grade;
+  }
+  const { score } = computeFinalGrade(
+    { importancy: row.importancy, quality: row.quality },
+    {
+      sourceId: row.sourceId,
+      sourceName: row.sourceName ?? undefined,
+      sourceUrl: row.sourceUrl ?? undefined,
+      tags: parseTags(row.tags)
+    },
+    gradingConfig
+  );
+  return score;
+}
 
 export const articlesRouter = t.router({
   byId: t.procedure
@@ -21,12 +64,15 @@ export const articlesRouter = t.router({
           summary: articles.summary,
           tags: articles.tags,
           grade: articles.grade,
+          importancy: articles.importancy,
+          quality: articles.quality,
           keyPoints: articles.keyPoints,
           processedAt: articles.processedAt,
           publishedAt: articles.publishedAt,
           fetchedAt: articles.fetchedAt,
           isRead: articles.isRead,
-          sourceName: sources.name
+          sourceName: sources.name,
+          sourceUrl: sources.url
         })
         .from(articles)
         .leftJoin(sources, eq(articles.sourceId, sources.id))
@@ -37,7 +83,10 @@ export const articlesRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
       }
 
-      return row;
+      const gradingConfig = getGradingConfig();
+      const computed = resolveComputedGrade(row, gradingConfig);
+      const { importancy, quality, sourceUrl, ...rest } = row;
+      return { ...rest, grade: computed };
     }),
   list: t.procedure
     .input(
@@ -62,6 +111,7 @@ export const articlesRouter = t.router({
       const whereClause =
         conditions.length > 0 ? and(...conditions) : undefined;
 
+      const gradingConfig = getGradingConfig();
       return ctx.db
         .select({
           id: articles.id,
@@ -73,12 +123,15 @@ export const articlesRouter = t.router({
           summary: articles.summary,
           tags: articles.tags,
           grade: articles.grade,
+          importancy: articles.importancy,
+          quality: articles.quality,
           keyPoints: articles.keyPoints,
           processedAt: articles.processedAt,
           publishedAt: articles.publishedAt,
           fetchedAt: articles.fetchedAt,
           isRead: articles.isRead,
-          sourceName: sources.name
+          sourceName: sources.name,
+          sourceUrl: sources.url
         })
         .from(articles)
         .leftJoin(sources, eq(articles.sourceId, sources.id))
@@ -86,7 +139,12 @@ export const articlesRouter = t.router({
         .orderBy(desc(articles.publishedAt), desc(articles.fetchedAt))
         .limit(pageSize)
         .offset(offset)
-        .all();
+        .all()
+        .map((row) => {
+          const computed = resolveComputedGrade(row, gradingConfig);
+          const { importancy, quality, sourceUrl, ...rest } = row;
+          return { ...rest, grade: computed };
+        });
     }),
   related: t.procedure
     .input(
