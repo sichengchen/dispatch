@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
 
 type HomeDigestProps = {

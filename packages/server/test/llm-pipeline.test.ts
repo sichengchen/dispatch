@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, beforeAll } from "vitest";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import type { ModelsConfig } from "@dispatch/lib";
@@ -9,6 +9,7 @@ import {
   summarizeArticleFull,
   processArticle
 } from "../src/services/llm";
+import { saveSettings } from "../src/services/settings";
 
 let testCounter = 0;
 
@@ -32,6 +33,10 @@ const mockConfig: ModelsConfig = {
 describe("LLM Pipeline (Mock)", () => {
   let testSourceId: number;
   let testArticleId: number;
+
+  beforeAll(() => {
+    process.env.DISPATCH_SETTINGS_PATH = "/tmp/dispatch.test.settings.json";
+  });
 
   beforeEach(() => {
     testCounter += 1;
@@ -62,6 +67,30 @@ describe("LLM Pipeline (Mock)", () => {
       })
       .run();
     testArticleId = Number(articleResult.lastInsertRowid);
+
+    saveSettings({
+      models: mockConfig,
+      search: undefined,
+      ui: { verbose: false },
+      grading: {
+        weights: {
+          importancy: 0.5,
+          quality: 0.5,
+          interest: 0,
+          source: 0
+        },
+        interestByTag: {},
+        sourceWeights: {},
+        clamp: { min: 1, max: 10 }
+      },
+      digest: {
+        enabled: true,
+        scheduledTime: "06:00",
+        topN: 10,
+        hoursBack: 24,
+        preferredLanguage: "English"
+      }
+    });
   });
 
   describe("classifyArticle (mock)", () => {
@@ -81,7 +110,18 @@ describe("LLM Pipeline (Mock)", () => {
       const result = await gradeArticle(
         "Some content",
         { sourceName: "Test Source", tags: [] },
-        mockConfig
+        mockConfig,
+        {
+          weights: {
+            importancy: 0.5,
+            quality: 0.5,
+            interest: 0,
+            source: 0
+          },
+          interestByTag: {},
+          sourceWeights: {},
+          clamp: { min: 1, max: 10 }
+        }
       );
       expect(result).toEqual({
         score: 5,

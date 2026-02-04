@@ -82,10 +82,13 @@ export function PipelinePane({ article }: { article: PipelineArticle | null }) {
           {reprocess.isPending ? "Running…" : "Re-run AI pipeline"}
         </Button>
         {article.url && (
-          <Button asChild variant="outline" size="sm">
-            <a href={article.url} target="_blank" rel="noreferrer">
-              Open original
-            </a>
+          <Button
+            variant="outline"
+            size="sm"
+            type="button"
+            onClick={() => window.open(article.url ?? "", "_blank", "noreferrer")}
+          >
+            Open original
           </Button>
         )}
       </div>

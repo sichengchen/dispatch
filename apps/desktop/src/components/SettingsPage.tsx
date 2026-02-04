@@ -128,7 +128,6 @@ export function SettingsPage() {
   const settingsQuery = trpc.settings.get.useQuery();
   const updateSettings = trpc.settings.update.useMutation({
     onSuccess: () => {
-      setOpen(false);
       settingsQuery.refetch();
     }
   });
