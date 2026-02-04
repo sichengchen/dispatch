@@ -5,6 +5,7 @@ import { articles, sources } from "@dispatch/db";
 import { t } from "../trpc";
 import { getRelatedArticles } from "../services/vector";
 import { getPipelineEvents } from "../services/pipeline-log";
+import { processArticle } from "../services/llm";
 import { computeFinalGrade } from "../services/grading";
 import { getGradingConfig } from "../services/settings";
 
@@ -203,6 +204,12 @@ export const articlesRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
       }
 
+      return { ok: true };
+    }),
+  reprocess: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ input }) => {
+      await processArticle(input.id);
       return { ok: true };
     })
 });

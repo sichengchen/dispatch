@@ -10,7 +10,7 @@ import { HomeArticlesList } from "./components/HomeArticlesList";
 import { ArticleViewer } from "./components/ArticleViewer";
 import { SourceList } from "./components/SourceList";
 import { ArticleList } from "./components/ArticleList";
-import { ReaderPane } from "./components/ReaderPane";
+import { PipelinePane } from "./components/PipelinePane";
 import { Button } from "./components/ui/button";
 
 export default function App() {
@@ -92,7 +92,7 @@ export default function App() {
                 </div>
               </section>
               <section className="min-h-0">
-                <ReaderPane article={selectedArticle ?? null} />
+                <PipelinePane article={selectedArticle ?? null} />
               </section>
             </div>
           </div>
