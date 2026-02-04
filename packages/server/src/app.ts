@@ -4,12 +4,14 @@ import { createContext } from "./context";
 import { sourcesRouter } from "./routes/sources";
 import { articlesRouter } from "./routes/articles";
 import { settingsRouter } from "./routes/settings";
+import { digestsRouter } from "./routes/digests";
 import { t } from "./trpc";
 
 export const appRouter = t.router({
   sources: sourcesRouter,
   articles: articlesRouter,
-  settings: settingsRouter
+  settings: settingsRouter,
+  digests: digestsRouter,
 });
 
 export type AppRouter = typeof appRouter;

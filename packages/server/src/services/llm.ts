@@ -231,7 +231,7 @@ function resolveProviderOverrides(
   return undefined;
 }
 
-async function callLlm(
+export async function callLlm(
   task: LlmTask,
   prompt: string,
   configOverride?: ModelsConfig

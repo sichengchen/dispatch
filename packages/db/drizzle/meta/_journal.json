@@ -36,6 +36,27 @@
       "when": 1770226578000,
       "tag": "0004_add_grade_components",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1770228505017,
+      "tag": "0005_opposite_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1770228750060,
+      "tag": "0006_shallow_mimic",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1770228869055,
+      "tag": "0007_ambiguous_photon",
+      "breakpoints": true
     }
   ]
 }

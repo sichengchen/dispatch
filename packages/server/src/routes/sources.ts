@@ -61,6 +61,22 @@ export const sourcesRouter = t.router({
       const result = await scrapeSource(input.id);
       return { ok: true, ...result };
     }),
+  retry: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      ctx.db
+        .update(sources)
+        .set({
+          consecutiveFailures: 0,
+          healthStatus: "healthy",
+          isActive: true,
+          lastErrorAt: null,
+        })
+        .where(eq(sources.id, input.id))
+        .run();
+      const result = await scrapeSource(input.id);
+      return { ok: true, ...result };
+    }),
   discover: t.procedure
     .input(z.object({ query: z.string().min(3).max(200) }))
     .mutation(async ({ input }) => {

@@ -2,7 +2,7 @@ import type { LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 
-export type LlmTask = "summarize" | "classify" | "grade" | "embed";
+export type LlmTask = "summarize" | "classify" | "grade" | "embed" | "digest";
 export type ProviderType = "anthropic" | "openai" | "mock";
 
 export type ProviderKeyMap = {

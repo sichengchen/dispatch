@@ -6,6 +6,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { SourceList } from "./components/SourceList";
 import { ArticleList } from "./components/ArticleList";
 import { ReaderPane } from "./components/ReaderPane";
+import { DigestCard } from "./components/DigestCard";
 
 export default function App() {
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
@@ -38,10 +39,11 @@ export default function App() {
           </div>
         </aside>
         <section className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3">
+          <DigestCard />
           <div className="mb-2 text-xs font-semibold uppercase text-slate-400">
             Articles
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1">
             <ArticleList />
           </div>
         </section>

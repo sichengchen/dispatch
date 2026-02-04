@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { trpc } from "../lib/trpc";
 import { useUiStore } from "../store/ui";
 
@@ -16,86 +18,127 @@ export function ArticleList() {
     {
       sourceId: selectedSourceId ?? undefined,
       page: 1,
-      pageSize: 50
+      pageSize: 500
     },
     { enabled: true }
   );
 
+  const parentRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: articles.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 100,
+    overscan: 5,
+  });
+
+  useEffect(() => {
+    rowVirtualizer.scrollToIndex(0);
+  }, [selectedSourceId, rowVirtualizer]);
+
+  if (isLoading) {
+    return <div className="text-sm text-slate-500">Loading...</div>;
+  }
+
+  if (articles.length === 0) {
+    return <div className="text-sm text-slate-500">No articles yet.</div>;
+  }
+
   return (
-    <div className="space-y-2">
-      {isLoading && <div className="text-sm text-slate-500">Loading...</div>}
-      {!isLoading && articles.length === 0 && (
-        <div className="text-sm text-slate-500">No articles yet.</div>
-      )}
-      {articles.map((article) => (
-        <button
-          key={article.id}
-          type="button"
-          onClick={() => {
-            setSelectedArticleId(article.id);
-            if (!article.isRead) {
-              markRead.mutate({ id: article.id });
-            }
-          }}
-          className={`w-full rounded-lg border px-3 py-2 text-left transition ${
-            selectedArticleId === article.id
-              ? "border-slate-900 bg-slate-50"
-              : "border-slate-200 hover:border-slate-300"
-          }`}
-          aria-label={`Read article: ${article.title}`}
-        >
-          <div className="flex items-center justify-between">
-            <div className="font-medium text-slate-900">{article.title}</div>
-            <span
-              className={`text-xs ${article.isRead ? "text-slate-400" : "text-emerald-600"}`}
+    <div ref={parentRef} className="h-full overflow-y-auto">
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: "100%",
+          position: "relative",
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualItem) => {
+          const article = articles[virtualItem.index];
+          return (
+            <div
+              key={article.id}
+              data-index={virtualItem.index}
+              ref={rowVirtualizer.measureElement}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                transform: `translateY(${virtualItem.start}px)`,
+              }}
+              className="pb-2"
             >
-              {article.isRead ? "Read" : "Unread"}
-            </span>
-          </div>
-          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-            <span>
-              {article.sourceName ?? "Unknown source"} ·{" "}
-              {new Date(article.publishedAt ?? article.fetchedAt).toLocaleString()}
-            </span>
-            {article.grade != null && (
-              <span
-                className={`rounded px-1.5 py-0.5 font-medium ${
-                  article.grade >= 7
-                    ? "bg-emerald-100 text-emerald-700"
-                    : article.grade >= 4
-                      ? "bg-amber-100 text-amber-700"
-                      : "bg-red-100 text-red-700"
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedArticleId(article.id);
+                  if (!article.isRead) {
+                    markRead.mutate({ id: article.id });
+                  }
+                }}
+                className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                  selectedArticleId === article.id
+                    ? "border-slate-900 bg-slate-50"
+                    : "border-slate-200 hover:border-slate-300"
                 }`}
+                aria-label={`Read article: ${article.title}`}
               >
-                {article.grade}/10
-              </span>
-            )}
-          </div>
-          {article.tags && (() => {
-            try {
-              const parsed = JSON.parse(article.tags) as string[];
-              if (parsed.length > 0) {
-                return (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {parsed.slice(0, 3).map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                );
-              }
-              return null;
-            } catch {
-              return null;
-            }
-          })()}
-          <div className="mt-1 text-xs text-slate-500">{article.summary ?? "No summary yet."}</div>
-        </button>
-      ))}
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-slate-900">{article.title}</div>
+                  <span
+                    className={`text-xs ${article.isRead ? "text-slate-400" : "text-emerald-600"}`}
+                  >
+                    {article.isRead ? "Read" : "Unread"}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                  <span>
+                    {article.sourceName ?? "Unknown source"} ·{" "}
+                    {new Date(article.publishedAt ?? article.fetchedAt).toLocaleString()}
+                  </span>
+                  {article.grade != null && (
+                    <span
+                      className={`rounded px-1.5 py-0.5 font-medium ${
+                        article.grade >= 7
+                          ? "bg-emerald-100 text-emerald-700"
+                          : article.grade >= 4
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {article.grade}/10
+                    </span>
+                  )}
+                </div>
+                {article.tags && (() => {
+                  try {
+                    const parsed = JSON.parse(article.tags) as string[];
+                    if (parsed.length > 0) {
+                      return (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {parsed.slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+                    return null;
+                  } catch {
+                    return null;
+                  }
+                })()}
+                <div className="mt-1 text-xs text-slate-500">{article.summary ?? "No summary yet."}</div>
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

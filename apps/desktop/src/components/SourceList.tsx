@@ -37,6 +37,19 @@ export function SourceList() {
       setRefreshingId(null);
     }
   });
+  const [retryingId, setRetryingId] = useState<number | null>(null);
+  const retrySource = trpc.sources.retry.useMutation({
+    onMutate: (input) => {
+      setRetryingId(input.id);
+    },
+    onSuccess: () => {
+      utils.sources.list.invalidate();
+      utils.articles.list.invalidate();
+    },
+    onSettled: () => {
+      setRetryingId(null);
+    }
+  });
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const deleteSource = trpc.sources.delete.useMutation({
@@ -77,6 +90,7 @@ export function SourceList() {
       )}
       {sources.map((source) => {
         const isRefreshing = refreshingId === source.id;
+        const isRetrying = retryingId === source.id;
         const isDeleting = deletingId === source.id;
         return (
           <div
@@ -99,7 +113,19 @@ export function SourceList() {
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="truncate font-medium">{source.name}</div>
+                <div className="flex items-center gap-1.5 truncate font-medium">
+                  <span
+                    className={`inline-block h-2 w-2 shrink-0 rounded-full ${
+                      source.healthStatus === "dead"
+                        ? "bg-red-500"
+                        : source.healthStatus === "degraded"
+                          ? "bg-amber-500"
+                          : "bg-emerald-500"
+                    }`}
+                    title={source.healthStatus ?? "healthy"}
+                  />
+                  <span className="truncate">{source.name}</span>
+                </div>
                 <div
                   className={`mt-0.5 truncate text-xs ${
                     selectedSourceId === source.id ? "text-slate-200" : "text-slate-500"
@@ -109,19 +135,35 @@ export function SourceList() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 px-2 text-xs"
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    refreshSource.mutate({ id: source.id });
-                  }}
-                  disabled={isRefreshing || isDeleting}
-                >
-                  {isRefreshing ? "Refreshing…" : "Refresh"}
-                </Button>
+                {source.healthStatus !== "healthy" ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-blue-600 hover:bg-blue-50"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      retrySource.mutate({ id: source.id });
+                    }}
+                    disabled={isRetrying || isDeleting}
+                  >
+                    {isRetrying ? "Retrying…" : "Retry"}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs"
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      refreshSource.mutate({ id: source.id });
+                    }}
+                    disabled={isRefreshing || isDeleting}
+                  >
+                    {isRefreshing ? "Refreshing…" : "Refresh"}
+                  </Button>
+                )}
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button

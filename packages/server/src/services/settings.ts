@@ -5,7 +5,7 @@ import type { ModelsConfig, ModelCatalogEntry } from "@dispatch/lib";
 import { getDefaultModelsConfig } from "@dispatch/lib";
 
 const assignmentSchema = z.object({
-  task: z.enum(["summarize", "classify", "grade", "embed"]),
+  task: z.enum(["summarize", "classify", "grade", "embed", "digest"]),
   modelId: z.string().min(1)
 });
 
@@ -57,11 +57,19 @@ const gradingConfigSchema = z.object({
     .optional()
 });
 
+const digestConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  topN: z.number().int().positive().max(50).optional(),
+  hoursBack: z.number().positive().optional(),
+});
+
 const settingsSchema = z.object({
   models: modelsConfigSchema,
   search: searchConfigSchema.optional(),
   ui: uiConfigSchema.optional(),
-  grading: gradingConfigSchema.optional()
+  grading: gradingConfigSchema.optional(),
+  digest: digestConfigSchema.optional(),
 });
 
 export type SearchConfig = {
@@ -85,6 +93,8 @@ export type GradingConfig = {
     max?: number;
   };
 };
+
+export type DigestConfig = z.infer<typeof digestConfigSchema>;
 
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -161,14 +171,16 @@ export function loadSettings(): Settings {
     models: parsed.models ?? getDefaultModelsConfig(),
     search: parsed.search,
     ui: parsed.ui,
-    grading: parsed.grading ?? getDefaultGradingConfig()
+    grading: parsed.grading ?? getDefaultGradingConfig(),
+    digest: parsed.digest,
   };
 
   return settingsSchema.parse({
     models: merged.models,
     search: merged.search,
     ui: merged.ui,
-    grading: merged.grading
+    grading: merged.grading,
+    digest: merged.digest,
   });
 }
 
@@ -185,7 +197,8 @@ export function updateModelsConfig(next: ModelsConfig): ModelsConfig {
     models: modelsConfigSchema.parse(next),
     search: getSearchConfig(),
     ui: getUiConfig(),
-    grading: getGradingConfig()
+    grading: getGradingConfig(),
+    digest: getDigestConfig(),
   }).models;
 }
 
@@ -203,4 +216,17 @@ export function getUiConfig(): UiConfig {
 
 export function getGradingConfig(): GradingConfig {
   return loadSettings().grading ?? getDefaultGradingConfig();
+}
+
+export function getDefaultDigestConfig(): DigestConfig {
+  return {
+    enabled: true,
+    scheduledTime: "06:00",
+    topN: 10,
+    hoursBack: 24,
+  };
+}
+
+export function getDigestConfig(): DigestConfig {
+  return loadSettings().digest ?? getDefaultDigestConfig();
 }

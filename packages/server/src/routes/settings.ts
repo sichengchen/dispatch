@@ -5,11 +5,12 @@ import {
   getSearchConfig,
   getUiConfig,
   getGradingConfig,
+  getDigestConfig,
   saveSettings
 } from "../services/settings";
 
 const assignmentSchema = z.object({
-  task: z.enum(["summarize", "classify", "grade", "embed"]),
+  task: z.enum(["summarize", "classify", "grade", "embed", "digest"]),
   modelId: z.string().min(1)
 });
 
@@ -61,11 +62,19 @@ const gradingConfigSchema = z.object({
     .optional()
 });
 
+const digestConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  topN: z.number().int().positive().max(50).optional(),
+  hoursBack: z.number().positive().optional(),
+});
+
 const settingsSchema = z.object({
   models: modelsConfigSchema,
   search: searchConfigSchema.optional(),
   ui: uiConfigSchema.optional(),
-  grading: gradingConfigSchema.optional()
+  grading: gradingConfigSchema.optional(),
+  digest: digestConfigSchema.optional(),
 });
 
 export const settingsRouter = t.router({
@@ -74,7 +83,8 @@ export const settingsRouter = t.router({
       models: getModelsConfig(),
       search: getSearchConfig(),
       ui: getUiConfig(),
-      grading: getGradingConfig()
+      grading: getGradingConfig(),
+      digest: getDigestConfig(),
     };
   }),
   update: t.procedure.input(settingsSchema).mutation(({ input }) => {

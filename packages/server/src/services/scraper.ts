@@ -6,6 +6,7 @@ import PQueue from "p-queue";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { processArticle } from "./llm";
+import { recordScrapeSuccess, recordScrapeFailure } from "./source-health";
 
 const parser = new Parser();
 
@@ -239,10 +240,10 @@ export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
         .set({
           scrapingStrategy: tier,
           lastFetchedAt: new Date(),
-          lastErrorAt: null
         })
         .where(eq(sources.id, sourceId))
         .run();
+      recordScrapeSuccess(sourceId);
 
       return { ...result, tier };
     } catch (err) {
@@ -252,10 +253,7 @@ export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
   }
 
   // All tiers failed
-  db.update(sources)
-    .set({ lastErrorAt: new Date() })
-    .where(eq(sources.id, sourceId))
-    .run();
+  recordScrapeFailure(sourceId);
 
   const tierNames = errors.map(e => e.tier).join(", ");
   throw new Error(`All scraping tiers failed for source ${sourceId} (tried: ${tierNames})`);

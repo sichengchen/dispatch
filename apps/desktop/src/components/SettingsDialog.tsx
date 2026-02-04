@@ -21,7 +21,7 @@ import {
 import { Checkbox } from "./ui/checkbox";
 import { Slider } from "./ui/slider";
 
-type Task = "summarize" | "classify" | "grade" | "embed";
+type Task = "summarize" | "classify" | "grade" | "embed" | "digest";
 
 type ProviderType = "anthropic" | "openai" | "mock";
 
@@ -58,7 +58,8 @@ const TASKS: Array<{ id: Task; label: string; hint: string }> = [
   { id: "summarize", label: "Summarize", hint: "One-liner and key points" },
   { id: "classify", label: "Classify", hint: "Topic tags" },
   { id: "grade", label: "Grade", hint: "Quality score" },
-  { id: "embed", label: "Embeddings", hint: "Related articles" }
+  { id: "embed", label: "Embeddings", hint: "Related articles" },
+  { id: "digest", label: "Digest", hint: "Daily briefing generation" }
 ];
 
 const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
@@ -155,8 +156,13 @@ export function SettingsDialog() {
     summarize: createFallbackId("anthropic", DEFAULT_MODEL),
     classify: createFallbackId("anthropic", DEFAULT_MODEL),
     grade: createFallbackId("anthropic", DEFAULT_MODEL),
-    embed: createFallbackId("mock", "mock")
+    embed: createFallbackId("mock", "mock"),
+    digest: createFallbackId("anthropic", DEFAULT_MODEL)
   }));
+  const [digestEnabled, setDigestEnabled] = useState(true);
+  const [digestTime, setDigestTime] = useState("06:00");
+  const [digestTopN, setDigestTopN] = useState(10);
+  const [digestHoursBack, setDigestHoursBack] = useState(24);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -177,6 +183,10 @@ export function SettingsDialog() {
     });
     setInterestScores(buildScoreRows(cfg.grading?.interestByTag));
     setSourceScores(buildScoreRows(cfg.grading?.sourceWeights));
+    setDigestEnabled(cfg.digest?.enabled ?? true);
+    setDigestTime(cfg.digest?.scheduledTime ?? "06:00");
+    setDigestTopN(cfg.digest?.topN ?? 10);
+    setDigestHoursBack(cfg.digest?.hoursBack ?? 24);
 
     const nextCatalog = llm.catalog && llm.catalog.length > 0
       ? llm.catalog.map((entry) => ({
@@ -200,7 +210,8 @@ export function SettingsDialog() {
       summarize: "",
       classify: "",
       grade: "",
-      embed: ""
+      embed: "",
+      digest: ""
     };
 
     for (const task of TASKS) {
@@ -521,6 +532,59 @@ export function SettingsDialog() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded-lg border border-slate-200 bg-white p-3">
+              <div className="text-sm font-semibold text-slate-900">Daily Digest</div>
+              <div className="mt-1 text-xs text-slate-500">
+                Auto-generate a daily briefing from top-rated articles.
+              </div>
+              <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                <Checkbox
+                  id="digest-enabled"
+                  checked={digestEnabled}
+                  onCheckedChange={(checked) => {
+                    setDigestEnabled(checked === true);
+                  }}
+                />
+                <Label htmlFor="digest-enabled">Enable daily digest</Label>
+              </div>
+              {digestEnabled && (
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label>Scheduled time</Label>
+                    <Input
+                      type="time"
+                      value={digestTime}
+                      onChange={(e) => setDigestTime(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Top N articles</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={digestTopN}
+                      onChange={(e) =>
+                        setDigestTopN(Math.max(1, Math.min(50, Number(e.target.value) || 1)))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Hours back</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="72"
+                      value={digestHoursBack}
+                      onChange={(e) =>
+                        setDigestHoursBack(Math.max(1, Math.min(72, Number(e.target.value) || 1)))
+                      }
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1052,6 +1116,12 @@ export function SettingsDialog() {
                   sourceWeights: Object.keys(sourceWeights).length
                     ? sourceWeights
                     : undefined
+                },
+                digest: {
+                  enabled: digestEnabled,
+                  scheduledTime: digestTime,
+                  topN: digestTopN,
+                  hoursBack: digestHoursBack,
                 }
               });
             }}
