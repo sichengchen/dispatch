@@ -7,14 +7,7 @@ import { ArticleList } from "./components/ArticleList";
 import { ReaderPane } from "./components/ReaderPane";
 
 export default function App() {
-  const selectedSourceId = useUiStore((state) => state.selectedSourceId);
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
-
-  const { data: articles = [] } = trpc.articles.list.useQuery({
-    sourceId: selectedSourceId ?? undefined,
-    page: 1,
-    pageSize: 50
-  });
 
   const { data: selectedArticle } = trpc.articles.byId.useQuery(
     { id: selectedArticleId ?? 0 },

@@ -79,10 +79,17 @@ export function SourceList() {
         const isRefreshing = refreshingId === source.id;
         const isDeleting = deletingId === source.id;
         return (
-          <button
+          <div
             key={source.id}
-            type="button"
+            role="button"
+            tabIndex={0}
             onClick={() => setSelectedSourceId(source.id)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                setSelectedSourceId(source.id);
+              }
+            }}
             className={`w-full rounded px-3 py-2 text-left text-sm transition ${
               selectedSourceId === source.id
                 ? "bg-slate-900 text-white"
@@ -159,7 +166,7 @@ export function SourceList() {
                 </AlertDialog>
               </div>
             </div>
-          </button>
+          </div>
         );
       })}
     </div>

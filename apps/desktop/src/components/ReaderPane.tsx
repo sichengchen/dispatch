@@ -19,6 +19,13 @@ export function ReaderPane({ article }: { article: ReaderArticle | null }) {
   const setSelectedArticleId = useUiStore((state) => state.setSelectedArticleId);
   const setSelectedSourceId = useUiStore((state) => state.setSelectedSourceId);
 
+  const articleId = article?.id ?? null;
+  const { data: related = [], isLoading: isLoadingRelated } =
+    trpc.articles.related.useQuery(
+      { id: articleId ?? 0, topK: 5 },
+      { enabled: articleId != null }
+    );
+
   if (!article) {
     return (
       <div className="h-full rounded-lg border border-dashed border-slate-200 p-6 text-sm text-slate-500">
@@ -26,12 +33,6 @@ export function ReaderPane({ article }: { article: ReaderArticle | null }) {
       </div>
     );
   }
-
-  const { data: related = [], isLoading: isLoadingRelated } =
-    trpc.articles.related.useQuery(
-      { id: article.id, topK: 5 },
-      { enabled: Boolean(article.id) }
-    );
 
   const content = article.cleanContent || "";
   const htmlFallback = !content && article.rawHtml ? article.rawHtml : null;
