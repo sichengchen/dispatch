@@ -190,7 +190,8 @@ async function startServer() {
     PORT: String(serverPort),
     HOST: SERVER_HOST,
     DISPATCH_SETTINGS_PATH: getSettingsPath(),
-    DISPATCH_DB_PATH: getDbPath()
+    DISPATCH_DB_PATH: getDbPath(),
+    DISPATCH_ALLOW_EXISTING_SERVER: "1"
   }
 
   if (VITE_DEV_SERVER_URL || process.env.DISPATCH_E2E === "1") {
