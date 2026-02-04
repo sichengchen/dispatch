@@ -14,6 +14,10 @@ export async function ipcFetch(
   const headers =
     init?.headers ? Object.fromEntries(new Headers(init.headers)) : undefined;
 
+  if (!window.dispatchApi?.request) {
+    return fetch(url, init);
+  }
+
   const result = await window.dispatchApi.request({
     path,
     init: {

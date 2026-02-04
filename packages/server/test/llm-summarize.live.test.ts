@@ -37,7 +37,7 @@ function getLocalLlmConfig(): LlmConfig {
 }
 
 describeLive("LLM Summarization (Live)", () => {
-  it("Summarize.Basic: returns non-empty string", async () => {
+  it("Summarize.Basic: returns non-empty string", { timeout: 120000 }, async () => {
     const summary = await summarizeArticle(
       "Dispatch is a local-first news reader designed for speed.",
       getLocalLlmConfig()
@@ -45,20 +45,37 @@ describeLive("LLM Summarization (Live)", () => {
     expect(summary.length).toBeGreaterThan(0);
   });
 
-  it("Summarize.InvalidKey: throws when provider key missing", async () => {
+  it("Summarize.NormalArticle: summarizes a real article input", async () => {
+    const article = `
+Researchers studying migratory birds reported that a prolonged heat wave altered
+the timing of spring arrivals across several flyways. The study tracked thousands
+of tagged birds over four years and found that earlier departures did not always
+translate to higher nesting success. The authors suggest conservation plans should
+account for shifting food availability and more frequent extreme weather events.
+    `.trim();
+
+    const summary = await summarizeArticle(article, getLocalLlmConfig());
+    expect(summary.length).toBeGreaterThan(0);
+    expect(summary.length).toBeLessThan(300);
+    expect(summary).not.toMatch(/<think>|<analysis>/i);
+  });
+
+  it("Summarize.InvalidConfig: throws when baseUrl missing", async () => {
+    const baseConfig = getLocalLlmConfig();
+    const previousChatEndpoint = process.env.DISPATCH_LLM_CHAT_ENDPOINT;
+    delete process.env.DISPATCH_LLM_CHAT_ENDPOINT;
     const invalidConfig: LlmConfig = {
       providers: {
         openaiCompatible: {
-          // baseUrl present, apiKey missing
-          apiKey: "",
-          baseUrl: "http://localhost:1234/v1"
+          apiKey: baseConfig.providers.openaiCompatible?.apiKey ?? "",
+          baseUrl: ""
         }
       },
       models: [
         {
           task: "summarize",
           provider: "openaiCompatible",
-          model: "local-model"
+          model: baseConfig.models[0]?.model ?? "local-model"
         }
       ]
     };
@@ -66,6 +83,9 @@ describeLive("LLM Summarization (Live)", () => {
     await expect(
       summarizeArticle("Short content", invalidConfig)
     ).rejects.toBeTruthy();
+    if (previousChatEndpoint) {
+      process.env.DISPATCH_LLM_CHAT_ENDPOINT = previousChatEndpoint;
+    }
   });
 
   it("Summarize.Short: handles short article", async () => {

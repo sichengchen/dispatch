@@ -8,3 +8,4 @@ dispatch.settings.json
 PLAN.md
 .agent/
 test-results/
+.mcp.json

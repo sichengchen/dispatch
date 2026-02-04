@@ -1,9 +1,44 @@
 import { serve } from "@hono/node-server";
+import fs from "node:fs";
 import net from "node:net";
+import path from "node:path";
+import { config as loadEnv } from "dotenv";
 import { app } from "./app";
 import { startScheduler } from "./services/scheduler";
 
 export type { AppRouter } from "./app";
+
+function findWorkspaceRoot(startDir: string) {
+  let current = startDir;
+  for (let i = 0; i < 6; i += 1) {
+    if (
+      fs.existsSync(path.join(current, "pnpm-workspace.yaml")) ||
+      fs.existsSync(path.join(current, "turbo.json"))
+    ) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
+}
+
+function loadDotEnv() {
+  const workspaceRoot = findWorkspaceRoot(process.cwd());
+  const candidates = [
+    workspaceRoot ? path.join(workspaceRoot, ".env") : null,
+    path.resolve(process.cwd(), ".env")
+  ].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      loadEnv({ path: candidate });
+      break;
+    }
+  }
+}
+
+loadDotEnv();
 
 const hostname = process.env.HOST ?? "127.0.0.1";
 

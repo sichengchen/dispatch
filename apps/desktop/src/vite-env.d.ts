@@ -17,13 +17,13 @@ type DispatchApiResponse = {
 };
 
 interface Window {
-  ipcRenderer: {
+  ipcRenderer?: {
     on: (...args: any[]) => void;
     off: (...args: any[]) => void;
     send: (...args: any[]) => void;
     invoke: (...args: any[]) => Promise<any>;
   };
-  dispatchApi: {
+  dispatchApi?: {
     request: (payload: DispatchApiRequest) => Promise<DispatchApiResponse>;
   };
 }

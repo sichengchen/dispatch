@@ -1,13 +1,30 @@
 import { useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "./ui/select";
 
 export function AddSourceDialog() {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [type, setType] = useState<"rss" | "web">("rss");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const utils = trpc.useUtils();
   const addSource = trpc.sources.add.useMutation({
     onSuccess: async () => {
@@ -16,48 +33,70 @@ export function AddSourceDialog() {
       setName("");
       setUrl("");
       setType("rss");
+      setErrorMessage(null);
+    },
+    onError: (err) => {
+      setErrorMessage(err.message || "Failed to add source.");
     }
   });
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button size="sm" variant="outline">+ Add</Button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-slate-900/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[360px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-4 shadow-lg">
-          <Dialog.Title className="text-lg font-semibold">Add Source</Dialog.Title>
+      </DialogTrigger>
+      <DialogContent className="w-[360px]">
+        <DialogHeader>
+          <DialogTitle>Add Source</DialogTitle>
+        </DialogHeader>
           <div className="mt-3 space-y-3">
-            <label className="block text-sm">
-              Name
-              <input
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+            <div className="space-y-1">
+              <Label htmlFor="source-name">Name</Label>
+              <Input
+                id="source-name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setErrorMessage(null);
+                }}
               />
-            </label>
-            <label className="block text-sm">
-              URL
-              <input
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="source-url">URL</Label>
+              <Input
+                id="source-url"
                 value={url}
-                onChange={(e) => setUrl(e.target.value)}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  setErrorMessage(null);
+                }}
               />
-            </label>
-            <label className="block text-sm">
-              Type
-              <select
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+            </div>
+            <div className="space-y-1">
+              <Label>Type</Label>
+              <Select
                 value={type}
-                onChange={(e) => setType(e.target.value as "rss" | "web")}
+                onValueChange={(value) => {
+                  setType(value as "rss" | "web");
+                  setErrorMessage(null);
+                }}
               >
-                <option value="rss">RSS</option>
-                <option value="web">Web</option>
-              </select>
-            </label>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="rss">RSS</SelectItem>
+                  <SelectItem value="web">Web</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {errorMessage && (
+              <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700">
+                {errorMessage}
+              </div>
+            )}
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button
               variant="ghost"
               onClick={() => setOpen(false)}
@@ -78,9 +117,8 @@ export function AddSourceDialog() {
             >
               Save
             </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

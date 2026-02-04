@@ -31,9 +31,38 @@ const settingsSchema = z.object({
 
 export type Settings = z.infer<typeof settingsSchema>;
 
+function findWorkspaceRoot(startDir: string) {
+  let current = startDir;
+  for (let i = 0; i < 6; i += 1) {
+    if (
+      fs.existsSync(path.join(current, "pnpm-workspace.yaml")) ||
+      fs.existsSync(path.join(current, "turbo.json"))
+    ) {
+      return current;
+    }
+    const parent = path.dirname(current);
+    if (parent === current) break;
+    current = parent;
+  }
+  return null;
+}
+
 export function getSettingsPath(): string {
   const explicit = process.env.DISPATCH_SETTINGS_PATH;
   if (explicit) return explicit;
+  const workspaceRoot = findWorkspaceRoot(process.cwd());
+  if (workspaceRoot) {
+    const rootPath = path.join(workspaceRoot, "dispatch.settings.json");
+    if (fs.existsSync(rootPath)) {
+      return rootPath;
+    }
+    const cwdPath = path.resolve(process.cwd(), "dispatch.settings.json");
+    if (fs.existsSync(cwdPath)) {
+      fs.copyFileSync(cwdPath, rootPath);
+      return rootPath;
+    }
+    return rootPath;
+  }
   return path.resolve(process.cwd(), "dispatch.settings.json");
 }
 
@@ -54,7 +83,9 @@ export function loadSettings(): Settings {
     const llm = merged.llm as LlmConfig;
     const providers = { ...llm.providers };
     delete (providers as { gemini?: string }).gemini;
-    const models = llm.models.filter((model) => model.provider !== "gemini");
+    const models = llm.models.filter(
+      (model) => (model.provider as string) !== "gemini"
+    );
     return {
       providers,
       models: models.length ? models : fallback.models

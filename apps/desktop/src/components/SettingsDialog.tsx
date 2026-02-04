@@ -1,7 +1,23 @@
 import { useEffect, useState } from "react";
-import * as Dialog from "@radix-ui/react-dialog";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger
+} from "./ui/dialog";
+import { Input } from "./ui/input";
+import { Label } from "./ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "./ui/select";
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
@@ -33,61 +49,65 @@ export function SettingsDialog() {
   }, [settingsQuery.data, open]);
 
   return (
-    <Dialog.Root open={open} onOpenChange={setOpen}>
-      <Dialog.Trigger asChild>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button size="sm" variant="outline">Settings</Button>
-      </Dialog.Trigger>
-      <Dialog.Portal>
-        <Dialog.Overlay className="fixed inset-0 bg-slate-900/40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-lg bg-white p-4 shadow-lg">
-          <Dialog.Title className="text-lg font-semibold">LLM Settings</Dialog.Title>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>LLM Settings</DialogTitle>
+        </DialogHeader>
           <div className="mt-3 space-y-3">
-            <label className="block text-sm">
-              Summarize Provider
-              <select
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+            <div className="space-y-1">
+              <Label>Summarize Provider</Label>
+              <Select
                 value={provider}
-                onChange={(e) => setProvider(e.target.value)}
+                onValueChange={(value) => setProvider(value)}
               >
-                <option value="anthropic">Anthropic</option>
-                <option value="openaiCompatible">OpenAI Compatible</option>
-              </select>
-            </label>
-            <label className="block text-sm">
-              Summarize Model
-              <input
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="anthropic">Anthropic</SelectItem>
+                  <SelectItem value="openaiCompatible">OpenAI Compatible</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="summarize-model">Summarize Model</Label>
+              <Input
+                id="summarize-model"
                 value={model}
                 onChange={(e) => setModel(e.target.value)}
               />
-            </label>
-            <label className="block text-sm">
-              Anthropic API Key
-              <input
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="anthropic-key">Anthropic API Key</Label>
+              <Input
+                id="anthropic-key"
                 value={anthropicKey}
                 onChange={(e) => setAnthropicKey(e.target.value)}
               />
-            </label>
-            <label className="block text-sm">
-              OpenAI-Compatible API Key
-              <input
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="openai-key">OpenAI-Compatible API Key</Label>
+              <Input
+                id="openai-key"
                 value={openaiKey}
                 onChange={(e) => setOpenaiKey(e.target.value)}
               />
-            </label>
-            <label className="block text-sm">
-              OpenAI-Compatible Base URL
-              <input
-                className="mt-1 w-full rounded border border-slate-200 px-2 py-1"
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="openai-base-url">OpenAI-Compatible Base URL</Label>
+              <Input
+                id="openai-base-url"
                 placeholder="https://api.example.com/v1"
                 value={openaiBaseUrl}
                 onChange={(e) => setOpenaiBaseUrl(e.target.value)}
               />
-            </label>
+            </div>
           </div>
-          <div className="mt-4 flex justify-end gap-2">
+          <DialogFooter>
             <Button variant="ghost" onClick={() => setOpen(false)} type="button">
               Cancel
             </Button>
@@ -115,9 +135,8 @@ export function SettingsDialog() {
             >
               Save
             </Button>
-          </div>
-        </Dialog.Content>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

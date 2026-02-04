@@ -9,7 +9,7 @@
     "build": "tsc -p tsconfig.json",
     "dev": "pnpm --filter @dispatch/db build && pnpm --filter @dispatch/lib build && node --import tsx/esm src/index.ts",
     "test:backend": "pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && vitest run -c vitest.config.ts test/backend-hono-trpc.test.ts",
-    "test:scraper": "pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && vitest run -c vitest.config.ts test/scraper-rss.test.ts",
+    "test:scraper": "DISPATCH_DISABLE_LLM=1 pnpm --filter @dispatch/lib build && pnpm --filter @dispatch/db build && pnpm --filter @dispatch/db migrate && pnpm --filter @dispatch/db seed && vitest run -c vitest.config.ts test/scraper-rss.test.ts",
     "test:llm": "pnpm --filter @dispatch/lib build && DISPATCH_LIVE=1 vitest run -c vitest.live.config.ts test/llm-summarize.live.test.ts",
     "test:llm:live": "pnpm --filter @dispatch/lib build && DISPATCH_LIVE=1 vitest run -c vitest.live.config.ts"
   },

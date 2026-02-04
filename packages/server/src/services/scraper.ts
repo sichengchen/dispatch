@@ -70,6 +70,9 @@ export async function scrapeRSS(sourceId: number): Promise<ScrapeResult> {
       }
 
       inserted += 1;
+      if (process.env.DISPATCH_DISABLE_LLM === "1") {
+        continue;
+      }
       try {
         const summary = await summarizeArticle(content || item.title || "");
         if (summary) {

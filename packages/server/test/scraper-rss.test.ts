@@ -18,6 +18,7 @@ let testSourceId: number | null = null;
 
 beforeAll(() => {
   process.env.DISPATCH_TEST_RSS_XML = feedXml;
+  process.env.DISPATCH_DISABLE_LLM = "1";
   const result = db
     .insert(sources)
     .values({
@@ -36,6 +37,7 @@ afterAll(() => {
     db.delete(sources).where(eq(sources.id, testSourceId)).run();
   }
   delete process.env.DISPATCH_TEST_RSS_XML;
+  delete process.env.DISPATCH_DISABLE_LLM;
 });
 
 describe("RSS Scraper", () => {

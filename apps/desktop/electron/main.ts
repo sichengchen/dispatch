@@ -1,5 +1,6 @@
 import type { IpcMainInvokeEvent } from 'electron'
 import { spawn, type ChildProcess } from 'node:child_process'
+import fs from 'node:fs'
 import { createRequire } from 'node:module'
 import net from 'node:net'
 import { fileURLToPath } from 'node:url'
@@ -36,21 +37,48 @@ function getServerUrl() {
   return `http://${SERVER_HOST}:${serverPort}`
 }
 
+function findWorkspaceRoot(startDir: string) {
+  let current = startDir
+  for (let i = 0; i < 6; i += 1) {
+    if (
+      fs.existsSync(path.join(current, 'pnpm-workspace.yaml')) ||
+      fs.existsSync(path.join(current, 'turbo.json'))
+    ) {
+      return current
+    }
+    const parent = path.dirname(current)
+    if (parent === current) break
+    current = parent
+  }
+  return null
+}
+
+function getDevRoot() {
+  return (
+    findWorkspaceRoot(process.cwd()) ??
+    findWorkspaceRoot(process.env.APP_ROOT ?? '') ??
+    process.cwd()
+  )
+}
+
 function getSettingsPath() {
   if (process.env.DISPATCH_SETTINGS_PATH) {
-    return process.env.DISPATCH_SETTINGS_PATH;
+    return process.env.DISPATCH_SETTINGS_PATH
   }
-  return path.join(app.getPath('userData'), 'dispatch.settings.json')
+  if (app.isPackaged) {
+    return path.join(app.getPath('userData'), 'dispatch.settings.json')
+  }
+  return path.join(getDevRoot(), 'dispatch.settings.json')
 }
 
 function getDbPath() {
   if (process.env.DISPATCH_DB_PATH) {
-    return process.env.DISPATCH_DB_PATH;
+    return process.env.DISPATCH_DB_PATH
   }
-  if (VITE_DEV_SERVER_URL) {
-    return path.resolve(process.env.APP_ROOT ?? '.', '..', 'packages/db/dispatch.dev.db')
+  if (app.isPackaged) {
+    return path.join(app.getPath('userData'), 'dispatch.db')
   }
-  return path.join(app.getPath('userData'), 'dispatch.db')
+  return path.join(getDevRoot(), 'dispatch.dev.db')
 }
 
 async function waitForServer(timeoutMs = 10000) {
@@ -85,6 +113,15 @@ async function checkServerHealthy(port: number) {
   }
 }
 
+async function findHealthyServerInRange(start: number, end: number) {
+  for (let port = start; port <= end; port += 1) {
+    if (await checkServerHealthy(port)) {
+      return port
+    }
+  }
+  return null
+}
+
 async function resolveServerPort() {
   if (Number.isFinite(serverPort)) {
     if (await checkServerHealthy(serverPort)) {
@@ -97,8 +134,9 @@ async function resolveServerPort() {
   }
 
   if (!process.env.DISPATCH_PORT) {
-    if (await checkServerHealthy(3001)) {
-      serverPort = 3001
+    const existing = await findHealthyServerInRange(3001, 3010)
+    if (existing) {
+      serverPort = existing
       return { reuse: true }
     }
     for (let port = 3001; port <= 3010; port += 1) {
