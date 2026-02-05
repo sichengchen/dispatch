@@ -24,6 +24,7 @@ type ArticleViewerProps = {
   } | null;
   onBack: () => void;
   onSelectArticle?: (id: number) => void;
+  backLabel?: string;
 };
 
 function parseStringArray(raw: string | null | undefined): string[] {
@@ -39,7 +40,7 @@ function parseStringArray(raw: string | null | undefined): string[] {
   return [];
 }
 
-export function ArticleViewer({ article, onBack, onSelectArticle }: ArticleViewerProps) {
+export function ArticleViewer({ article, onBack, onSelectArticle, backLabel }: ArticleViewerProps) {
   const articleId = article?.id ?? null;
   const { data: related = [], isLoading: isLoadingRelated } =
     trpc.articles.related.useQuery(
@@ -65,7 +66,7 @@ export function ArticleViewer({ article, onBack, onSelectArticle }: ArticleViewe
     <div className="rounded-lg border border-slate-200 bg-white p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Button variant="outline" size="sm" onClick={onBack}>
-          Back to Digest
+          {backLabel ?? "Back"}
         </Button>
         <div className="flex items-center gap-2 text-xs text-slate-500">
           {article.sourceName ?? "Unknown source"}

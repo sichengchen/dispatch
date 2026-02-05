@@ -20,9 +20,22 @@ type DigestContent = {
   topics?: Array<{ topic: string }>;
 };
 
+function extractJsonBlock(raw: string): string {
+  const trimmed = raw.trim();
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) return fenced[1].trim();
+  const objectMatch = trimmed.match(/(\{[\s\S]*\})/);
+  if (objectMatch?.[1]) return objectMatch[1].trim();
+  return trimmed;
+}
+
 function getDigestPreview(content: string): string {
   try {
-    const parsed = JSON.parse(content) as DigestContent;
+    const cleaned = extractJsonBlock(content);
+    const parsed = JSON.parse(cleaned) as DigestContent | string;
+    if (typeof parsed === "string") {
+      return getDigestPreview(parsed);
+    }
     if (parsed?.overview) return parsed.overview;
   } catch {
     // ignore parse errors

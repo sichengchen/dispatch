@@ -189,6 +189,38 @@ export const articlesRouter = t.router({
         return left - right;
       });
     }),
+  byIds: t.procedure
+    .input(
+      z.object({
+        ids: z.array(z.number().int().positive()).min(1)
+      })
+    )
+    .query(({ ctx, input }) => {
+      const uniqueIds = Array.from(new Set(input.ids));
+      const rows = ctx.db
+        .select({
+          id: articles.id,
+          sourceId: articles.sourceId,
+          title: articles.title,
+          url: articles.url,
+          summary: articles.summary,
+          summaryLong: articles.summaryLong,
+          publishedAt: articles.publishedAt,
+          fetchedAt: articles.fetchedAt,
+          sourceName: sources.name
+        })
+        .from(articles)
+        .leftJoin(sources, eq(articles.sourceId, sources.id))
+        .where(inArray(articles.id, uniqueIds))
+        .all();
+
+      const order = new Map(uniqueIds.map((id, index) => [id, index]));
+      return rows.sort((a, b) => {
+        const left = order.get(a.id) ?? 0;
+        const right = order.get(b.id) ?? 0;
+        return left - right;
+      });
+    }),
   pipelineLog: t.procedure
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) => {

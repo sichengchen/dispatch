@@ -1,8 +1,7 @@
-import { useMemo, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { trpc } from "../lib/trpc";
 import { cn } from "../lib/utils";
 import { AddSourceDialog } from "./AddSourceDialog";
-import { DigestHistoryDialog } from "./DigestHistoryDialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -10,12 +9,23 @@ import { Separator } from "./ui/separator";
 
 type StatusTone = "ok" | "warning" | "error" | "neutral";
 
-type RecentRun = {
-  task: string;
-  status: "success" | "warning" | "error" | "idle";
-  started: string;
-  duration: string;
-  details: string;
+type TaskRun = {
+  id: number;
+  kind: string;
+  status: "running" | "success" | "warning" | "error";
+  label: string;
+  startedAt: number;
+  finishedAt?: number | null;
+  durationMs?: number | null;
+  meta?: Record<string, unknown>;
+};
+
+type ScheduledTask = {
+  name: string;
+  frequency: string;
+  nextRunAt: number | null;
+  lastRunAt: number | null;
+  status: string;
 };
 
 function formatDateTime(value?: number | Date | null): string {
@@ -23,6 +33,18 @@ function formatDateTime(value?: number | Date | null): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleString();
+}
+
+function formatDuration(value?: number | null): string {
+  if (!value || value <= 0) return "—";
+  const seconds = Math.round(value / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  if (minutes < 60) return `${minutes}m ${remainder}s`;
+  const hours = Math.floor(minutes / 60);
+  const minutesLeft = minutes % 60;
+  return `${hours}h ${minutesLeft}m`;
 }
 
 function StatusPill({
@@ -45,61 +67,88 @@ function StatusPill({
   );
 }
 
-function resolveSourceTone(health: string | null | undefined): StatusTone {
-  if (health === "dead") return "error";
-  if (health === "degraded") return "warning";
-  if (health === "healthy") return "ok";
-  return "neutral";
-}
-
-function resolveRunTone(status: RecentRun["status"]): StatusTone {
+function resolveRunTone(status: TaskRun["status"]): StatusTone {
   if (status === "success") return "ok";
   if (status === "warning") return "warning";
   if (status === "error") return "error";
+  if (status === "running") return "warning";
   return "neutral";
 }
 
-export function TasksPage() {
+function getRunDetails(run: TaskRun): string {
+  const meta = run.meta ?? {};
+  if (run.kind === "fetch-source") {
+    const inserted = Number(meta.inserted ?? 0);
+    const skipped = Number(meta.skipped ?? 0);
+    return `Inserted ${inserted} · Skipped ${skipped}`;
+  }
+  if (run.kind === "fetch-batch") {
+    const inserted = Number(meta.inserted ?? 0);
+    const failed = Number(meta.failed ?? 0);
+    return `Inserted ${inserted} · Failed ${failed}`;
+  }
+  if (run.kind === "pipeline-article") {
+    const step = meta.step ? String(meta.step) : "—";
+    return `Stage: ${step}`;
+  }
+  if (run.kind === "pipeline-batch") {
+    const processed = Number(meta.processed ?? 0);
+    const failed = Number(meta.failed ?? 0);
+    return `Processed ${processed} · Failed ${failed}`;
+  }
+  if (run.kind === "digest") {
+    const count = Number(meta.articleCount ?? 0);
+    return `${count} articles`;
+  }
+  if (meta.error) return String(meta.error);
+  return "—";
+}
+
+type TasksPageProps = {
+  onOpenHistory?: () => void;
+};
+
+export function TasksPage({ onOpenHistory }: TasksPageProps) {
   const utils = trpc.useUtils();
-  const { data: sources = [] } = trpc.sources.list.useQuery();
-  const { data: digest } = trpc.digests.latest.useQuery();
-  const { data: settings } = trpc.settings.get.useQuery();
-  const { data: articles = [] } = trpc.articles.list.useQuery({
-    page: 1,
-    pageSize: 5
-  });
+  const { data: dashboard } = trpc.tasks.dashboard.useQuery();
 
   const generateDigest = trpc.digests.generate.useMutation({
     onSuccess: () => {
       utils.digests.latest.invalidate();
       utils.digests.list.invalidate();
+      utils.tasks.dashboard.invalidate();
     }
   });
 
-  const totalSources = sources.length;
-  const deadSources = sources.filter((source) => source.healthStatus === "dead").length;
-  const degradedSources = sources.filter(
-    (source) => source.healthStatus === "degraded"
-  ).length;
-  const healthySources = totalSources - deadSources - degradedSources;
+  const runFetch = trpc.tasks.runFetch.useMutation({
+    onSuccess: () => {
+      utils.tasks.dashboard.invalidate();
+    }
+  });
+  const runPipeline = trpc.tasks.runPipeline.useMutation({
+    onSuccess: () => {
+      utils.tasks.dashboard.invalidate();
+    }
+  });
 
-  const latestFetchAt = useMemo(() => {
-    const timestamps = sources
-      .map((source) => source.lastFetchedAt)
-      .filter(Boolean) as Array<number | Date>;
-    if (!timestamps.length) return null;
-    return timestamps
-      .map((value) => (value instanceof Date ? value.getTime() : value))
-      .sort((a, b) => b - a)[0];
-  }, [sources]);
+  const overview = dashboard?.overview;
+  const sourcesHealth = overview?.sources;
+  const totalSources = sourcesHealth?.total ?? 0;
+  const healthySources = sourcesHealth?.healthy ?? 0;
+  const degradedSources = sourcesHealth?.degraded ?? 0;
+  const deadSources = sourcesHealth?.dead ?? 0;
+  const latestFetchAt = sourcesHealth?.lastFetchedAt ?? null;
+  const fetchQueue = overview?.fetchQueue;
+  const fetchPending = fetchQueue?.pending ?? 0;
+  const fetchRunning = fetchQueue?.running ?? 0;
+  const pipelineInfo = overview?.pipeline;
+  const digestInfo = overview?.digest;
 
-  const pipelinePending = articles.filter((article) => !article.processedAt).length;
+  const pipelinePending = pipelineInfo?.pending ?? 0;
   const pipelineSampleNote =
-    articles.length > 0 ? "Sample from the last 5 articles" : "No recent articles";
-
-  const digestEnabled = settings?.digest?.enabled ?? true;
-  const digestSchedule = settings?.digest?.scheduledTime
-    ? `Daily at ${settings.digest.scheduledTime}`
+    dashboard?.pipelineRuns?.length ? "Sample from recent pipeline runs" : "No recent pipeline runs";
+  const digestSchedule = digestInfo?.scheduledTime
+    ? `Daily at ${digestInfo.scheduledTime}`
     : "Not scheduled";
 
   const overviewTiles = [
@@ -113,23 +162,33 @@ export function TasksPage() {
     },
     {
       title: "Fetch Queue",
-      value: totalSources ? "Idle" : "Waiting",
+      value:
+        fetchPending + fetchRunning > 0
+          ? `${fetchRunning} running · ${fetchPending} queued`
+          : totalSources
+            ? "Idle"
+            : "Waiting",
       meta: `Last fetch: ${formatDateTime(latestFetchAt)}`,
-      tone: totalSources ? "neutral" : "warning"
+      tone:
+        fetchPending + fetchRunning > 0
+          ? "warning"
+          : totalSources
+            ? "neutral"
+            : "warning"
     },
     {
       title: "Pipeline Queue",
-      value: articles.length ? `${pipelinePending} pending` : "Awaiting data",
+      value: totalSources ? `${pipelinePending} pending` : "Awaiting data",
       meta: pipelineSampleNote,
       tone: pipelinePending > 0 ? "warning" : "neutral"
     },
     {
       title: "Digest Status",
-      value: digest ? "Ready" : digestEnabled ? "Waiting" : "Disabled",
-      meta: digest
-        ? `Last digest: ${formatDateTime(digest.generatedAt)}`
+      value: digestInfo?.lastGeneratedAt ? "Ready" : digestInfo?.enabled ? "Waiting" : "Disabled",
+      meta: digestInfo?.lastGeneratedAt
+        ? `Last digest: ${formatDateTime(digestInfo.lastGeneratedAt)}`
         : digestSchedule,
-      tone: digest ? "ok" : digestEnabled ? "neutral" : "warning"
+      tone: digestInfo?.lastGeneratedAt ? "ok" : digestInfo?.enabled ? "neutral" : "warning"
     }
   ] satisfies Array<{
     title: string;
@@ -138,57 +197,10 @@ export function TasksPage() {
     tone: StatusTone;
   }>;
 
-  const recentRuns: RecentRun[] = [
-    digest
-      ? {
-          task: "Digest Generation",
-          status: "success",
-          started: formatDateTime(digest.generatedAt),
-          duration: "—",
-          details: `${digest.articleIds.length} articles`
-        }
-      : null,
-    latestFetchAt
-      ? {
-          task: "RSS Fetch",
-          status: "success",
-          started: formatDateTime(latestFetchAt),
-          duration: "—",
-          details: `${totalSources} sources checked`
-        }
-      : null
-  ].filter(Boolean) as RecentRun[];
-
-  const scheduledTasks = [
-    {
-      name: "RSS Fetch",
-      frequency: "Every hour",
-      nextRun: "—",
-      lastRun: formatDateTime(latestFetchAt),
-      status: "idle"
-    },
-    {
-      name: "Digest Generation",
-      frequency: digestSchedule,
-      nextRun: digestEnabled ? digestSchedule : "Disabled",
-      lastRun: digest ? formatDateTime(digest.generatedAt) : "—",
-      status: digestEnabled ? "scheduled" : "disabled"
-    },
-    {
-      name: "Health Check",
-      frequency: "Daily",
-      nextRun: "—",
-      lastRun: "—",
-      status: "idle"
-    },
-    {
-      name: "Vector Cleanup",
-      frequency: "Weekly",
-      nextRun: "—",
-      lastRun: "—",
-      status: "idle"
-    }
-  ];
+  const ingestionRuns = (dashboard?.ingestionRuns ?? []) as TaskRun[];
+  const pipelineRuns = (dashboard?.pipelineRuns ?? []) as TaskRun[];
+  const recentRuns = (dashboard?.recentRuns ?? []) as TaskRun[];
+  const scheduledTasks = (dashboard?.scheduledTasks ?? []) as ScheduledTask[];
 
   return (
     <div className="space-y-6">
@@ -201,11 +213,21 @@ export function TasksPage() {
             </CardDescription>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" disabled title="Coming soon">
-              Run Fetch
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => runFetch.mutate()}
+              disabled={runFetch.isPending}
+            >
+              {runFetch.isPending ? "Queueing…" : "Run Fetch"}
             </Button>
-            <Button size="sm" variant="outline" disabled title="Coming soon">
-              Run Pipeline
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => runPipeline.mutate()}
+              disabled={runPipeline.isPending}
+            >
+              {runPipeline.isPending ? "Running…" : "Run Pipeline"}
             </Button>
             <Button
               size="sm"
@@ -247,27 +269,37 @@ export function TasksPage() {
             <AddSourceDialog />
           </CardHeader>
           <CardContent className="space-y-3">
-            {sources.length === 0 && (
+            {ingestionRuns.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
                 No fetch jobs yet. Add sources to start ingestion.
               </div>
             )}
-            {sources.slice(0, 5).map((source) => (
-              <div
-                key={source.id}
-                className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2 text-sm"
-              >
-                <div>
-                  <div className="font-medium text-slate-900">{source.name}</div>
-                  <div className="text-xs text-slate-500">
-                    Last fetch: {formatDateTime(source.lastFetchedAt)}
+            {ingestionRuns.map((run) => {
+              const meta = run.meta ?? {};
+              const inserted = Number(meta.inserted ?? 0);
+              const skipped = Number(meta.skipped ?? 0);
+              const tier = meta.tier ? String(meta.tier) : "—";
+              const sourceName = meta.sourceName ? String(meta.sourceName) : run.label;
+              return (
+                <div
+                  key={run.id}
+                  className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2 text-sm"
+                >
+                  <div>
+                    <div className="font-medium text-slate-900">{sourceName}</div>
+                    <div className="text-xs text-slate-500">
+                      {formatDateTime(run.startedAt)} · {tier}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Inserted {inserted} · Skipped {skipped}
+                    </div>
                   </div>
+                  <StatusPill tone={resolveRunTone(run.status)}>
+                    {run.status}
+                  </StatusPill>
                 </div>
-                <StatusPill tone={resolveSourceTone(source.healthStatus)}>
-                  {source.healthStatus ?? "unknown"}
-                </StatusPill>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 
@@ -286,32 +318,37 @@ export function TasksPage() {
                 </Badge>
               ))}
             </div>
-            {articles.length === 0 && (
+            {pipelineRuns.length === 0 && (
               <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
                 No pipeline runs yet. New articles will appear here after ingest.
               </div>
             )}
             <div className="space-y-3">
-              {articles.map((article) => (
+              {pipelineRuns.map((run) => {
+                const meta = run.meta ?? {};
+                const title = meta.title ? String(meta.title) : run.label;
+                const step = meta.step ? String(meta.step) : "pending";
+                return (
                 <div
-                  key={article.id}
+                  key={run.id}
                   className="rounded-lg border border-slate-100 bg-white px-3 py-2"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-sm font-medium text-slate-900">
-                        {article.title}
+                        {title}
                       </div>
                       <div className="text-xs text-slate-500">
-                        Processed: {formatDateTime(article.processedAt)}
+                        Stage: {step} · {formatDateTime(run.startedAt)}
                       </div>
                     </div>
-                    <StatusPill tone={article.processedAt ? "ok" : "warning"}>
-                      {article.processedAt ? "processed" : "queued"}
+                    <StatusPill tone={resolveRunTone(run.status)}>
+                      {run.status}
                     </StatusPill>
                   </div>
                 </div>
-              ))}
+              );
+              })}
             </div>
             <div className="text-xs text-slate-500">{pipelineSampleNote}</div>
           </CardContent>
@@ -326,15 +363,15 @@ export function TasksPage() {
             <div className="rounded-lg border border-slate-100 bg-white px-3 py-3 text-sm">
               <div className="flex items-center justify-between">
                 <div className="font-medium text-slate-900">Latest Digest</div>
-                <StatusPill tone={digest ? "ok" : "neutral"}>
-                  {digest ? "ready" : "waiting"}
+                <StatusPill tone={digestInfo?.lastGeneratedAt ? "ok" : "neutral"}>
+                  {digestInfo?.lastGeneratedAt ? "ready" : "waiting"}
                 </StatusPill>
               </div>
               <div className="mt-2 text-xs text-slate-500">
-                Generated: {digest ? formatDateTime(digest.generatedAt) : "—"}
+                Generated: {formatDateTime(digestInfo?.lastGeneratedAt ?? null)}
               </div>
               <div className="mt-1 text-xs text-slate-500">
-                Articles: {digest ? digest.articleIds.length : 0}
+                Articles: {digestInfo?.articleCount ?? 0}
               </div>
               <Separator className="my-3" />
               <div className="text-xs text-slate-500">
@@ -342,7 +379,14 @@ export function TasksPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <DigestHistoryDialog />
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                onClick={() => onOpenHistory?.()}
+              >
+                View History
+              </Button>
               <Button
                 size="sm"
                 onClick={() => generateDigest.mutate()}
@@ -373,10 +417,10 @@ export function TasksPage() {
                 </div>
               </div>
               <div className="text-xs text-slate-500">
-                Next: {task.nextRun}
+                Next: {formatDateTime(task.nextRunAt)}
               </div>
               <div className="text-xs text-slate-500">
-                Last: {task.lastRun}
+                Last: {formatDateTime(task.lastRunAt)}
               </div>
               <StatusPill tone={task.status === "scheduled" ? "ok" : "neutral"}>
                 {task.status}
@@ -412,11 +456,11 @@ export function TasksPage() {
                 <tbody>
                   {recentRuns.map((run, index) => (
                     <tr
-                      key={`${run.task}-${index}`}
+                      key={`${run.label}-${index}`}
                       className="border-t border-slate-100 bg-white"
                     >
                       <td className="px-3 py-2 font-medium text-slate-900">
-                        {run.task}
+                        {run.label}
                       </td>
                       <td className="px-3 py-2">
                         <StatusPill tone={resolveRunTone(run.status)}>
@@ -424,13 +468,13 @@ export function TasksPage() {
                         </StatusPill>
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        {run.started}
+                        {formatDateTime(run.startedAt)}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        {run.duration}
+                        {formatDuration(run.durationMs)}
                       </td>
                       <td className="px-3 py-2 text-slate-600">
-                        {run.details}
+                        {getRunDetails(run)}
                       </td>
                     </tr>
                   ))}

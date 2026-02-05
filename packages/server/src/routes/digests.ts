@@ -1,8 +1,9 @@
 import { z } from "zod";
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { digests } from "@dispatch/db";
 import { t } from "../trpc";
 import { generateDigest } from "../services/digest";
+import { TRPCError } from "@trpc/server";
 
 export const digestsRouter = t.router({
   latest: t.procedure.query(({ ctx }) => {
@@ -19,6 +20,24 @@ export const digestsRouter = t.router({
       articleIds: JSON.parse(row.articleIds) as number[],
     };
   }),
+  byId: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ ctx, input }) => {
+      const row = ctx.db
+        .select()
+        .from(digests)
+        .where(eq(digests.id, input.id))
+        .get();
+
+      if (!row) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Digest not found" });
+      }
+
+      return {
+        ...row,
+        articleIds: JSON.parse(row.articleIds) as number[],
+      };
+    }),
 
   list: t.procedure
     .input(

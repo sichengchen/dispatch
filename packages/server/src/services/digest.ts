@@ -3,6 +3,7 @@ import { desc, gte, and, isNotNull } from "drizzle-orm";
 import { z } from "zod";
 import { callLlm } from "./llm";
 import { getDigestConfig } from "./settings";
+import { finishTaskRun, startTaskRun } from "./task-log";
 
 const digestTopicSchema = z.object({
   topic: z.string().min(1),
@@ -61,6 +62,12 @@ export async function generateDigest(options?: {
   const hoursBack = options?.hoursBack ?? config.hoursBack ?? 24;
   const preferredLanguage = config.preferredLanguage?.trim() || undefined;
 
+  const runId = startTaskRun("digest", "Digest Generation", {
+    topN,
+    hoursBack,
+    preferredLanguage: preferredLanguage ?? "source language"
+  });
+
   const cutoff = new Date(Date.now() - hoursBack * 60 * 60 * 1000);
 
   const topArticles = db
@@ -89,6 +96,7 @@ export async function generateDigest(options?: {
       .insert(digests)
       .values({ generatedAt: new Date(), content, articleIds: "[]" })
       .run();
+    finishTaskRun(runId, "warning", { articleCount: 0 });
     return {
       id: Number(result.lastInsertRowid),
       content,
@@ -152,26 +160,39 @@ JSON schema:
 Topics with articles:
 ${topicsBlock}`;
 
-  const raw = await callLlm("digest", prompt);
   let content: string;
   try {
-    const parsed = parseDigestJson(raw);
-    content = JSON.stringify(parsed);
-  } catch {
-    content = raw;
-  }
-  const result = db
-    .insert(digests)
-    .values({
-      generatedAt: new Date(),
-      content,
-      articleIds: JSON.stringify(articleIds),
-    })
-    .run();
+    const raw = await callLlm("digest", prompt);
+    try {
+      const parsed = parseDigestJson(raw);
+      content = JSON.stringify(parsed);
+    } catch {
+      content = raw;
+    }
+    const result = db
+      .insert(digests)
+      .values({
+        generatedAt: new Date(),
+        content,
+        articleIds: JSON.stringify(articleIds),
+      })
+      .run();
 
-  return {
-    id: Number(result.lastInsertRowid),
-    content,
-    articleIds,
-  };
+    finishTaskRun(runId, "success", {
+      articleCount: articleIds.length,
+      digestId: Number(result.lastInsertRowid)
+    });
+
+    return {
+      id: Number(result.lastInsertRowid),
+      content,
+      articleIds,
+    };
+  } catch (err) {
+    finishTaskRun(runId, "error", {
+      error: err instanceof Error ? err.message : String(err)
+    });
+    throw err;
+  }
+
 }

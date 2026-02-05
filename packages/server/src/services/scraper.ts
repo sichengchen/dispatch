@@ -7,6 +7,7 @@ import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { processArticle } from "./llm";
 import { recordScrapeSuccess, recordScrapeFailure } from "./source-health";
+import { finishTaskRun, startTaskRun } from "./task-log";
 
 const parser = new Parser();
 
@@ -226,6 +227,12 @@ export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
     throw new Error(`Source ${sourceId} not found`);
   }
 
+  const runId = startTaskRun("fetch-source", `Fetch: ${source.name}`, {
+    sourceId: source.id,
+    sourceName: source.name,
+    sourceUrl: source.url
+  });
+
   const tiers = getTierOrder(source);
   const errors: Array<{ tier: ScrapeTier; error: unknown }> = [];
 
@@ -245,6 +252,12 @@ export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
         .run();
       recordScrapeSuccess(sourceId);
 
+      finishTaskRun(runId, "success", {
+        inserted: result.inserted,
+        skipped: result.skipped,
+        tier
+      });
+
       return { ...result, tier };
     } catch (err) {
       console.warn(`[scraper] source=${sourceId} tier=${tier} failed`, err);
@@ -256,6 +269,9 @@ export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
   recordScrapeFailure(sourceId);
 
   const tierNames = errors.map(e => e.tier).join(", ");
+  finishTaskRun(runId, "error", {
+    error: `All scraping tiers failed (tried: ${tierNames})`
+  });
   throw new Error(`All scraping tiers failed for source ${sourceId} (tried: ${tierNames})`);
 }
 

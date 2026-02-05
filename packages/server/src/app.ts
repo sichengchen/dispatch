@@ -5,6 +5,7 @@ import { sourcesRouter } from "./routes/sources";
 import { articlesRouter } from "./routes/articles";
 import { settingsRouter } from "./routes/settings";
 import { digestsRouter } from "./routes/digests";
+import { tasksRouter } from "./routes/tasks";
 import { t } from "./trpc";
 
 export const appRouter = t.router({
@@ -12,6 +13,7 @@ export const appRouter = t.router({
   articles: articlesRouter,
   settings: settingsRouter,
   digests: digestsRouter,
+  tasks: tasksRouter,
 });
 
 export type AppRouter = typeof appRouter;
