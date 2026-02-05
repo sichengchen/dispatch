@@ -2,7 +2,7 @@ import type { LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAI } from "@ai-sdk/openai";
 
-export type LlmTask = "summarize" | "classify" | "grade" | "embed" | "digest";
+export type LlmTask = "summarize" | "classify" | "grade" | "embed" | "digest" | "skill";
 export type ProviderType = "anthropic" | "openai" | "mock";
 
 export type ProviderKeyMap = {
@@ -128,7 +128,20 @@ export function createProviderMap(
       if (!cfg?.apiKey || !cfg.baseUrl) {
         throw new Error("OpenAI config is missing");
       }
-      return createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl })(modelName);
+      const client = createOpenAI({ apiKey: cfg.apiKey, baseURL: cfg.baseUrl });
+      const forceChat = process.env.DISPATCH_OPENAI_USE_CHAT_COMPLETIONS;
+      if (forceChat && ["1", "true", "yes"].includes(forceChat.toLowerCase())) {
+        return client.chat(modelName);
+      }
+      try {
+        const host = new URL(cfg.baseUrl).host;
+        if (host && host !== "api.openai.com") {
+          return client.chat(modelName);
+        }
+      } catch {
+        return client.chat(modelName);
+      }
+      return client(modelName);
     }
   };
 }

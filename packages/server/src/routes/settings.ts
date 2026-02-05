@@ -10,7 +10,7 @@ import {
 } from "../services/settings";
 
 const assignmentSchema = z.object({
-  task: z.enum(["summarize", "classify", "grade", "embed", "digest"]),
+  task: z.enum(["summarize", "classify", "grade", "embed", "digest", "skill"]),
   modelId: z.string().min(1)
 });
 

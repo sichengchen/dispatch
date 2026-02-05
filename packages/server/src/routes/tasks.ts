@@ -34,8 +34,8 @@ export const tasksRouter = t.router({
     const healthySources = totalSources - degradedSources - deadSources;
     const lastFetchedAt = sourceRows
       .map((source) => source.lastFetchedAt)
-      .filter(Boolean)
       .map((value) => (value instanceof Date ? value.getTime() : value))
+      .filter((value): value is number => typeof value === "number")
       .sort((a, b) => b - a)[0] ?? null;
 
     const pendingArticles = ctx.db

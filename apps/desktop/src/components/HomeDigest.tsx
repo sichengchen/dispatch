@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
-import { Separator } from "./ui/separator";
 
 type HomeDigestProps = {
   onSelectArticle?: (id: number) => void;

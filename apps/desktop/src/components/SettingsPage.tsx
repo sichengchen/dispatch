@@ -13,7 +13,7 @@ import {
 import { Checkbox } from "./ui/checkbox";
 import { Slider } from "./ui/slider";
 
-type Task = "summarize" | "classify" | "grade" | "embed" | "digest";
+type Task = "summarize" | "classify" | "grade" | "embed" | "digest" | "skill";
 
 type ProviderType = "anthropic" | "openai" | "mock";
 
@@ -51,7 +51,8 @@ const TASKS: Array<{ id: Task; label: string; hint: string }> = [
   { id: "classify", label: "Classify", hint: "Topic tags" },
   { id: "grade", label: "Grade", hint: "Quality score" },
   { id: "embed", label: "Embeddings", hint: "Related articles" },
-  { id: "digest", label: "Digest", hint: "Daily briefing generation" }
+  { id: "digest", label: "Digest", hint: "Daily briefing generation" },
+  { id: "skill", label: "Skill", hint: "Web source extraction skills" }
 ];
 
 const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
@@ -147,7 +148,8 @@ export function SettingsPage() {
     classify: createFallbackId("anthropic", DEFAULT_MODEL),
     grade: createFallbackId("anthropic", DEFAULT_MODEL),
     embed: createFallbackId("mock", "mock"),
-    digest: createFallbackId("anthropic", DEFAULT_MODEL)
+    digest: createFallbackId("anthropic", DEFAULT_MODEL),
+    skill: createFallbackId("anthropic", DEFAULT_MODEL)
   }));
   const [digestEnabled, setDigestEnabled] = useState(true);
   const [digestTime, setDigestTime] = useState("06:00");
@@ -203,7 +205,8 @@ export function SettingsPage() {
       classify: "",
       grade: "",
       embed: "",
-      digest: ""
+      digest: "",
+      skill: ""
     };
 
     for (const task of TASKS) {

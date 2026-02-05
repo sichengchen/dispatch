@@ -159,7 +159,7 @@ Return a JSON object matching this schema:
 Use the tier "${metadata.tier}" from metadata if not specified.
 Respond ONLY with valid JSON.`;
 
-  const raw = await callLlm("summarize", prompt, configOverride);
+  const raw = await callLlm("skill", prompt, configOverride);
   
   // Parse JSON from response
   const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/) ?? raw.match(/(\{[\s\S]*\})/);
@@ -242,11 +242,107 @@ export function skillExists(sourceId: number): boolean {
 // Homepage analysis and skill generation
 // ---------------------------------------------------------------------------
 
+type SelectorHints = {
+  containerSelector?: string;
+  linkSelector?: string;
+  titleSelector?: string;
+  dateSelector?: string;
+};
+
 interface PageAnalysis {
   html: string;
   url: string;
   tier: "html" | "spa";
   articleLinks: Array<{ href: string; text: string }>;
+  selectorHints?: SelectorHints;
+}
+
+function pickMostCommonClass(
+  elements: Element[],
+  minShare = 0.4
+): string | undefined {
+  const counts = new Map<string, number>();
+  elements.forEach((el) => {
+    el.classList.forEach((cls) => {
+      counts.set(cls, (counts.get(cls) ?? 0) + 1);
+    });
+  });
+  let best: { cls: string; count: number } | null = null;
+  counts.forEach((count, cls) => {
+    if (!best || count > best.count) {
+      best = { cls, count };
+    }
+  });
+  if (!best) return undefined;
+  if (best.count / Math.max(1, elements.length) < minShare) return undefined;
+  return best.cls;
+}
+
+function inferListSelectors(doc: Document, baseUrl: string): SelectorHints | undefined {
+  let origin: string;
+  try {
+    origin = new URL(baseUrl).origin;
+  } catch {
+    origin = baseUrl;
+  }
+
+  const anchors = Array.from(doc.querySelectorAll("a[href]")).filter((el) => {
+    const anchor = el as HTMLAnchorElement;
+    if (!anchor.href || !anchor.textContent?.trim()) return false;
+    if (!anchor.href.startsWith(origin)) return false;
+    try {
+      const pathname = new URL(anchor.href).pathname;
+      return /\/20\d{2}\/\d{2}\/\d{2}\//.test(pathname);
+    } catch {
+      return false;
+    }
+  });
+
+  if (anchors.length < 3) return undefined;
+
+  const linkClass = pickMostCommonClass(anchors, 0.35);
+  const linkSelector = linkClass ? `a.${linkClass}` : "a[href]";
+
+  const containerCandidates: Element[] = [];
+  anchors.forEach((anchor) => {
+    let current = anchor.parentElement;
+    while (current && current !== doc.body) {
+      if (current.tagName.toLowerCase() === "li" || current.tagName.toLowerCase() === "article") {
+        containerCandidates.push(current);
+        return;
+      }
+      if (current.classList.length > 0) {
+        containerCandidates.push(current);
+        return;
+      }
+      current = current.parentElement;
+    }
+  });
+
+  const containerClass = pickMostCommonClass(containerCandidates, 0.3);
+  const containerSelector = containerClass
+    ? (containerCandidates[0]?.tagName
+        ? `${containerCandidates[0].tagName.toLowerCase()}.${containerClass}`
+        : `.${containerClass}`)
+    : undefined;
+
+  const timeElements: Element[] = [];
+  containerCandidates.forEach((container) => {
+    const time = container.querySelector("time[datetime]");
+    if (time) timeElements.push(time);
+  });
+
+  const timeClass = pickMostCommonClass(timeElements, 0.35);
+  const dateSelector = timeElements.length
+    ? (timeClass ? `time.${timeClass}` : "time[datetime]")
+    : undefined;
+
+  return {
+    containerSelector,
+    linkSelector,
+    titleSelector: linkSelector,
+    dateSelector,
+  };
 }
 
 /**
@@ -322,11 +418,14 @@ async function analyzeHomepage(url: string): Promise<PageAnalysis> {
     return true;
   });
 
+  const selectorHints = inferListSelectors(doc, url);
+
   return {
     html,
     url,
     tier,
     articleLinks: uniqueLinks.slice(0, 20),
+    selectorHints,
   };
 }
 
@@ -347,6 +446,10 @@ async function generateSkillContent(
     .slice(0, 10)
     .map((l) => `- ${l.text}: ${l.href}`)
     .join("\n");
+  const selectorHints = analysis.selectorHints;
+  const selectorHintText = selectorHints
+    ? `\nSelector hints (derived from the HTML sample):\n- Container selector: ${selectorHints.containerSelector ?? "unknown"}\n- Link selector: ${selectorHints.linkSelector ?? "unknown"}\n- Title selector: ${selectorHints.titleSelector ?? "unknown"}\n- Date selector: ${selectorHints.dateSelector ?? "unknown"}\nUse these selectors if they match the HTML sample. Do not invent selectors that are not present in the HTML.`
+    : "";
 
   const prompt = `Analyze this webpage and generate a SKILL.md file for extracting articles.
 
@@ -360,6 +463,7 @@ HTML sample (truncated):
 \`\`\`html
 ${htmlSample}
 \`\`\`
+${selectorHintText}
 
 Generate a SKILL.md file with:
 1. YAML frontmatter with name, description, and metadata (version, generatedAt, sourceId, tier, homepageUrl)
@@ -373,7 +477,7 @@ The tier should be "${analysis.tier}".
 
 Return ONLY the complete SKILL.md content, starting with ---.`;
 
-  const raw = await callLlm("summarize", prompt, config);
+  const raw = await callLlm("skill", prompt, config);
   
   // Clean up the response
   let content = raw.trim();
@@ -419,6 +523,34 @@ async function validateSkill(
     fs.writeFileSync(tempPath, skillContent);
     
     const skill = await parseSkillFile(tempPath, configOverride);
+
+    // Validate list page selectors against homepage HTML
+    try {
+      const listDom = new JSDOM(analysis.html, { url: analysis.url });
+      const listDoc = listDom.window.document;
+      const selector = skill.extraction.listPage.articleLinkSelector;
+      const nodes = Array.from(listDoc.querySelectorAll(selector));
+      const validLinks = nodes.filter((node) => {
+        const anchor = node as HTMLAnchorElement;
+        return Boolean(anchor.href && anchor.textContent?.trim());
+      });
+      const expectedMin = Math.max(1, Math.min(3, analysis.articleLinks.length));
+      if (validLinks.length < expectedMin) {
+        return {
+          valid: false,
+          error: `List selector "${selector}" returned ${validLinks.length} links (expected at least ${expectedMin}).`,
+          sampleCount: 0,
+        };
+      }
+    } catch (listErr) {
+      return {
+        valid: false,
+        error: `Failed to validate list selectors: ${
+          listErr instanceof Error ? listErr.message : String(listErr)
+        }`,
+        sampleCount: 0,
+      };
+    }
     
     // Test extraction on at least one article
     if (analysis.articleLinks.length === 0) {

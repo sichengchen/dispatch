@@ -8,7 +8,8 @@ import { eq } from "drizzle-orm";
 import { processArticle } from "./llm";
 import { recordScrapeSuccess, recordScrapeFailure } from "./source-health";
 import { finishTaskRun, startTaskRun } from "./task-log";
-import { parseSkillFile, getSkillPath, skillExists, type ParsedSkill } from "./skill-generator";
+import { getSkillPath, skillExists } from "./skill-generator";
+import { extractArticles } from "./extraction-agent";
 
 const parser = new Parser();
 
@@ -205,30 +206,23 @@ async function processIfEnabled(articleUrl: string): Promise<void> {
 type ScrapeTier = "rss" | "html" | "spa" | "skill";
 
 function getTierOrder(source: {
+  id: number;
   type: string;
   scrapingStrategy: string | null;
   hasSkill?: boolean | null;
 }): ScrapeTier[] {
-  // If source has a skill, use skill tier only (no fallback)
-  if (source.hasSkill && skillExists(source.hasSkill ? 1 : 0)) {
+  // RSS sources only use RSS tier
+  if (source.type === "rss") {
+    return ["rss"];
+  }
+
+  // Web sources use skill tier only (must have skill generated first)
+  if (source.hasSkill && skillExists(source.id)) {
     return ["skill"];
   }
 
-  // If a strategy is cached from a previous successful scrape, try it first
-  if (source.scrapingStrategy && source.scrapingStrategy !== "skill") {
-    const cached = source.scrapingStrategy as ScrapeTier;
-    if (source.type === "web") {
-      // Web sources skip RSS
-      const remaining = (["html", "spa"] as ScrapeTier[]).filter(t => t !== cached);
-      return [cached, ...remaining];
-    }
-    const remaining = (["rss", "html", "spa"] as ScrapeTier[]).filter(t => t !== cached);
-    return [cached, ...remaining];
-  }
-
-  // Default order based on source type
-  if (source.type === "web") return ["html", "spa"];
-  return ["rss", "html", "spa"];
+  // Web source without skill - error (should generate skill first)
+  throw new Error(`Web source ${source.id} has no skill. Generate a skill first.`);
 }
 
 export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
@@ -315,190 +309,10 @@ async function runTier(
       return { inserted: inserted ? 1 : 0, skipped: inserted ? 0 : 1 };
     }
     case "skill": {
-      return scrapeWithSkill(sourceId);
+      const result = await extractArticles(sourceId);
+      return { inserted: result.inserted, skipped: result.skipped, tier: "skill" };
     }
   }
-}
-
-// ---------------------------------------------------------------------------
-// Skill-based scraping using agent-generated SKILL.md
-// ---------------------------------------------------------------------------
-
-async function scrapeWithSkill(sourceId: number): Promise<ScrapeResult> {
-  const source = db.select().from(sources).where(eq(sources.id, sourceId)).get();
-  if (!source) {
-    throw new Error(`Source ${sourceId} not found`);
-  }
-
-  const skillPath = getSkillPath(sourceId);
-  if (!skillExists(sourceId)) {
-    throw new Error(`No skill found for source ${sourceId}. Generate a skill first.`);
-  }
-
-  console.log(`[scraper] Using skill for source ${sourceId}: ${skillPath}`);
-  const skill = await parseSkillFile(skillPath);
-  const extraction = skill.extraction;
-
-  // Fetch the list page (homepage)
-  let listHtml: string;
-  if (extraction.tier === "spa") {
-    const browser = await chromium.launch({ headless: true });
-    try {
-      const page = await browser.newPage();
-      await page.goto(source.url, { waitUntil: "networkidle", timeout: 30000 });
-      listHtml = await page.content();
-    } finally {
-      await browser.close();
-    }
-  } else {
-    const res = await fetch(source.url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; Dispatch/1.0; +https://dispatch.app)"
-      }
-    });
-    if (!res.ok) throw new Error(`Failed to fetch homepage: HTTP ${res.status}`);
-    listHtml = await res.text();
-  }
-
-  // Parse the list page and extract article links
-  const listDom = new JSDOM(listHtml, { url: source.url });
-  const listDoc = listDom.window.document;
-  const linkElements = listDoc.querySelectorAll(extraction.listPage.articleLinkSelector);
-
-  if (linkElements.length === 0) {
-    throw new Error(`No article links found using selector: ${extraction.listPage.articleLinkSelector}`);
-  }
-
-  const maxArticles = extraction.listPage.maxArticles ?? 20;
-  const articleUrls: string[] = [];
-
-  linkElements.forEach((el: Element) => {
-    if (articleUrls.length >= maxArticles) return;
-    const anchor = el as HTMLAnchorElement;
-    if (anchor.href) {
-      articleUrls.push(anchor.href);
-    }
-  });
-
-  console.log(`[scraper] Found ${articleUrls.length} article links for source ${sourceId}`);
-
-  let inserted = 0;
-  let skipped = 0;
-
-  for (const articleUrl of articleUrls) {
-    try {
-      // Fetch the article page
-      let articleHtml: string;
-      if (extraction.tier === "spa") {
-        const browser = await chromium.launch({ headless: true });
-        try {
-          const page = await browser.newPage();
-          await page.goto(articleUrl, { waitUntil: "networkidle", timeout: 30000 });
-          articleHtml = await page.content();
-        } finally {
-          await browser.close();
-        }
-      } else {
-        const res = await fetch(articleUrl, {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (compatible; Dispatch/1.0; +https://dispatch.app)"
-          }
-        });
-        if (!res.ok) {
-          console.warn(`[scraper] Failed to fetch ${articleUrl}: HTTP ${res.status}`);
-          skipped++;
-          continue;
-        }
-        articleHtml = await res.text();
-      }
-
-      // Extract content
-      const articleDom = new JSDOM(articleHtml, { url: articleUrl });
-      const articleDoc = articleDom.window.document;
-
-      let title = "(untitled)";
-      let content = "";
-      let publishedDate: Date | null = null;
-
-      // Try custom selectors first
-      if (extraction.articlePage?.titleSelector) {
-        const titleEl = articleDoc.querySelector(extraction.articlePage.titleSelector);
-        if (titleEl?.textContent?.trim()) {
-          title = titleEl.textContent.trim();
-        }
-      }
-
-      if (extraction.articlePage?.contentSelector) {
-        const contentEl = articleDoc.querySelector(extraction.articlePage.contentSelector);
-        if (contentEl?.textContent?.trim()) {
-          content = contentEl.textContent.trim();
-        }
-      }
-
-      if (extraction.articlePage?.dateSelector) {
-        const dateEl = articleDoc.querySelector(extraction.articlePage.dateSelector);
-        if (dateEl) {
-          const dateAttr = dateEl.getAttribute("datetime") ?? dateEl.textContent;
-          if (dateAttr) {
-            const parsed = new Date(dateAttr);
-            if (!Number.isNaN(parsed.getTime())) {
-              publishedDate = parsed;
-            }
-          }
-        }
-      }
-
-      // Fall back to Readability if no content found
-      if (!content && extraction.articlePage?.fallbackToReadability !== false) {
-        const reader = new Readability(articleDoc);
-        const result = reader.parse();
-        if (result) {
-          title = result.title ?? title;
-          content = result.textContent ?? "";
-          if (!publishedDate && result.publishedTime) {
-            const parsed = new Date(result.publishedTime);
-            if (!Number.isNaN(parsed.getTime())) {
-              publishedDate = parsed;
-            }
-          }
-        }
-      }
-
-      if (!content) {
-        console.warn(`[scraper] No content extracted from ${articleUrl}`);
-        skipped++;
-        continue;
-      }
-
-      // Insert into DB
-      const result = db
-        .insert(articles)
-        .values({
-          sourceId,
-          title,
-          url: articleUrl,
-          rawHtml: null,
-          cleanContent: content,
-          publishedAt: publishedDate,
-          fetchedAt: new Date(),
-          isRead: false
-        })
-        .onConflictDoNothing()
-        .run();
-
-      if (result.changes === 0) {
-        skipped++;
-      } else {
-        inserted++;
-        await processIfEnabled(articleUrl);
-      }
-    } catch (err) {
-      console.error(`[scraper] Error processing ${articleUrl}:`, err);
-      skipped++;
-    }
-  }
-
-  return { inserted, skipped, tier: "skill" };
 }
 
 // ---------------------------------------------------------------------------
