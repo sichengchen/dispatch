@@ -404,7 +404,7 @@ export function SourceList() {
                       >
                         {regeneratingId === source.id ? "Regenerating..." : "Regenerate Skill"}
                       </DropdownMenuItem>
-                      {(source as any).hasSkill && (
+                      {source.hasSkill && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem

@@ -53,7 +53,7 @@ export function PipelinePane({ article }: { article: PipelineArticle | null }) {
     const date = article.publishedAt ?? article.fetchedAt;
     if (!date) return null;
     return new Date(date).toLocaleString();
-  }, [article?.id, article?.fetchedAt, article?.publishedAt]);
+  }, [article]);
 
   if (!article) {
     return (
