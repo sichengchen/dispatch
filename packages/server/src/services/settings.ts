@@ -28,12 +28,6 @@ const modelsConfigSchema: z.ZodType<ModelsConfig> = z.object({
   catalog: z.array(catalogSchema).optional()
 });
 
-const searchConfigSchema = z.object({
-  provider: z.enum(["brave", "serper", "duckduckgo"]).optional(),
-  apiKey: z.string().min(1).optional(),
-  endpoint: z.string().url().optional()
-});
-
 const uiConfigSchema = z.object({
   verbose: z.boolean().optional()
 });
@@ -59,25 +53,41 @@ const gradingConfigSchema = z.object({
 
 const digestConfigSchema = z.object({
   enabled: z.boolean().optional(),
+  preset: z.enum(["daily", "every12h", "every6h"]).optional(),
   scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  cronExpression: z.string().optional(),
   topN: z.number().int().positive().max(50).optional(),
   hoursBack: z.number().positive().optional(),
   preferredLanguage: z.string().min(1).optional(),
 });
 
+const fetchScheduleConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  preset: z.enum(["hourly", "every2h", "every6h", "every12h", "daily"]).optional(),
+  cronExpression: z.string().optional(),
+});
+
+const pipelineScheduleConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  preset: z.enum(["every5m", "every15m", "every30m", "hourly"]).optional(),
+  cronExpression: z.string().optional(),
+  batchSize: z.number().int().min(1).max(50).optional(),
+});
+
+const agentConfigSchema = z.object({
+  skillGeneratorMaxSteps: z.number().int().min(5).max(100).optional(),
+  extractionAgentMaxSteps: z.number().int().min(5).max(100).optional(),
+});
+
 const settingsSchema = z.object({
   models: modelsConfigSchema,
-  search: searchConfigSchema.optional(),
   ui: uiConfigSchema.optional(),
   grading: gradingConfigSchema.optional(),
   digest: digestConfigSchema.optional(),
+  fetchSchedule: fetchScheduleConfigSchema.optional(),
+  pipelineSchedule: pipelineScheduleConfigSchema.optional(),
+  agent: agentConfigSchema.optional(),
 });
-
-export type SearchConfig = {
-  provider?: "brave" | "serper" | "duckduckgo";
-  apiKey?: string;
-  endpoint?: string;
-};
 
 export type UiConfig = {
   verbose?: boolean;
@@ -96,6 +106,12 @@ export type GradingConfig = {
 };
 
 export type DigestConfig = z.infer<typeof digestConfigSchema>;
+
+export type FetchScheduleConfig = z.infer<typeof fetchScheduleConfigSchema>;
+
+export type PipelineScheduleConfig = z.infer<typeof pipelineScheduleConfigSchema>;
+
+export type AgentConfig = z.infer<typeof agentConfigSchema>;
 
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -180,18 +196,22 @@ export function loadSettings(): Settings {
   }
   const merged = {
     models: parsed.models ?? getDefaultModelsConfig(),
-    search: parsed.search,
     ui: parsed.ui,
     grading: parsed.grading ?? getDefaultGradingConfig(),
     digest: parsed.digest,
+    fetchSchedule: parsed.fetchSchedule,
+    pipelineSchedule: parsed.pipelineSchedule,
+    agent: parsed.agent,
   };
 
   return settingsSchema.parse({
     models: merged.models,
-    search: merged.search,
     ui: merged.ui,
     grading: merged.grading,
     digest: merged.digest,
+    fetchSchedule: merged.fetchSchedule,
+    pipelineSchedule: merged.pipelineSchedule,
+    agent: merged.agent,
   });
 }
 
@@ -206,19 +226,17 @@ export function saveSettings(next: Settings): Settings {
 export function updateModelsConfig(next: ModelsConfig): ModelsConfig {
   return saveSettings({
     models: modelsConfigSchema.parse(next),
-    search: getSearchConfig(),
     ui: getUiConfig(),
     grading: getGradingConfig(),
     digest: getDigestConfig(),
+    fetchSchedule: getFetchScheduleConfig(),
+    pipelineSchedule: getPipelineScheduleConfig(),
+    agent: getAgentConfig(),
   }).models;
 }
 
 export function getModelsConfig(): ModelsConfig {
   return loadSettings().models;
-}
-
-export function getSearchConfig(): SearchConfig {
-  return loadSettings().search ?? {};
 }
 
 export function getUiConfig(): UiConfig {
@@ -241,4 +259,38 @@ export function getDefaultDigestConfig(): DigestConfig {
 
 export function getDigestConfig(): DigestConfig {
   return loadSettings().digest ?? getDefaultDigestConfig();
+}
+
+export function getDefaultFetchScheduleConfig(): FetchScheduleConfig {
+  return {
+    enabled: true,
+    preset: "hourly",
+  };
+}
+
+export function getFetchScheduleConfig(): FetchScheduleConfig {
+  return loadSettings().fetchSchedule ?? getDefaultFetchScheduleConfig();
+}
+
+export function getDefaultPipelineScheduleConfig(): PipelineScheduleConfig {
+  return {
+    enabled: true,
+    preset: "every15m",
+    batchSize: 10,
+  };
+}
+
+export function getPipelineScheduleConfig(): PipelineScheduleConfig {
+  return loadSettings().pipelineSchedule ?? getDefaultPipelineScheduleConfig();
+}
+
+export function getDefaultAgentConfig(): AgentConfig {
+  return {
+    skillGeneratorMaxSteps: 100,
+    extractionAgentMaxSteps: 100,
+  };
+}
+
+export function getAgentConfig(): AgentConfig {
+  return loadSettings().agent ?? getDefaultAgentConfig();
 }

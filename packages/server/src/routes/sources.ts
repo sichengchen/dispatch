@@ -3,7 +3,6 @@ import { TRPCError } from "@trpc/server";
 import { eq, inArray } from "drizzle-orm";
 import { sources } from "@dispatch/db";
 import { t } from "../trpc";
-import { discoverSources } from "../services/discovery";
 import { scrapeSource } from "../services/scraper";
 import {
   generateSkill,
@@ -15,6 +14,16 @@ import {
 export const sourcesRouter = t.router({
   list: t.procedure.query(({ ctx }) => {
     return ctx.db.select().from(sources).all();
+  }),
+  listForWeights: t.procedure.query(({ ctx }) => {
+    return ctx.db
+      .select({
+        id: sources.id,
+        name: sources.name,
+        url: sources.url,
+      })
+      .from(sources)
+      .all();
   }),
   add: t.procedure
     .input(
@@ -124,12 +133,6 @@ export const sourcesRouter = t.router({
         .run();
       const result = await scrapeSource(input.id);
       return { ok: true, ...result };
-    }),
-  discover: t.procedure
-    .input(z.object({ query: z.string().min(3).max(200) }))
-    .mutation(async ({ input }) => {
-      const suggestions = await discoverSources(input.query);
-      return suggestions;
     }),
   // Skill management routes
   generateSkill: t.procedure

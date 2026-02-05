@@ -11,9 +11,10 @@ import { generateText, stepCountIs, tool, zodSchema } from "ai";
 import { z } from "zod";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { getModelsConfig } from "./settings";
+import { getModelsConfig, getAgentConfig } from "./settings";
 import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/lib";
 import { getSkillPath, skillExists } from "./skill-generator";
+import { processArticle } from "./llm";
 import fs from "node:fs";
 
 // ---------------------------------------------------------------------------
@@ -274,7 +275,7 @@ function createExtractionTools(
           }
 
           try {
-            db.insert(articles)
+            const insertResult = db.insert(articles)
               .values({
                 sourceId: options.sourceId,
                 url: article.url,
@@ -286,6 +287,14 @@ function createExtractionTools(
               })
               .run();
             options.stats.inserted += 1;
+
+            // Process article through AI pipeline if LLM is enabled
+            if (process.env.DISPATCH_DISABLE_LLM !== "1" && insertResult.lastInsertRowid) {
+              const articleId = Number(insertResult.lastInsertRowid);
+              processArticle(articleId).catch((err) => {
+                console.warn("[extraction-agent] Pipeline failed for article", { articleId, err });
+              });
+            }
           } catch (error) {
             options.stats.failed += 1;
             console.warn("[extraction-agent] Failed to insert article", {
@@ -384,15 +393,17 @@ You have the following tools available:
 - run_selector: Run CSS selectors on fetched pages
 - extract_readable: Extract main content using Readability.js
 - parse_date: Parse date strings
-- report_articles: Report extracted articles when done
+- report_articles: Save extracted articles to the database
 
 Follow the SKILL.md instructions to:
 1. Fetch the homepage/list page
 2. Find article links using the specified selectors
 3. For each article, fetch the page and extract content
-4. Report all extracted articles using report_articles
+4. IMPORTANT: Call report_articles frequently to save progress
 
-Be efficient - extract up to 10 articles maximum.`;
+CRITICAL: Call report_articles after extracting every 2-3 articles. Do NOT wait until the end - you may run out of steps. Save articles incrementally to ensure they are not lost.
+
+Extract up to 10 articles maximum.`;
 
   const userPrompt = `Extract articles from ${source.url} using these instructions:
 
@@ -401,16 +412,19 @@ ${skillContent}
 Start by fetching the homepage, then find and extract articles.`;
 
   try {
+    const agentConfig = getAgentConfig();
+    const maxSteps = agentConfig.extractionAgentMaxSteps ?? 100;
+
     const result = await generateText({
       model,
       system: systemPrompt,
       prompt: userPrompt,
       tools,
-      stopWhen: stepCountIs(30), // Enable agent loop with AI SDK v6
+      stopWhen: stepCountIs(maxSteps),
       temperature: 0.1
     });
-    
-    console.log(`[extraction-agent] Agent completed with ${result.steps.length} steps`);
+
+    console.log(`[extraction-agent] Agent completed with ${result.steps.length} steps (max: ${maxSteps})`);
     console.log(`[extraction-agent] Extracted ${extractedArticles.length} articles`);
     console.log(
       `[extraction-agent] Inserted ${stats.inserted}, skipped ${stats.skipped}, failed ${stats.failed}`

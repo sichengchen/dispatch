@@ -7,7 +7,7 @@ export function SourcesPage() {
   return (
     <div className="space-y-4">
       <Card className="w-full">
-        <CardHeader className="flex flex-wrap items-start justify-between gap-3 text-left">
+        <CardHeader className="flex flex-row items-center justify-between text-left">
           <div>
             <CardTitle className="text-base">Sources</CardTitle>
             <CardDescription>Add and manage your news sources.</CardDescription>

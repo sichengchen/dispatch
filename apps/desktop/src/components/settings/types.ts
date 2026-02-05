@@ -35,7 +35,7 @@ export const TASKS: Array<{ id: Task; label: string; hint: string }> = [
   { id: "grade", label: "Grade", hint: "Quality score" },
   { id: "embed", label: "Embeddings", hint: "Related articles" },
   { id: "digest", label: "Digest", hint: "Daily briefing generation" },
-  { id: "skill", label: "Skill", hint: "Web source extraction skills" }
+  { id: "skill", label: "Agentic Extraction", hint: "Agentic web source extraction" }
 ];
 
 export const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";

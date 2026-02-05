@@ -4,11 +4,12 @@ import { z } from "zod";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { chromium } from "playwright";
+import { generateText, stepCountIs, tool, zodSchema } from "ai";
 import { db, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { callLlm } from "./llm";
-import { type ModelsConfig } from "@dispatch/lib";
-import { getModelsConfig, getDataPaths } from "./settings";
+import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/lib";
+import { getModelsConfig, getDataPaths, getAgentConfig } from "./settings";
 
 // ---------------------------------------------------------------------------
 // Skill schema and types
@@ -239,344 +240,524 @@ export function skillExists(sourceId: number): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Homepage analysis and skill generation
+// Agentic Skill Generation - Tools and Agent
 // ---------------------------------------------------------------------------
 
-type SelectorHints = {
-  containerSelector?: string;
-  linkSelector?: string;
-  titleSelector?: string;
-  dateSelector?: string;
-};
-
-interface PageAnalysis {
-  html: string;
-  url: string;
-  tier: "html" | "spa";
-  articleLinks: Array<{ href: string; text: string }>;
-  selectorHints?: SelectorHints;
-}
-
-function pickMostCommonClass(
-  elements: Element[],
-  minShare = 0.4
-): string | undefined {
-  const counts = new Map<string, number>();
-  elements.forEach((el) => {
-    el.classList.forEach((cls) => {
-      counts.set(cls, (counts.get(cls) ?? 0) + 1);
-    });
-  });
-  let bestCls: string | undefined;
-  let bestCount = 0;
-  for (const [cls, count] of counts) {
-    if (!bestCls || count > bestCount) {
-      bestCls = cls;
-      bestCount = count;
-    }
-  }
-  if (!bestCls) return undefined;
-  if (bestCount / Math.max(1, elements.length) < minShare) return undefined;
-  return bestCls;
-}
-
-function inferListSelectors(doc: Document, baseUrl: string): SelectorHints | undefined {
-  let origin: string;
-  try {
-    origin = new URL(baseUrl).origin;
-  } catch {
-    origin = baseUrl;
-  }
-
-  const anchors = Array.from(doc.querySelectorAll("a[href]")).filter((el) => {
-    const anchor = el as HTMLAnchorElement;
-    if (!anchor.href || !anchor.textContent?.trim()) return false;
-    if (!anchor.href.startsWith(origin)) return false;
-    try {
-      const pathname = new URL(anchor.href).pathname;
-      return /\/20\d{2}\/\d{2}\/\d{2}\//.test(pathname);
-    } catch {
-      return false;
-    }
-  });
-
-  if (anchors.length < 3) return undefined;
-
-  const linkClass = pickMostCommonClass(anchors, 0.35);
-  const linkSelector = linkClass ? `a.${linkClass}` : "a[href]";
-
-  const containerCandidates: Element[] = [];
-  anchors.forEach((anchor) => {
-    let current = anchor.parentElement;
-    while (current && current !== doc.body) {
-      if (current.tagName.toLowerCase() === "li" || current.tagName.toLowerCase() === "article") {
-        containerCandidates.push(current);
-        return;
-      }
-      if (current.classList.length > 0) {
-        containerCandidates.push(current);
-        return;
-      }
-      current = current.parentElement;
-    }
-  });
-
-  const containerClass = pickMostCommonClass(containerCandidates, 0.3);
-  const containerSelector = containerClass
-    ? (containerCandidates[0]?.tagName
-        ? `${containerCandidates[0].tagName.toLowerCase()}.${containerClass}`
-        : `.${containerClass}`)
-    : undefined;
-
-  const timeElements: Element[] = [];
-  containerCandidates.forEach((container) => {
-    const time = container.querySelector("time[datetime]");
-    if (time) timeElements.push(time);
-  });
-
-  const timeClass = pickMostCommonClass(timeElements, 0.35);
-  const dateSelector = timeElements.length
-    ? (timeClass ? `time.${timeClass}` : "time[datetime]")
-    : undefined;
-
-  return {
-    containerSelector,
-    linkSelector,
-    titleSelector: linkSelector,
-    dateSelector,
-  };
-}
-
 /**
- * Fetch and analyze a homepage to understand its structure
+ * Fetch HTML from a URL (static or with browser)
  */
-async function analyzeHomepage(url: string): Promise<PageAnalysis> {
-  // Try static fetch first
-  let html: string;
-  let tier: "html" | "spa" = "html";
-
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (compatible; Dispatch/1.0; +https://dispatch.app)"
-      }
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    html = await res.text();
-  } catch {
-    // Fall back to Playwright for SPAs
-    tier = "spa";
+async function fetchPage(url: string, useSpa: boolean = false): Promise<string> {
+  if (useSpa) {
     const browser = await chromium.launch({ headless: true });
     try {
       const page = await browser.newPage();
       await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      html = await page.content();
+      return await page.content();
     } finally {
       await browser.close();
     }
+  } else {
+    const res = await fetch(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+      }
+    });
+    if (!res.ok) throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
+    return await res.text();
   }
-
-  // Extract potential article links
-  const dom = new JSDOM(html, { url });
-  const doc = dom.window.document;
-  const links: Array<{ href: string; text: string }> = [];
-
-  // Common article link patterns
-  const selectors = [
-    "article a",
-    "a[href*='/post']",
-    "a[href*='/article']",
-    "a[href*='/blog']",
-    "a[href*='/news']",
-    ".post a",
-    ".article a",
-    ".entry a",
-    "h2 a",
-    "h3 a",
-  ];
-
-  for (const selector of selectors) {
-    try {
-      const elements = doc.querySelectorAll(selector);
-      elements.forEach((el: Element) => {
-        const anchor = el as HTMLAnchorElement;
-        if (anchor.href && anchor.textContent?.trim()) {
-          links.push({
-            href: anchor.href,
-            text: anchor.textContent.trim().slice(0, 100),
-          });
-        }
-      });
-    } catch {
-      // Selector might be invalid
-    }
-  }
-
-  // Dedupe links
-  const seen = new Set<string>();
-  const uniqueLinks = links.filter((l) => {
-    if (seen.has(l.href)) return false;
-    seen.add(l.href);
-    return true;
-  });
-
-  const selectorHints = inferListSelectors(doc, url);
-
-  return {
-    html,
-    url,
-    tier,
-    articleLinks: uniqueLinks.slice(0, 20),
-    selectorHints,
-  };
 }
 
 /**
- * Use LLM to generate SKILL.md content from homepage analysis
+ * Run CSS selector on HTML and return matching elements
  */
-async function generateSkillContent(
+function runSelector(html: string, selector: string, baseUrl: string): Array<{
+  text: string;
+  href?: string;
+  tag: string;
+  classes: string[];
+  outerHtml: string;
+}> {
+  const dom = new JSDOM(html, { url: baseUrl });
+  const doc = dom.window.document;
+  const elements = doc.querySelectorAll(selector);
+
+  const results: Array<{ text: string; href?: string; tag: string; classes: string[]; outerHtml: string }> = [];
+  elements.forEach((el: Element) => {
+    const anchor = el as HTMLAnchorElement;
+    results.push({
+      text: el.textContent?.trim().slice(0, 200) ?? "",
+      href: anchor.href || undefined,
+      tag: el.tagName.toLowerCase(),
+      classes: Array.from(el.classList),
+      outerHtml: el.outerHTML.slice(0, 500)
+    });
+  });
+
+  return results;
+}
+
+/**
+ * Get HTML structure summary for a page
+ */
+function getHtmlStructure(html: string, baseUrl: string): {
+  title: string;
+  metaDescription: string;
+  mainSections: Array<{ tag: string; classes: string[]; childCount: number }>;
+  linkCount: number;
+  articleElementCount: number;
+} {
+  const dom = new JSDOM(html, { url: baseUrl });
+  const doc = dom.window.document;
+
+  const title = doc.querySelector("title")?.textContent ?? "";
+  const metaDescription = doc.querySelector("meta[name='description']")?.getAttribute("content") ?? "";
+
+  const mainSections: Array<{ tag: string; classes: string[]; childCount: number }> = [];
+  doc.querySelectorAll("main, section, article, [role='main'], .content, #content").forEach((el: Element) => {
+    mainSections.push({
+      tag: el.tagName.toLowerCase(),
+      classes: Array.from(el.classList),
+      childCount: el.children.length
+    });
+  });
+
+  const linkCount = doc.querySelectorAll("a[href]").length;
+  const articleElementCount = doc.querySelectorAll("article, [class*='article'], [class*='post'], [class*='story']").length;
+
+  return { title, metaDescription, mainSections, linkCount, articleElementCount };
+}
+
+/**
+ * Extract readable content from HTML using Readability.js
+ */
+function extractReadable(html: string, url: string): {
+  title: string;
+  content: string;
+  excerpt: string;
+} | null {
+  const dom = new JSDOM(html, { url });
+  const reader = new Readability(dom.window.document);
+  const article = reader.parse();
+
+  if (!article) return null;
+
+  return {
+    title: article.title ?? "",
+    content: article.textContent?.slice(0, 1000) ?? "",
+    excerpt: article.excerpt ?? ""
+  };
+}
+
+// Tool schemas for the agentic skill generator
+const fetchPageSchema = z.object({
+  url: z.string().describe("The URL to fetch"),
+  spa: z.boolean().optional().describe("Use headless browser for JavaScript-heavy sites")
+});
+
+const runSelectorSchema = z.object({
+  selector: z.string().describe("CSS selector to run on the cached page"),
+  limit: z.number().optional().describe("Maximum number of results to return (default 20)")
+});
+
+const getStructureSchema = z.object({});
+
+const testArticleLinkSchema = z.object({
+  url: z.string().describe("Article URL to test"),
+  spa: z.boolean().optional().describe("Use headless browser")
+});
+
+const finishSkillSchema = z.object({
+  tier: z.enum(["html", "spa"]).describe("Whether the site requires JavaScript rendering"),
+  articleLinkSelector: z.string().describe("CSS selector to find article links on the list page"),
+  titleSelector: z.string().optional().describe("CSS selector for article title (on list or article page)"),
+  dateSelector: z.string().optional().describe("CSS selector for article date"),
+  contentSelector: z.string().optional().describe("CSS selector for article content"),
+  fallbackToReadability: z.boolean().describe("Whether to use Readability.js as fallback for content extraction"),
+  notes: z.string().optional().describe("Any special notes about extracting from this site")
+});
+
+/**
+ * Create tools for the skill generator agent
+ */
+function createSkillGeneratorTools(
+  homepageUrl: string,
+  pageCache: Map<string, string>,
+  result: { skill: SkillDiscovery | null }
+) {
+  return {
+    fetch_page: tool({
+      description: "Fetch HTML content from a URL. Use spa=true for JavaScript-heavy sites that require browser rendering.",
+      inputSchema: zodSchema(fetchPageSchema),
+      execute: async (input) => {
+        try {
+          console.log(`[skill-generator] fetch_page: ${input.url} (spa=${input.spa ?? false})`);
+          const html = await fetchPage(input.url, input.spa ?? false);
+          pageCache.set(input.url, html);
+          return { success: true, length: html.length, cached: true };
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : String(error) };
+        }
+      }
+    }),
+
+    get_structure: tool({
+      description: "Get an overview of the HTML structure of the homepage (main sections, element counts, etc.)",
+      inputSchema: zodSchema(getStructureSchema),
+      execute: async () => {
+        const html = pageCache.get(homepageUrl);
+        if (!html) {
+          return { error: "Homepage not cached. Call fetch_page first." };
+        }
+        console.log(`[skill-generator] get_structure`);
+        return getHtmlStructure(html, homepageUrl);
+      }
+    }),
+
+    run_selector: tool({
+      description: "Run a CSS selector on the cached homepage to find elements. Returns text, href, tag, classes for each match.",
+      inputSchema: zodSchema(runSelectorSchema),
+      execute: async (input) => {
+        const html = pageCache.get(homepageUrl);
+        if (!html) {
+          return { error: "Homepage not cached. Call fetch_page first." };
+        }
+        try {
+          console.log(`[skill-generator] run_selector: ${input.selector}`);
+          let results = runSelector(html, input.selector, homepageUrl);
+          if (input.limit && results.length > input.limit) {
+            results = results.slice(0, input.limit);
+          }
+          // Filter to show article-like links
+          const articleLinks = results.filter(r => {
+            if (!r.href) return false;
+            try {
+              const url = new URL(r.href);
+              const origin = new URL(homepageUrl).origin;
+              if (url.origin !== origin) return false;
+              if (url.pathname === "/" || url.pathname === "") return false;
+              return true;
+            } catch {
+              return false;
+            }
+          });
+          return {
+            totalMatches: results.length,
+            articleLikeLinks: articleLinks.length,
+            results: results.slice(0, input.limit ?? 20)
+          };
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : String(error) };
+        }
+      }
+    }),
+
+    test_article_link: tool({
+      description: "Fetch an article page and test if content can be extracted with Readability.js",
+      inputSchema: zodSchema(testArticleLinkSchema),
+      execute: async (input) => {
+        try {
+          console.log(`[skill-generator] test_article_link: ${input.url}`);
+          const html = await fetchPage(input.url, input.spa ?? false);
+          pageCache.set(input.url, html);
+
+          const readable = extractReadable(html, input.url);
+          if (!readable) {
+            return { success: false, error: "Readability could not extract content" };
+          }
+          return {
+            success: true,
+            title: readable.title,
+            excerpt: readable.excerpt,
+            contentLength: readable.content.length
+          };
+        } catch (error) {
+          return { error: error instanceof Error ? error.message : String(error) };
+        }
+      }
+    }),
+
+    finish_skill: tool({
+      description: "Finalize the skill configuration after discovering the correct selectors. Call this when you have found working selectors.",
+      inputSchema: zodSchema(finishSkillSchema),
+      execute: async (input) => {
+        console.log(`[skill-generator] finish_skill: tier=${input.tier}, selector=${input.articleLinkSelector}`);
+        result.skill = {
+          tier: input.tier,
+          articleLinkSelector: input.articleLinkSelector,
+          titleSelector: input.titleSelector,
+          dateSelector: input.dateSelector,
+          contentSelector: input.contentSelector,
+          fallbackToReadability: input.fallbackToReadability,
+          notes: input.notes
+        };
+        return { success: true, message: "Skill configuration saved" };
+      }
+    })
+  };
+}
+
+interface SkillDiscovery {
+  tier: "html" | "spa";
+  articleLinkSelector: string;
+  titleSelector?: string;
+  dateSelector?: string;
+  contentSelector?: string;
+  fallbackToReadability: boolean;
+  notes?: string;
+}
+
+/**
+ * Use an AI agent to discover the extraction selectors for a website
+ */
+async function discoverSkillWithAgent(
+  homepageUrl: string,
+  sourceName: string,
+  configOverride?: ModelsConfig
+): Promise<SkillDiscovery> {
+  console.log(`[skill-generator] Starting agentic skill discovery for ${sourceName}`);
+
+  const config = configOverride ?? getModelsConfig();
+  const modelConfig = getModelConfig(config, "skill");
+
+  // Find provider config from catalog
+  const catalogEntry = config.catalog?.find(e => e.id === modelConfig.modelId);
+  const providerConfig = catalogEntry?.providerConfig;
+
+  const providerMap = createProviderMap({
+    anthropic: providerConfig?.apiKey,
+    openai: providerConfig ? {
+      apiKey: providerConfig.apiKey ?? "",
+      baseUrl: providerConfig.baseUrl ?? ""
+    } : undefined
+  });
+
+  const providerFn = providerMap[modelConfig.providerType as keyof typeof providerMap];
+  if (!providerFn) {
+    throw new Error(`No provider found for ${modelConfig.providerType}`);
+  }
+
+  const model = providerFn(modelConfig.model);
+
+  // Page cache and result container
+  const pageCache = new Map<string, string>();
+  const result: { skill: SkillDiscovery | null } = { skill: null };
+
+  // Create tools
+  const tools = createSkillGeneratorTools(homepageUrl, pageCache, result);
+
+  const systemPrompt = `You are a web scraping expert. Your job is to analyze a website and discover the CSS selectors needed to extract articles from it.
+
+You have these tools available:
+- fetch_page: Fetch HTML from a URL (use spa=true for JavaScript-heavy sites)
+- get_structure: Get an overview of the page structure
+- run_selector: Test a CSS selector and see what elements it matches
+- test_article_link: Test if an article can be extracted with Readability.js
+- finish_skill: Save the final selector configuration
+
+Your goal is to find:
+1. A CSS selector that finds article links on the homepage/list page
+2. Whether the site needs JavaScript rendering (spa) or works with static HTML
+3. Optional: selectors for titles, dates, and content
+
+Strategy:
+1. First fetch the homepage (try without spa first)
+2. Use get_structure to understand the page layout
+3. Try different selectors to find article links:
+   - Look for <article> elements with links inside
+   - Look for elements with classes containing "article", "post", "story", "card"
+   - Look for links in main/section elements
+   - Check for date patterns in URLs (like /2024/01/15/)
+4. Test at least one article link to verify Readability.js works
+5. If static fetch finds no articles, retry with spa=true
+6. Call finish_skill when you've found working selectors
+
+Be thorough but efficient. Try multiple selector strategies if the first ones don't work.`;
+
+  const userPrompt = `Discover the extraction selectors for:
+- Website: ${homepageUrl}
+- Name: ${sourceName}
+
+Find the CSS selector that will extract article links from this website. Start by fetching the homepage.`;
+
+  try {
+    const agentConfig = getAgentConfig();
+    const maxSteps = agentConfig.skillGeneratorMaxSteps ?? 100;
+
+    const agentResult = await generateText({
+      model,
+      system: systemPrompt,
+      prompt: userPrompt,
+      tools,
+      stopWhen: stepCountIs(maxSteps),
+      temperature: 0.1
+    });
+
+    console.log(`[skill-generator] Agent completed with ${agentResult.steps.length} steps (max: ${maxSteps})`);
+
+    if (!result.skill) {
+      throw new Error("Agent did not produce a skill configuration. The website may be too complex or require special handling.");
+    }
+
+    return result.skill;
+
+  } catch (error) {
+    console.error("[skill-generator] Agent error:", error);
+    throw error;
+  }
+}
+
+/**
+ * Generate SKILL.md content from discovered configuration
+ */
+function generateSkillContent(
   sourceId: number,
   sourceName: string,
-  analysis: PageAnalysis,
-  configOverride?: ModelsConfig
-): Promise<string> {
-  const config = configOverride ?? getModelsConfig();
+  homepageUrl: string,
+  discovery: SkillDiscovery
+): string {
+  const skillName = sourceName.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-extractor";
 
-  // Truncate HTML for prompt
-  const htmlSample = analysis.html.slice(0, 15000);
-  const linksSample = analysis.articleLinks
-    .slice(0, 10)
-    .map((l) => `- ${l.text}: ${l.href}`)
-    .join("\n");
-  const selectorHints = analysis.selectorHints;
-  const selectorHintText = selectorHints
-    ? `\nSelector hints (derived from the HTML sample):\n- Container selector: ${selectorHints.containerSelector ?? "unknown"}\n- Link selector: ${selectorHints.linkSelector ?? "unknown"}\n- Title selector: ${selectorHints.titleSelector ?? "unknown"}\n- Date selector: ${selectorHints.dateSelector ?? "unknown"}\nUse these selectors if they match the HTML sample. Do not invent selectors that are not present in the HTML.`
-    : "";
-
-  const prompt = `Analyze this webpage and generate a SKILL.md file for extracting articles.
-
-Website URL: ${analysis.url}
-Site Name: ${sourceName}
-
-Sample article links found:
-${linksSample}
-
-HTML sample (truncated):
-\`\`\`html
-${htmlSample}
-\`\`\`
-${selectorHintText}
-
-Generate a SKILL.md file with:
-1. YAML frontmatter with name, description, and metadata (version, generatedAt, sourceId, tier, homepageUrl)
-2. Markdown instructions for extracting articles including:
-   - List Page section: CSS selectors for finding article links, titles, dates
-   - Article Page section: CSS selectors for content extraction, with fallback to Readability
-   - Pagination section if applicable
-
-The skill name should be lowercase-hyphenated (e.g., "${sourceName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-extractor").
-The tier should be "${analysis.tier}".
-
-Return ONLY the complete SKILL.md content, starting with ---.`;
-
-  const raw = await callLlm("skill", prompt, config);
-  
-  // Clean up the response
-  let content = raw.trim();
-  
-  // Remove markdown code fences if present
-  if (content.startsWith("```")) {
-    content = content.replace(/^```(?:markdown|md)?\s*\n?/, "").replace(/\n?```\s*$/, "");
-  }
-  
-  // Ensure it starts with frontmatter
-  if (!content.startsWith("---")) {
-    content = `---
-name: ${sourceName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-extractor
+  let content = `---
+name: ${skillName}
 description: Extracts articles from ${sourceName}.
 metadata:
   version: "1"
   generatedAt: "${new Date().toISOString()}"
   sourceId: "${sourceId}"
-  tier: "${analysis.tier}"
-  homepageUrl: "${analysis.url}"
+  tier: "${discovery.tier}"
+  homepageUrl: "${homepageUrl}"
 ---
 
-${content}`;
+# ${sourceName} Extraction Skill
+
+## List Page
+
+Fetch the homepage: \`${homepageUrl}\`
+${discovery.tier === "spa" ? "\n**Note:** This site requires JavaScript rendering. Use spa=true when fetching." : ""}
+
+### Article Links
+
+Use the following CSS selector to find article links:
+
+\`\`\`
+${discovery.articleLinkSelector}
+\`\`\`
+`;
+
+  if (discovery.titleSelector) {
+    content += `
+### Title Selector
+
+\`\`\`
+${discovery.titleSelector}
+\`\`\`
+`;
+  }
+
+  if (discovery.dateSelector) {
+    content += `
+### Date Selector
+
+\`\`\`
+${discovery.dateSelector}
+\`\`\`
+`;
+  }
+
+  content += `
+## Article Page
+`;
+
+  if (discovery.contentSelector) {
+    content += `
+### Content Selector
+
+\`\`\`
+${discovery.contentSelector}
+\`\`\`
+`;
+  }
+
+  content += `
+### Fallback
+
+${discovery.fallbackToReadability ? "Use Readability.js to extract article content if the selector fails." : "Do not use Readability.js fallback."}
+`;
+
+  if (discovery.notes) {
+    content += `
+## Notes
+
+${discovery.notes}
+`;
   }
 
   return content;
 }
 
 /**
- * Validate a skill by testing extraction on sample articles
+ * Validate a generated skill by testing the selector
  */
 async function validateSkill(
   skillContent: string,
-  analysis: PageAnalysis,
+  homepageUrl: string,
+  discovery: SkillDiscovery,
   configOverride?: ModelsConfig
 ): Promise<{ valid: boolean; error?: string; sampleCount: number }> {
   // Parse the skill to check syntax
   const tempPath = path.join(getSkillsDir(), "_temp_validation", "SKILL.md");
   const tempDir = path.dirname(tempPath);
-  
+
   try {
     fs.mkdirSync(tempDir, { recursive: true });
     fs.writeFileSync(tempPath, skillContent);
-    
-    const skill = await parseSkillFile(tempPath, configOverride);
 
-    // Validate list page selectors against homepage HTML
-    try {
-      const listDom = new JSDOM(analysis.html, { url: analysis.url });
-      const listDoc = listDom.window.document;
-      const selector = skill.extraction.listPage.articleLinkSelector;
-      const nodes = Array.from(listDoc.querySelectorAll(selector));
-      const validLinks = nodes.filter((node) => {
-        const anchor = node as HTMLAnchorElement;
-        return Boolean(anchor.href && anchor.textContent?.trim());
-      });
-      const expectedMin = Math.max(1, Math.min(3, analysis.articleLinks.length));
-      if (validLinks.length < expectedMin) {
-        return {
-          valid: false,
-          error: `List selector "${selector}" returned ${validLinks.length} links (expected at least ${expectedMin}).`,
-          sampleCount: 0,
-        };
-      }
-    } catch (listErr) {
+    await parseSkillFile(tempPath, configOverride);
+
+    // Fetch homepage and validate selector
+    const html = await fetchPage(homepageUrl, discovery.tier === "spa");
+    const dom = new JSDOM(html, { url: homepageUrl });
+    const doc = dom.window.document;
+
+    const nodes = Array.from(doc.querySelectorAll(discovery.articleLinkSelector));
+    const validLinks = nodes.filter((node) => {
+      const anchor = node as HTMLAnchorElement;
+      return Boolean(anchor.href && anchor.textContent?.trim());
+    });
+
+    if (validLinks.length < 1) {
       return {
         valid: false,
-        error: `Failed to validate list selectors: ${
-          listErr instanceof Error ? listErr.message : String(listErr)
-        }`,
+        error: `Selector "${discovery.articleLinkSelector}" returned no links.`,
         sampleCount: 0,
       };
     }
-    
-    // Test extraction on at least one article
-    if (analysis.articleLinks.length === 0) {
-      return { valid: false, error: "No article links found on homepage", sampleCount: 0 };
-    }
 
-    // Try to fetch and extract one article
-    const testUrl = analysis.articleLinks[0].href;
-    let testHtml: string;
+    // Test extraction on one article
+    const firstLink = validLinks[0] as HTMLAnchorElement;
+    const testUrl = firstLink.href;
 
     try {
-      if (skill.extraction.tier === "spa") {
-        const browser = await chromium.launch({ headless: true });
-        try {
-          const page = await browser.newPage();
-          await page.goto(testUrl, { waitUntil: "networkidle", timeout: 30000 });
-          testHtml = await page.content();
-        } finally {
-          await browser.close();
+      const testHtml = await fetchPage(testUrl, discovery.tier === "spa");
+      const testDom = new JSDOM(testHtml, { url: testUrl });
+      const testDoc = testDom.window.document;
+
+      let contentFound = false;
+      if (discovery.contentSelector) {
+        const contentEl = testDoc.querySelector(discovery.contentSelector);
+        if (contentEl?.textContent?.trim()) {
+          contentFound = true;
         }
-      } else {
-        const res = await fetch(testUrl);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        testHtml = await res.text();
+      }
+
+      if (!contentFound && discovery.fallbackToReadability) {
+        const reader = new Readability(testDoc);
+        const result = reader.parse();
+        contentFound = Boolean(result?.textContent?.trim());
+      }
+
+      if (!contentFound) {
+        return { valid: false, error: "Could not extract content from test article", sampleCount: 1 };
       }
     } catch (fetchErr) {
       return {
@@ -584,28 +765,6 @@ async function validateSkill(
         error: `Failed to fetch test article: ${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}`,
         sampleCount: 0,
       };
-    }
-
-    // Try to extract content
-    const dom = new JSDOM(testHtml, { url: testUrl });
-    const doc = dom.window.document;
-
-    let contentFound = false;
-    if (skill.extraction.articlePage?.contentSelector) {
-      const contentEl = doc.querySelector(skill.extraction.articlePage.contentSelector);
-      if (contentEl?.textContent?.trim()) {
-        contentFound = true;
-      }
-    }
-
-    if (!contentFound && skill.extraction.articlePage?.fallbackToReadability !== false) {
-      const reader = new Readability(doc);
-      const result = reader.parse();
-      contentFound = Boolean(result?.textContent?.trim());
-    }
-
-    if (!contentFound) {
-      return { valid: false, error: "Could not extract content from test article", sampleCount: 1 };
     }
 
     return { valid: true, sampleCount: 1 };
@@ -652,25 +811,18 @@ export async function generateSkill(
   console.log(`[skill-generator] Generating skill for source ${sourceId}: ${sourceName}`);
 
   try {
-    // 1. Analyze the homepage
-    console.log(`[skill-generator] Analyzing homepage: ${homepageUrl}`);
-    const analysis = await analyzeHomepage(homepageUrl);
-    console.log(`[skill-generator] Found ${analysis.articleLinks.length} potential article links, tier=${analysis.tier}`);
+    // 1. Use AI agent to discover selectors
+    console.log(`[skill-generator] Starting agentic discovery for: ${homepageUrl}`);
+    const discovery = await discoverSkillWithAgent(homepageUrl, sourceName, configOverride);
+    console.log(`[skill-generator] Agent discovered: tier=${discovery.tier}, selector=${discovery.articleLinkSelector}`);
 
-    if (analysis.articleLinks.length === 0) {
-      return {
-        success: false,
-        error: "Could not find any article links on the homepage. Please check the URL.",
-      };
-    }
-
-    // 2. Generate SKILL.md content
+    // 2. Generate SKILL.md content from discovery
     console.log(`[skill-generator] Generating SKILL.md content...`);
-    const skillContent = await generateSkillContent(sourceId, sourceName, analysis, configOverride);
+    const skillContent = generateSkillContent(sourceId, sourceName, homepageUrl, discovery);
 
     // 3. Validate the skill
     console.log(`[skill-generator] Validating skill...`);
-    const validationResult = await validateSkill(skillContent, analysis, configOverride);
+    const validationResult = await validateSkill(skillContent, homepageUrl, discovery, configOverride);
 
     if (!validationResult.valid) {
       return {

@@ -5,7 +5,7 @@ import { SettingsPage } from "./components/SettingsPage";
 import { HomeDigest } from "./components/HomeDigest";
 import { HomeArticlesList } from "./components/HomeArticlesList";
 import { ArticleViewer } from "./components/ArticleViewer";
-import { TasksPage } from "./components/TasksPage";
+import { DashboardPage } from "./components/DashboardPage";
 import { HistoryPage } from "./components/HistoryPage";
 import { HistoryDigestPage } from "./components/HistoryDigestPage";
 import { SourcesPage } from "./components/SourcesPage";
@@ -13,11 +13,11 @@ import { Button } from "./components/ui/button";
 
 export default function App() {
   const [activeView, setActiveView] = useState<
-    "home" | "tasks" | "history" | "history-detail" | "sources" | "article" | "settings"
+    "home" | "dashboard" | "history" | "history-detail" | "sources" | "article" | "settings"
   >("home");
   const [historyDigestId, setHistoryDigestId] = useState<number | null>(null);
   const [articleReturn, setArticleReturn] = useState<{
-    view: "home" | "history" | "history-detail" | "tasks" | "sources" | "settings";
+    view: "home" | "history" | "history-detail" | "dashboard" | "sources" | "settings";
     digestId?: number | null;
   } | null>(null);
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
@@ -31,7 +31,7 @@ export default function App() {
   const openArticle = (
     id: number,
     returnTo?: {
-      view: "home" | "history" | "history-detail" | "tasks" | "sources" | "settings";
+      view: "home" | "history" | "history-detail" | "dashboard" | "sources" | "settings";
       digestId?: number | null;
     }
   ) => {
@@ -99,10 +99,10 @@ export default function App() {
             </Button>
             <Button
               size="sm"
-              variant={activeView === "tasks" ? "default" : "outline"}
-              onClick={() => setActiveView("tasks")}
+              variant={activeView === "dashboard" ? "default" : "outline"}
+              onClick={() => setActiveView("dashboard")}
             >
-              Tasks
+              Dashboard
             </Button>
             <Button
               size="sm"
@@ -139,8 +139,8 @@ export default function App() {
           />
         ) : activeView === "history-detail" ? (
           <HistoryPage onOpenDigest={openHistoryDetail} />
-        ) : activeView === "tasks" ? (
-          <TasksPage onOpenHistory={() => setActiveView("history")} />
+        ) : activeView === "dashboard" ? (
+          <DashboardPage />
         ) : activeView === "sources" ? (
           <SourcesPage />
         ) : activeView === "settings" ? (

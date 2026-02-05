@@ -3,9 +3,10 @@ export type TaskKind =
   | "fetch-batch"
   | "pipeline-article"
   | "pipeline-batch"
-  | "digest";
+  | "digest"
+  | "skill";
 
-export type TaskStatus = "running" | "success" | "warning" | "error";
+export type TaskStatus = "running" | "success" | "warning" | "error" | "stopped";
 
 export type TaskRun = {
   id: number;
@@ -21,6 +22,38 @@ export type TaskRun = {
 const MAX_TASK_RUNS = 200;
 const runs: TaskRun[] = [];
 let nextId = 1;
+
+// AbortController registry for cancellable tasks
+const abortControllers = new Map<number, AbortController>();
+
+export function getTaskAbortController(runId: number): AbortController | undefined {
+  return abortControllers.get(runId);
+}
+
+export function createTaskAbortController(runId: number): AbortController {
+  const controller = new AbortController();
+  abortControllers.set(runId, controller);
+  return controller;
+}
+
+export function stopTaskRun(runId: number): boolean {
+  const run = runs.find((entry) => entry.id === runId);
+  if (!run || run.status !== "running") return false;
+
+  const controller = abortControllers.get(runId);
+  if (controller) {
+    controller.abort();
+    abortControllers.delete(runId);
+  }
+
+  const finishedAt = Date.now();
+  run.status = "stopped";
+  run.finishedAt = finishedAt;
+  run.durationMs = finishedAt - run.startedAt;
+  run.meta = { ...(run.meta ?? {}), stoppedByUser: true };
+
+  return true;
+}
 
 export function startTaskRun(
   kind: TaskKind,
@@ -63,6 +96,10 @@ export function finishTaskRun(
 ) {
   const run = runs.find((entry) => entry.id === id);
   if (!run) return;
+
+  // Clean up abort controller
+  abortControllers.delete(id);
+
   const finishedAt = Date.now();
   run.status = status;
   run.finishedAt = finishedAt;

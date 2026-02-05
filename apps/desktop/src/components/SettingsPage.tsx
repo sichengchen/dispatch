@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import { GeneralTab } from "./settings/GeneralTab";
-import { DiscoverTab } from "./settings/DiscoverTab";
 import { ModelsTab } from "./settings/ModelsTab";
 import { RouterTab } from "./settings/RouterTab";
 import {
@@ -18,7 +17,7 @@ import {
   generateId
 } from "./settings/types";
 
-type Tab = "general" | "discover" | "models" | "router";
+type Tab = "general" | "models" | "router";
 
 function clampNumber(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) return min;
@@ -47,9 +46,6 @@ export function SettingsPage() {
     }
   });
 
-  const [searchProvider, setSearchProvider] = useState("brave");
-  const [searchApiKey, setSearchApiKey] = useState("");
-  const [searchEndpoint, setSearchEndpoint] = useState("");
   const [verboseMode, setVerboseMode] = useState(false);
   const [gradingWeights, setGradingWeights] = useState<GradingWeights>(
     DEFAULT_GRADING_WEIGHTS
@@ -65,11 +61,9 @@ export function SettingsPage() {
     digest: createFallbackId("anthropic", "claude-3-5-sonnet-20240620"),
     skill: createFallbackId("anthropic", "claude-3-5-sonnet-20240620")
   }));
-  const [digestEnabled, setDigestEnabled] = useState(true);
-  const [digestTime, setDigestTime] = useState("06:00");
-  const [digestTopN, setDigestTopN] = useState(10);
-  const [digestHoursBack, setDigestHoursBack] = useState(24);
   const [digestPreferredLanguage, setDigestPreferredLanguage] = useState("English");
+  const [skillGeneratorMaxSteps, setSkillGeneratorMaxSteps] = useState(100);
+  const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,9 +71,6 @@ export function SettingsPage() {
     const cfg = settingsQuery.data;
     const llm = cfg.models;
 
-    setSearchProvider(cfg.search?.provider ?? "brave");
-    setSearchApiKey(cfg.search?.apiKey ?? "");
-    setSearchEndpoint(cfg.search?.endpoint ?? "");
     setVerboseMode(cfg.ui?.verbose ?? false);
     const nextWeights = cfg.grading?.weights;
     setGradingWeights({
@@ -90,11 +81,9 @@ export function SettingsPage() {
     });
     setInterestScores(buildScoreRows(cfg.grading?.interestByTag));
     setSourceScores(buildScoreRows(cfg.grading?.sourceWeights));
-    setDigestEnabled(cfg.digest?.enabled ?? true);
-    setDigestTime(cfg.digest?.scheduledTime ?? "06:00");
-    setDigestTopN(cfg.digest?.topN ?? 10);
-    setDigestHoursBack(cfg.digest?.hoursBack ?? 24);
     setDigestPreferredLanguage(cfg.digest?.preferredLanguage ?? "English");
+    setSkillGeneratorMaxSteps(cfg.agent?.skillGeneratorMaxSteps ?? 40);
+    setExtractionAgentMaxSteps(cfg.agent?.extractionAgentMaxSteps ?? 20);
 
     const nextCatalog: CatalogEntry[] =
       llm.catalog && llm.catalog.length > 0
@@ -278,15 +267,11 @@ export function SettingsPage() {
       };
     });
 
+    const existingDigest = settingsQuery.data?.digest;
     updateSettings.mutate({
       models: {
         assignment: resolvedModels,
         catalog: resolvedCatalog
-      },
-      search: {
-        provider: searchProvider as "brave" | "serper" | "duckduckgo",
-        apiKey: searchApiKey || undefined,
-        endpoint: searchEndpoint || undefined
       },
       ui: {
         verbose: verboseMode
@@ -299,11 +284,12 @@ export function SettingsPage() {
           : undefined
       },
       digest: {
-        enabled: digestEnabled,
-        scheduledTime: digestTime,
-        topN: digestTopN,
-        hoursBack: digestHoursBack,
+        ...existingDigest,
         preferredLanguage: digestPreferredLanguage || undefined
+      },
+      agent: {
+        skillGeneratorMaxSteps,
+        extractionAgentMaxSteps
       }
     });
   };
@@ -327,14 +313,6 @@ export function SettingsPage() {
           type="button"
         >
           General
-        </Button>
-        <Button
-          size="sm"
-          variant={activeTab === "discover" ? "default" : "outline"}
-          onClick={() => setActiveTab("discover")}
-          type="button"
-        >
-          Discover
         </Button>
         <Button
           size="sm"
@@ -364,28 +342,12 @@ export function SettingsPage() {
           setInterestScores={setInterestScores}
           sourceScores={sourceScores}
           setSourceScores={setSourceScores}
-          digestEnabled={digestEnabled}
-          setDigestEnabled={setDigestEnabled}
-          digestTime={digestTime}
-          setDigestTime={setDigestTime}
-          digestTopN={digestTopN}
-          setDigestTopN={setDigestTopN}
-          digestHoursBack={digestHoursBack}
-          setDigestHoursBack={setDigestHoursBack}
           digestPreferredLanguage={digestPreferredLanguage}
           setDigestPreferredLanguage={setDigestPreferredLanguage}
-        />
-      )}
-
-      {activeTab === "discover" && (
-        <DiscoverTab
-          searchProvider={searchProvider}
-          setSearchProvider={setSearchProvider}
-          searchApiKey={searchApiKey}
-          setSearchApiKey={setSearchApiKey}
-          searchEndpoint={searchEndpoint}
-          setSearchEndpoint={setSearchEndpoint}
-          setErrorMessage={setErrorMessage}
+          skillGeneratorMaxSteps={skillGeneratorMaxSteps}
+          setSkillGeneratorMaxSteps={setSkillGeneratorMaxSteps}
+          extractionAgentMaxSteps={extractionAgentMaxSteps}
+          setExtractionAgentMaxSteps={setExtractionAgentMaxSteps}
         />
       )}
 

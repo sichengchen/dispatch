@@ -1,7 +1,4 @@
 import Parser from "rss-parser";
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
-import { chromium } from "playwright";
 import PQueue from "p-queue";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
@@ -76,71 +73,11 @@ function parseDate(value?: string | null): Date | null {
 export type ScrapeResult = {
   inserted: number;
   skipped: number;
-  tier?: "rss" | "html" | "spa" | "skill";
-};
-
-export type ArticleContent = {
-  title: string;
-  content: string;
-  excerpt?: string;
-  publishedDate?: Date | null;
-  url?: string;
+  tier?: "rss" | "skill";
 };
 
 // ---------------------------------------------------------------------------
-// L2: Static HTML scraping via fetch + Readability
-// ---------------------------------------------------------------------------
-
-export async function scrapeHTML(url: string): Promise<ArticleContent | null> {
-  const validation = validateUrl(url);
-  if (!validation.valid) {
-    throw new Error(validation.error);
-  }
-
-  const res = await fetch(url);
-  if (!res.ok) return null;
-
-  const html = await res.text();
-  return extractReadable(html, url);
-}
-
-function extractReadable(html: string, url: string): ArticleContent | null {
-  const dom = new JSDOM(html, { url });
-  const reader = new Readability(dom.window.document);
-  const result = reader.parse();
-  if (!result || !result.textContent?.trim()) return null;
-
-  return {
-    title: result.title ?? "(untitled)",
-    content: result.textContent!,
-    excerpt: result.excerpt || undefined,
-    publishedDate: parseDate(result.publishedTime ?? null)
-  };
-}
-
-// ---------------------------------------------------------------------------
-// L3: Dynamic SPA scraping via Playwright + Readability
-// ---------------------------------------------------------------------------
-
-export async function scrapeSPA(url: string): Promise<ArticleContent | null> {
-  const validation = validateUrl(url);
-  if (!validation.valid) {
-    throw new Error(validation.error);
-  }
-
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const page = await browser.newPage();
-    await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
-    const html = await page.content();
-    return extractReadable(html, url);
-  } finally {
-    await browser.close();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// RSS scraping (L1) — unchanged logic, extracted article insertion
+// RSS scraping — unchanged logic, extracted article insertion
 // ---------------------------------------------------------------------------
 
 export async function scrapeRSS(sourceId: number): Promise<ScrapeResult> {
@@ -216,33 +153,6 @@ export async function scrapeRSS(sourceId: number): Promise<ScrapeResult> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Insert articles from HTML/SPA scraping into DB
-// ---------------------------------------------------------------------------
-
-function insertArticleFromContent(
-  sourceId: number,
-  pageUrl: string,
-  content: ArticleContent
-): { inserted: boolean } {
-  const result = db
-    .insert(articles)
-    .values({
-      sourceId,
-      title: content.title || "(untitled)",
-      url: pageUrl,
-      rawHtml: null,
-      cleanContent: content.content || null,
-      publishedAt: content.publishedDate ?? null,
-      fetchedAt: new Date(),
-      isRead: false
-    })
-    .onConflictDoNothing()
-    .run();
-
-  return { inserted: result.changes > 0 };
-}
-
 async function processIfEnabled(articleUrl: string): Promise<void> {
   if (process.env.DISPATCH_DISABLE_LLM === "1") return;
   try {
@@ -260,10 +170,10 @@ async function processIfEnabled(articleUrl: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Fallback chain: L1 (RSS) → L2 (HTML) → L3 (SPA) → Skill (agent-generated)
+// Scraping tiers: RSS for feed sources, Skill (agent-generated) for web sources
 // ---------------------------------------------------------------------------
 
-type ScrapeTier = "rss" | "html" | "spa" | "skill";
+type ScrapeTier = "rss" | "skill";
 
 function getTierOrder(source: {
   id: number;
@@ -294,7 +204,8 @@ export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
   const runId = startTaskRun("fetch-source", `Fetch: ${source.name}`, {
     sourceId: source.id,
     sourceName: source.name,
-    sourceUrl: source.url
+    sourceUrl: source.url,
+    tier: source.type === "web" ? "skill" : "rss"
   });
 
   const tiers = getTierOrder(source);
@@ -309,7 +220,7 @@ export async function scrapeSource(sourceId: number): Promise<ScrapeResult> {
       // Cache the successful strategy
       db.update(sources)
         .set({
-          scrapingStrategy: tier as "rss" | "html" | "spa",
+          scrapingStrategy: tier as "rss" | "skill",
           lastFetchedAt: new Date(),
         })
         .where(eq(sources.id, sourceId))
@@ -349,24 +260,6 @@ async function runTier(
     case "rss": {
       // Delegate to existing scrapeRSS which handles its own DB writes
       return scrapeRSS(sourceId);
-    }
-    case "html": {
-      const content = await scrapeHTML(source.url);
-      if (!content) throw new Error("L2 returned no content");
-      const { inserted } = insertArticleFromContent(sourceId, source.url, content);
-      if (inserted) {
-        await processIfEnabled(source.url);
-      }
-      return { inserted: inserted ? 1 : 0, skipped: inserted ? 0 : 1 };
-    }
-    case "spa": {
-      const content = await scrapeSPA(source.url);
-      if (!content) throw new Error("L3 returned no content");
-      const { inserted } = insertArticleFromContent(sourceId, source.url, content);
-      if (inserted) {
-        await processIfEnabled(source.url);
-      }
-      return { inserted: inserted ? 1 : 0, skipped: inserted ? 0 : 1 };
     }
     case "skill": {
       const result = await extractArticles(sourceId);

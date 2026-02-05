@@ -176,12 +176,11 @@ export function ModelsTab({ catalog, setCatalog, setRouting }: ModelsTabProps) {
                         <SelectValue placeholder="Select capability" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="chat">Chat only</SelectItem>
+                        <SelectItem value="chat">Chat</SelectItem>
                         {(entry.providerType === "openai" ||
                           entry.providerType === "mock") && (
                           <>
-                            <SelectItem value="embedding">Embeddings only</SelectItem>
-                            <SelectItem value="both">Chat + Embeddings</SelectItem>
+                            <SelectItem value="embedding">Embeddings</SelectItem>
                           </>
                         )}
                       </SelectContent>

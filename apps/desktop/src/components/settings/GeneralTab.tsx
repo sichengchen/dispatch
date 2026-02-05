@@ -1,3 +1,5 @@
+import { trpc } from "../../lib/trpc";
+import { Autocomplete } from "../ui/autocomplete";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
@@ -6,7 +8,7 @@ import { Slider } from "../ui/slider";
 import {
   type GradingWeights,
   type ScoreRow,
-  createScoreRow,
+  generateId,
   formatWeight
 } from "./types";
 
@@ -19,16 +21,12 @@ type GeneralTabProps = {
   setInterestScores: React.Dispatch<React.SetStateAction<ScoreRow[]>>;
   sourceScores: ScoreRow[];
   setSourceScores: React.Dispatch<React.SetStateAction<ScoreRow[]>>;
-  digestEnabled: boolean;
-  setDigestEnabled: (value: boolean) => void;
-  digestTime: string;
-  setDigestTime: (value: string) => void;
-  digestTopN: number;
-  setDigestTopN: (value: number) => void;
-  digestHoursBack: number;
-  setDigestHoursBack: (value: number) => void;
   digestPreferredLanguage: string;
   setDigestPreferredLanguage: (value: string) => void;
+  skillGeneratorMaxSteps: number;
+  setSkillGeneratorMaxSteps: (value: number) => void;
+  extractionAgentMaxSteps: number;
+  setExtractionAgentMaxSteps: (value: number) => void;
 };
 
 const WEIGHT_ITEMS = [
@@ -47,17 +45,41 @@ export function GeneralTab({
   setInterestScores,
   sourceScores,
   setSourceScores,
-  digestEnabled,
-  setDigestEnabled,
-  digestTime,
-  setDigestTime,
-  digestTopN,
-  setDigestTopN,
-  digestHoursBack,
-  setDigestHoursBack,
   digestPreferredLanguage,
-  setDigestPreferredLanguage
+  setDigestPreferredLanguage,
+  skillGeneratorMaxSteps,
+  setSkillGeneratorMaxSteps,
+  extractionAgentMaxSteps,
+  setExtractionAgentMaxSteps
 }: GeneralTabProps) {
+  const { data: availableTags = [] } = trpc.articles.uniqueTags.useQuery();
+  const { data: availableSources = [] } = trpc.sources.listForWeights.useQuery();
+
+  const tagOptions = availableTags.map((tag) => ({ value: tag, label: tag }));
+  const sourceOptions = availableSources.map((src) => ({
+    value: String(src.id),
+    label: `${src.name} (${new URL(src.url).hostname})`
+  }));
+
+  const existingTagKeys = interestScores.map((row) => row.key);
+  const existingSourceKeys = sourceScores.map((row) => row.key);
+
+  const handleAddTag = (tag: string) => {
+    setInterestScores((prev) => [
+      ...prev,
+      { id: generateId(), key: tag, score: "0" }
+    ]);
+  };
+
+  const handleAddSource = (sourceId: string) => {
+    const source = availableSources.find((s) => String(s.id) === sourceId);
+    const key = source ? source.name : sourceId;
+    setSourceScores((prev) => [
+      ...prev,
+      { id: generateId(), key, score: "0" }
+    ]);
+  };
+
   return (
     <div className="mt-4 space-y-4">
       <div className="rounded-lg border border-slate-200 bg-white p-3">
@@ -132,40 +154,26 @@ export function GeneralTab({
         </div>
 
         <div className="mt-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-semibold text-slate-700">Interest by tag</div>
-              <div className="text-[11px] text-slate-500">
-                Scores range from -10 to 10.
-              </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-700">Interest by tag</div>
+            <div className="text-[11px] text-slate-500">
+              Scores range from -10 to 10. Search and select tags from your articles.
             </div>
-            <Button
-              size="sm"
-              type="button"
-              onClick={() => {
-                setInterestScores((prev) => [...prev, createScoreRow()]);
-              }}
-            >
-              + Add Tag
-            </Button>
           </div>
+          <Autocomplete
+            options={tagOptions}
+            placeholder="Search tags..."
+            onSelect={handleAddTag}
+            excludeValues={existingTagKeys}
+          />
           {interestScores.length === 0 && (
             <div className="text-xs text-slate-500">No tag weights yet.</div>
           )}
           {interestScores.map((row) => (
-            <div key={row.id} className="grid grid-cols-[1fr_120px_auto] gap-2">
-              <Input
-                placeholder="ai"
-                value={row.key}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setInterestScores((prev) =>
-                    prev.map((item) =>
-                      item.id === row.id ? { ...item, key: nextValue } : item
-                    )
-                  );
-                }}
-              />
+            <div key={row.id} className="grid grid-cols-[1fr_120px_auto] items-center gap-2">
+              <div className="rounded bg-slate-100 px-2 py-1.5 text-sm text-slate-700">
+                {row.key}
+              </div>
               <Input
                 type="number"
                 min="-10"
@@ -198,40 +206,26 @@ export function GeneralTab({
         </div>
 
         <div className="mt-4 space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xs font-semibold text-slate-700">Source weights</div>
-              <div className="text-[11px] text-slate-500">
-                Match by source ID, name, or domain. Scores range from -10 to 10.
-              </div>
+          <div>
+            <div className="text-xs font-semibold text-slate-700">Source weights</div>
+            <div className="text-[11px] text-slate-500">
+              Scores range from -10 to 10. Search and select from your sources.
             </div>
-            <Button
-              size="sm"
-              type="button"
-              onClick={() => {
-                setSourceScores((prev) => [...prev, createScoreRow()]);
-              }}
-            >
-              + Add Source
-            </Button>
           </div>
+          <Autocomplete
+            options={sourceOptions}
+            placeholder="Search sources..."
+            onSelect={handleAddSource}
+            excludeValues={existingSourceKeys}
+          />
           {sourceScores.length === 0 && (
             <div className="text-xs text-slate-500">No source weights yet.</div>
           )}
           {sourceScores.map((row) => (
-            <div key={row.id} className="grid grid-cols-[1fr_120px_auto] gap-2">
-              <Input
-                placeholder="source id, name, or domain"
-                value={row.key}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setSourceScores((prev) =>
-                    prev.map((item) =>
-                      item.id === row.id ? { ...item, key: nextValue } : item
-                    )
-                  );
-                }}
-              />
+            <div key={row.id} className="grid grid-cols-[1fr_120px_auto] items-center gap-2">
+              <div className="rounded bg-slate-100 px-2 py-1.5 text-sm text-slate-700">
+                {row.key}
+              </div>
               <Input
                 type="number"
                 min="-10"
@@ -265,57 +259,46 @@ export function GeneralTab({
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-3">
-        <div className="text-sm font-semibold text-slate-900">Daily Digest</div>
+        <div className="text-sm font-semibold text-slate-900">Agent Configuration</div>
         <div className="mt-1 text-xs text-slate-500">
-          Auto-generate a daily briefing from top-rated articles.
+          Configure max steps for AI agents used in skill discovery and article extraction.
         </div>
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-          <Checkbox
-            id="digest-enabled"
-            checked={digestEnabled}
-            onCheckedChange={(checked) => {
-              setDigestEnabled(checked === true);
-            }}
-          />
-          <Label htmlFor="digest-enabled">Enable daily digest</Label>
-        </div>
-        {digestEnabled && (
-          <div className="mt-3 grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label>Scheduled time</Label>
-              <Input
-                type="time"
-                value={digestTime}
-                onChange={(e) => setDigestTime(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Top N articles</Label>
-              <Input
-                type="number"
-                min="1"
-                max="50"
-                value={digestTopN}
-                onChange={(e) =>
-                  setDigestTopN(Math.max(1, Math.min(50, Number(e.target.value) || 1)))
-                }
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Hours back</Label>
-              <Input
-                type="number"
-                min="1"
-                max="72"
-                value={digestHoursBack}
-                onChange={(e) =>
-                  setDigestHoursBack(Math.max(1, Math.min(72, Number(e.target.value) || 1)))
-                }
-              />
+        <div className="mt-3 grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="skill-max-steps">Skill Generator Max Steps</Label>
+            <Input
+              id="skill-max-steps"
+              type="number"
+              min="5"
+              max="100"
+              value={skillGeneratorMaxSteps}
+              onChange={(e) =>
+                setSkillGeneratorMaxSteps(Math.max(5, Math.min(100, Number(e.target.value) || 40)))
+              }
+            />
+            <div className="text-[11px] text-slate-500">
+              Steps for analyzing website structure
             </div>
           </div>
-        )}
+          <div className="space-y-1">
+            <Label htmlFor="extraction-max-steps">Extraction Agent Max Steps</Label>
+            <Input
+              id="extraction-max-steps"
+              type="number"
+              min="5"
+              max="100"
+              value={extractionAgentMaxSteps}
+              onChange={(e) =>
+                setExtractionAgentMaxSteps(Math.max(5, Math.min(100, Number(e.target.value) || 20)))
+              }
+            />
+            <div className="text-[11px] text-slate-500">
+              Steps for extracting articles
+            </div>
+          </div>
+        </div>
       </div>
+
     </div>
   );
 }

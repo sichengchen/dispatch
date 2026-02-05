@@ -15,7 +15,7 @@ export const sources = sqliteTable(
       .notNull()
       .default("healthy"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-    scrapingStrategy: text("scraping_strategy", { enum: ["rss", "html", "spa", "skill"] }),
+    scrapingStrategy: text("scraping_strategy", { enum: ["rss", "skill"] }),
     // Extraction skill tracking
     hasSkill: integer("has_skill", { mode: "boolean" }).notNull().default(false),
     skillVersion: integer("skill_version").notNull().default(0),

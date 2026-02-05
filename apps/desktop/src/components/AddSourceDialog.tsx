@@ -145,7 +145,7 @@ export function AddSourceDialog() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="source-url">URL</Label>
+              <Label htmlFor="source-url">{type === "rss" ? "RSS Feed URL" : "URL of articles listing page"}</Label>
               <Input
                 id="source-url"
                 value={url}
@@ -171,7 +171,7 @@ export function AddSourceDialog() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="rss">RSS</SelectItem>
-                  <SelectItem value="web">Web</SelectItem>
+                  <SelectItem value="web">Agentic (any website)</SelectItem>
                 </SelectContent>
               </Select>
               {type === "web" && addingState === "idle" && (

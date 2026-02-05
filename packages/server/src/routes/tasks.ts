@@ -2,11 +2,11 @@ import { z } from "zod";
 import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { articles, digests, sources } from "@dispatch/db";
 import { t } from "../trpc";
-import { listTaskRuns, startTaskRun, finishTaskRun } from "../services/task-log";
+import { listTaskRuns, startTaskRun, finishTaskRun, stopTaskRun } from "../services/task-log";
 import { scrapeQueue, enqueueScrape } from "../services/scraper";
 import { getSchedulerSnapshot } from "../services/scheduler";
 import { processArticle } from "../services/llm";
-import { getDigestConfig } from "../services/settings";
+import { getDigestConfig, getFetchScheduleConfig, getPipelineScheduleConfig } from "../services/settings";
 
 function parseArticleIds(raw: string | null | undefined): number[] {
   if (!raw) return [];
@@ -64,10 +64,39 @@ export const tasksRouter = t.router({
       .get();
 
     const digestConfig = getDigestConfig();
+    const fetchConfig = getFetchScheduleConfig();
+    const pipelineConfig = getPipelineScheduleConfig();
     const scheduler = getSchedulerSnapshot();
     const digestArticleIds = latestDigest
       ? parseArticleIds(latestDigest.articleIds)
       : [];
+
+    // Count sources by scraping strategy
+    const rssSources = sourceRows.filter((s) => s.scrapingStrategy === "rss").length;
+    const skillSources = sourceRows.filter((s) => s.scrapingStrategy === "skill").length;
+
+    // Human-readable fetch frequency
+    const fetchPresetLabels: Record<string, string> = {
+      hourly: "Every hour",
+      every2h: "Every 2 hours",
+      every6h: "Every 6 hours",
+      every12h: "Every 12 hours",
+      daily: "Once daily"
+    };
+    const fetchFrequency = fetchConfig.cronExpression
+      ? `Custom (${fetchConfig.cronExpression})`
+      : fetchPresetLabels[fetchConfig.preset ?? "hourly"] ?? "Every hour";
+
+    // Human-readable pipeline frequency
+    const pipelinePresetLabels: Record<string, string> = {
+      every5m: "Every 5 minutes",
+      every15m: "Every 15 minutes",
+      every30m: "Every 30 minutes",
+      hourly: "Every hour"
+    };
+    const pipelineFrequency = pipelineConfig.cronExpression
+      ? `Custom (${pipelineConfig.cronExpression})`
+      : pipelinePresetLabels[pipelineConfig.preset ?? "every15m"] ?? "Every 15 minutes";
 
     return {
       overview: {
@@ -99,11 +128,28 @@ export const tasksRouter = t.router({
       recentRuns: listTaskRuns({ limit: 8 }),
       scheduledTasks: [
         {
-          name: "RSS Fetch",
-          frequency: "Every hour",
+          name: `RSS Fetch (${rssSources} sources)`,
+          frequency: fetchFrequency,
           nextRunAt: scheduler?.scrape?.nextRunAt ?? null,
           lastRunAt: lastFetchedAt,
-          status: scheduler?.enabled ? "scheduled" : "disabled"
+          status: scheduler?.scrape?.enabled ? "scheduled" : "disabled"
+        },
+        {
+          name: `Agentic Fetch (${skillSources} sources)`,
+          frequency: fetchFrequency,
+          nextRunAt: scheduler?.scrape?.nextRunAt ?? null,
+          lastRunAt: lastFetchedAt,
+          status: scheduler?.scrape?.enabled ? "scheduled" : "disabled"
+        },
+        {
+          name: `AI Pipeline (batch ${pipelineConfig.batchSize ?? 10})`,
+          frequency: pipelineFrequency,
+          nextRunAt: scheduler?.pipeline?.nextRunAt ?? null,
+          lastRunAt: lastProcessed?.processedAt ?? null,
+          status:
+            pipelineConfig.enabled === false || scheduler?.enabled === false
+              ? "disabled"
+              : "scheduled"
         },
         {
           name: "Digest Generation",
@@ -116,20 +162,6 @@ export const tasksRouter = t.router({
             digestConfig.enabled === false || scheduler?.enabled === false
               ? "disabled"
               : "scheduled"
-        },
-        {
-          name: "Health Check",
-          frequency: "Daily",
-          nextRunAt: null,
-          lastRunAt: null,
-          status: "idle"
-        },
-        {
-          name: "Vector Cleanup",
-          frequency: "Weekly",
-          nextRunAt: null,
-          lastRunAt: null,
-          status: "idle"
         }
       ]
     };
@@ -229,5 +261,11 @@ export const tasksRouter = t.router({
       });
 
       return { ok: true, processed: pending.length - failed, failed };
+    }),
+  stopTask: t.procedure
+    .input(z.object({ runId: z.number().int().positive() }))
+    .mutation(({ input }) => {
+      const stopped = stopTaskRun(input.runId);
+      return { ok: stopped };
     })
 });

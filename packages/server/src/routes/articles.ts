@@ -246,5 +246,20 @@ export const articlesRouter = t.router({
     .mutation(async ({ input }) => {
       await processArticle(input.id);
       return { ok: true };
-    })
+    }),
+  uniqueTags: t.procedure.query(({ ctx }) => {
+    const rows = ctx.db
+      .select({ tags: articles.tags })
+      .from(articles)
+      .all();
+
+    const tagSet = new Set<string>();
+    for (const row of rows) {
+      for (const tag of parseTags(row.tags)) {
+        tagSet.add(tag);
+      }
+    }
+
+    return Array.from(tagSet).sort();
+  })
 });
