@@ -151,6 +151,16 @@ export function getSettingsPath(): string {
   return path.resolve(process.cwd(), "dispatch.settings.json");
 }
 
+/**
+ * Get data paths for storing app data (skills, cache, etc.)
+ */
+export function getDataPaths(): { userDataPath: string; settingsPath: string } {
+  const settingsPath = getSettingsPath();
+  // userDataPath is the directory containing settings
+  const userDataPath = process.env.DISPATCH_DATA_PATH ?? path.dirname(settingsPath);
+  return { userDataPath, settingsPath };
+}
+
 export function loadSettings(): Settings {
   const filePath = getSettingsPath();
   if (!fs.existsSync(filePath)) {

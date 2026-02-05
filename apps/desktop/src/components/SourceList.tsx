@@ -14,6 +14,13 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "./ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "./ui/dropdown-menu";
 
 export function SourceList() {
   const { data: sources = [], isLoading } = trpc.sources.list.useQuery();
@@ -87,6 +94,47 @@ export function SourceList() {
       setBulkDeleteError(err.message || "Bulk delete failed.");
     }
   });
+
+  // Skill management
+  const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
+  const [skillError, setSkillError] = useState<string | null>(null);
+  const regenerateSkill = trpc.sources.regenerateSkill.useMutation({
+    onMutate: (input) => {
+      setRegeneratingId(input.id);
+      setSkillError(null);
+    },
+    onSuccess: () => {
+      utils.sources.list.invalidate();
+    },
+    onError: (err) => {
+      setSkillError(err.message || "Skill regeneration failed.");
+    },
+    onSettled: () => {
+      setRegeneratingId(null);
+    }
+  });
+
+  const openSkillFile = async (sourceId: number) => {
+    try {
+      const result = await utils.client.sources.openSkillFile.query({ id: sourceId });
+      if (result.exists && result.skillPath) {
+        // Use Electron shell to open the file
+        // @ts-expect-error - window.electronAPI may not be typed
+        if (window.electronAPI?.openPath) {
+          // @ts-expect-error - window.electronAPI may not be typed
+          await window.electronAPI.openPath(result.skillPath);
+        } else {
+          // Fallback: copy path to clipboard
+          await navigator.clipboard.writeText(result.skillPath);
+          alert(`Skill path copied to clipboard:\n${result.skillPath}`);
+        }
+      } else {
+        setSkillError("Skill file not found. Try regenerating the skill.");
+      }
+    } catch (err) {
+      setSkillError(err instanceof Error ? err.message : "Failed to open skill file.");
+    }
+  };
 
   const selectedCount = selectedIds.size;
   const allSelected = useMemo(
@@ -188,6 +236,11 @@ export function SourceList() {
       {bulkDeleteError && (
         <div className="text-xs text-rose-600">
           {bulkDeleteError}
+        </div>
+      )}
+      {skillError && (
+        <div className="text-xs text-rose-600">
+          {skillError}
         </div>
       )}
       {sources.map((source) => {
@@ -326,6 +379,47 @@ export function SourceList() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+                {/* Skill management dropdown for web sources */}
+                {source.type === "web" && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 px-2 text-xs"
+                        type="button"
+                        onClick={(event) => event.stopPropagation()}
+                        disabled={regeneratingId === source.id}
+                      >
+                        {regeneratingId === source.id ? "..." : "⚙"}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          regenerateSkill.mutate({ id: source.id });
+                        }}
+                        disabled={regeneratingId === source.id}
+                      >
+                        {regeneratingId === source.id ? "Regenerating..." : "Regenerate Skill"}
+                      </DropdownMenuItem>
+                      {(source as any).hasSkill && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openSkillFile(source.id);
+                            }}
+                          >
+                            Open Skill File
+                          </DropdownMenuItem>
+                        </>
+                      )}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             </div>
           </div>

@@ -64,6 +64,13 @@
       "when": 1770253874805,
       "tag": "0008_add_long_summary",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1770265827247,
+      "tag": "0009_add-skill-columns",
+      "breakpoints": true
     }
   ]
 }

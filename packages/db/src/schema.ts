@@ -15,7 +15,11 @@ export const sources = sqliteTable(
       .notNull()
       .default("healthy"),
     isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
-    scrapingStrategy: text("scraping_strategy", { enum: ["rss", "html", "spa"] }),
+    scrapingStrategy: text("scraping_strategy", { enum: ["rss", "html", "spa", "skill"] }),
+    // Extraction skill tracking
+    hasSkill: integer("has_skill", { mode: "boolean" }).notNull().default(false),
+    skillVersion: integer("skill_version").notNull().default(0),
+    skillGeneratedAt: integer("skill_generated_at", { mode: "timestamp_ms" }),
     createdAt: integer("created_at", { mode: "timestamp_ms" })
       .notNull()
       .default(sql`(unixepoch() * 1000)`)
@@ -24,6 +28,7 @@ export const sources = sqliteTable(
     urlUnique: uniqueIndex("sources_url_unique").on(table.url)
   })
 );
+
 
 export const articles = sqliteTable(
   "articles",

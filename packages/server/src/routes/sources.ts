@@ -5,6 +5,12 @@ import { sources } from "@dispatch/db";
 import { t } from "../trpc";
 import { discoverSources } from "../services/discovery";
 import { scrapeSource } from "../services/scraper";
+import {
+  generateSkill,
+  regenerateSkill,
+  getSkillPath,
+  skillExists,
+} from "../services/skill-generator";
 
 export const sourcesRouter = t.router({
   list: t.procedure.query(({ ctx }) => {
@@ -15,10 +21,11 @@ export const sourcesRouter = t.router({
       z.object({
         url: z.string().url(),
         name: z.string().min(1),
-        type: z.enum(["rss", "web"]).default("rss")
+        type: z.enum(["rss", "web"]).default("rss"),
+        generateSkill: z.boolean().optional().default(true)
       })
     )
-    .mutation(({ ctx, input }) => {
+    .mutation(async ({ ctx, input }) => {
       const insertResult = ctx.db
         .insert(sources)
         .values({
@@ -39,7 +46,29 @@ export const sourcesRouter = t.router({
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR" });
       }
 
-      return row;
+      // Auto-generate skill for web sources
+      let skillGenerationResult: { success: boolean; error?: string } | undefined;
+      if (input.type === "web" && input.generateSkill) {
+        console.log(`[sources.add] Generating skill for web source ${id}: ${input.name}`);
+        try {
+          const result = await generateSkill(id, input.url, input.name);
+          skillGenerationResult = {
+            success: result.success,
+            error: result.error,
+          };
+        } catch (err) {
+          console.error(`[sources.add] Skill generation failed for source ${id}:`, err);
+          skillGenerationResult = {
+            success: false,
+            error: err instanceof Error ? err.message : String(err),
+          };
+        }
+      }
+
+      return {
+        ...row,
+        skillGenerationResult,
+      };
     }),
   delete: t.procedure
     .input(z.object({ id: z.number().int().positive() }))
@@ -101,5 +130,73 @@ export const sourcesRouter = t.router({
     .mutation(async ({ input }) => {
       const suggestions = await discoverSources(input.query);
       return suggestions;
-    })
+    }),
+  // Skill management routes
+  generateSkill: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = ctx.db
+        .select()
+        .from(sources)
+        .where(eq(sources.id, input.id))
+        .get();
+
+      if (!source) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Source not found" });
+      }
+
+      const result = await generateSkill(source.id, source.url, source.name);
+      
+      if (!result.success) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: result.error ?? "Failed to generate skill",
+        });
+      }
+
+      return {
+        ok: true,
+        skillPath: result.skillPath,
+        validationResult: result.validationResult,
+      };
+    }),
+  regenerateSkill: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const source = ctx.db
+        .select()
+        .from(sources)
+        .where(eq(sources.id, input.id))
+        .get();
+
+      if (!source) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Source not found" });
+      }
+
+      const result = await regenerateSkill(source.id);
+      
+      if (!result.success) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: result.error ?? "Failed to regenerate skill",
+        });
+      }
+
+      return {
+        ok: true,
+        skillPath: result.skillPath,
+        validationResult: result.validationResult,
+      };
+    }),
+  openSkillFile: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .query(({ input }) => {
+      const skillPath = getSkillPath(input.id);
+      const exists = skillExists(input.id);
+
+      return {
+        skillPath,
+        exists,
+      };
+    }),
 });
