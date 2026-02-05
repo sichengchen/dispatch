@@ -1,20 +1,17 @@
 import { useState } from "react";
 import { trpc } from "./lib/trpc";
 import { useUiStore } from "./store/ui";
-import { AddSourceDialog } from "./components/AddSourceDialog";
 import { DiscoverSourcesDialog } from "./components/DiscoverSourcesDialog";
 import { SettingsPage } from "./components/SettingsPage";
 import { DigestHistoryDialog } from "./components/DigestHistoryDialog";
 import { HomeDigest } from "./components/HomeDigest";
 import { HomeArticlesList } from "./components/HomeArticlesList";
 import { ArticleViewer } from "./components/ArticleViewer";
-import { SourceList } from "./components/SourceList";
-import { ArticleList } from "./components/ArticleList";
-import { PipelinePane } from "./components/PipelinePane";
+import { TasksPage } from "./components/TasksPage";
 import { Button } from "./components/ui/button";
 
 export default function App() {
-  const [activeView, setActiveView] = useState<"home" | "sources" | "article" | "settings">("home");
+  const [activeView, setActiveView] = useState<"home" | "tasks" | "article" | "settings">("home");
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
   const setSelectedArticleId = useUiStore((state) => state.setSelectedArticleId);
 
@@ -52,10 +49,10 @@ export default function App() {
             <DigestHistoryDialog onSelectArticle={openArticle} />
             <Button
               size="sm"
-              variant={activeView === "sources" ? "default" : "outline"}
-              onClick={() => setActiveView("sources")}
+              variant={activeView === "tasks" ? "default" : "outline"}
+              onClick={() => setActiveView("tasks")}
             >
-              Sources
+              Tasks
             </Button>
             <DiscoverSourcesDialog />
             <Button
@@ -74,41 +71,8 @@ export default function App() {
             <HomeDigest onSelectArticle={openArticle} />
             <HomeArticlesList onSelectArticle={openArticle} />
           </div>
-        ) : activeView === "sources" ? (
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Sources & Articles
-                </h2>
-                <p className="text-sm text-slate-500">
-                  Manage sources and read full articles.
-                </p>
-              </div>
-              <AddSourceDialog />
-            </div>
-            <div className="grid min-h-[70vh] grid-cols-[260px_1fr_1.3fr] gap-4">
-              <aside className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3">
-                <div className="mb-2 text-xs font-semibold uppercase text-slate-400">
-                  Sources
-                </div>
-                <div className="min-h-0 flex-1 overflow-y-auto">
-                  <SourceList />
-                </div>
-              </aside>
-              <section className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-3">
-                <div className="mb-2 text-xs font-semibold uppercase text-slate-400">
-                  Articles
-                </div>
-                <div className="min-h-0 flex-1">
-                  <ArticleList />
-                </div>
-              </section>
-              <section className="min-h-0">
-                <PipelinePane article={selectedArticle ?? null} />
-              </section>
-            </div>
-          </div>
+        ) : activeView === "tasks" ? (
+          <TasksPage />
         ) : activeView === "settings" ? (
           <SettingsPage />
         ) : (

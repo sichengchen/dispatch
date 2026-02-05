@@ -29,6 +29,7 @@ const seedArticles = [
     url: "https://example.com/articles/hello-dispatch",
     cleanContent: "Welcome to Dispatch. This is a seeded article.",
     summary: "A seeded welcome article for Dispatch.",
+    summaryLong: "A seeded welcome article for Dispatch.",
     publishedAt: new Date(now.getTime() - 1000 * 60 * 60),
     fetchedAt: now,
     isRead: false
@@ -40,6 +41,7 @@ const seedArticles = [
     url: "https://example.com/articles/second-seed",
     cleanContent: "Another seeded article for testing.",
     summary: "A short seeded follow-up article for testing.",
+    summaryLong: "A short seeded follow-up article for testing.",
     publishedAt: new Date(now.getTime() - 1000 * 60 * 30),
     fetchedAt: now,
     isRead: false
@@ -51,6 +53,7 @@ const seedArticles = [
     url: "https://blog.example.com/posts/web-source-seed",
     cleanContent: "Seeded article from a web source.",
     summary: "Seeded article from a web source.",
+    summaryLong: "Seeded article from a web source.",
     publishedAt: new Date(now.getTime() - 1000 * 60 * 10),
     fetchedAt: now,
     isRead: true

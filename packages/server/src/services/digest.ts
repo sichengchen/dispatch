@@ -68,6 +68,7 @@ export async function generateDigest(options?: {
       id: articles.id,
       title: articles.title,
       summary: articles.summary,
+      summaryLong: articles.summaryLong,
       tags: articles.tags,
     })
     .from(articles)
@@ -100,7 +101,7 @@ export async function generateDigest(options?: {
     index: index + 1,
     id: article.id,
     title: article.title,
-    summary: article.summary ?? "No summary",
+    summary: article.summaryLong ?? article.summary ?? "No summary",
     topic: parseTags(article.tags)[0] ?? "Other"
   }));
 

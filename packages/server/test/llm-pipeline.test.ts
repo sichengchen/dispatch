@@ -177,15 +177,16 @@ describe("LLM Pipeline (Mock)", () => {
   });
 
   describe("summarizeArticleFull (mock)", () => {
-    it("returns mock oneLiner and keyPoints", async () => {
+    it("returns mock oneLiner, longSummary, and keyPoints", async () => {
       const result = await summarizeArticleFull("Some content here", mockConfig);
       expect(result.oneLiner).toContain("Mock summary");
+      expect(result.longSummary).toContain("Mock long summary");
       expect(result.keyPoints).toEqual(["Mock key point 1", "Mock key point 2"]);
     });
   });
 
   describe("processArticle (mock)", () => {
-    it("persists tags, grade, summary, and keyPoints", async () => {
+    it("persists tags, grade, summaries, and keyPoints", async () => {
       await processArticle(testArticleId, mockConfig);
 
       const updated = db
@@ -196,6 +197,7 @@ describe("LLM Pipeline (Mock)", () => {
 
       expect(updated).toBeDefined();
       expect(updated!.summary).toContain("Mock summary");
+      expect(updated!.summaryLong).toContain("Mock long summary");
       expect(updated!.grade).toBe(5);
       expect(updated!.importancy).toBe(5);
       expect(updated!.quality).toBe(5);

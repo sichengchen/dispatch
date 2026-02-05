@@ -63,6 +63,7 @@ export const articlesRouter = t.router({
           rawHtml: articles.rawHtml,
           cleanContent: articles.cleanContent,
           summary: articles.summary,
+          summaryLong: articles.summaryLong,
           tags: articles.tags,
           grade: articles.grade,
           importancy: articles.importancy,
@@ -122,6 +123,7 @@ export const articlesRouter = t.router({
           rawHtml: articles.rawHtml,
           cleanContent: articles.cleanContent,
           summary: articles.summary,
+          summaryLong: articles.summaryLong,
           tags: articles.tags,
           grade: articles.grade,
           importancy: articles.importancy,
@@ -170,6 +172,7 @@ export const articlesRouter = t.router({
           title: articles.title,
           url: articles.url,
           summary: articles.summary,
+          summaryLong: articles.summaryLong,
           publishedAt: articles.publishedAt,
           fetchedAt: articles.fetchedAt,
           sourceName: sources.name

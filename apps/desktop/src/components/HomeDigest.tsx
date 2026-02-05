@@ -152,7 +152,6 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
                     </p>
                   )}
                 </div>
-                <Separator />
               </div>
             ))}
           </div>

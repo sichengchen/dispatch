@@ -227,8 +227,10 @@ function buildEmbeddingText(article: {
   title: string;
   cleanContent?: string | null;
   summary?: string | null;
+  summaryLong?: string | null;
 }): string {
-  const parts = [article.title, article.summary, article.cleanContent].filter(
+  const summary = article.summaryLong ?? article.summary;
+  const parts = [article.title, summary, article.cleanContent].filter(
     (part) => typeof part === "string" && part.trim().length > 0
   ) as string[];
   return parts.join("\n\n").trim();
@@ -242,6 +244,7 @@ export async function upsertArticleVector(
     url: string;
     cleanContent?: string | null;
     summary?: string | null;
+    summaryLong?: string | null;
   },
   configOverride?: ModelsConfig
 ): Promise<void> {
@@ -282,6 +285,7 @@ export async function getRelatedArticles(
       id: articles.id,
       title: articles.title,
       summary: articles.summary,
+      summaryLong: articles.summaryLong,
       cleanContent: articles.cleanContent
     })
     .from(articles)

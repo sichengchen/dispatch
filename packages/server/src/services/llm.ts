@@ -41,6 +41,7 @@ const gradeSchema = z.object({
 
 const fullSummarySchema = z.object({
   oneLiner: z.string().min(1),
+  longSummary: z.string().min(1),
   keyPoints: z.array(z.string().min(1)).min(1)
 });
 
@@ -162,6 +163,42 @@ function sanitizeSummary(raw: string): string {
   if (text.length > maxLength) {
     text = text.slice(0, maxLength).trim();
   }
+
+  return text;
+}
+
+function sanitizeLongSummary(raw: string): string {
+  if (!raw) return raw;
+  let text = raw;
+
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+      const jsonSummary =
+        extractText(parsed.longSummary) ??
+        extractText(parsed.summary) ??
+        extractText(parsed.final) ??
+        extractText(parsed.answer) ??
+        extractText(parsed.output);
+      if (jsonSummary) {
+        text = jsonSummary;
+      }
+    } catch {
+      // ignore JSON parse errors
+    }
+  }
+
+  text = stripReasoning(text);
+  text = text.replace(/```(?:json)?/gi, "");
+  text = text.replace(/```/g, "");
+  text = text.replace(/^(summary|final|answer)\s*[:\-]\s*/i, "");
+  text = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join(" ")
+    .trim();
 
   return text;
 }
@@ -470,13 +507,13 @@ ${trimmed.slice(0, 3000)}`;
 }
 
 // ---------------------------------------------------------------------------
-// Summarize (full) — returns oneLiner + keyPoints
+// Summarize (full) — returns oneLiner + longSummary + keyPoints
 // ---------------------------------------------------------------------------
 
 export async function summarizeArticleFull(
   content: string,
   configOverride?: ModelsConfig
-): Promise<{ oneLiner: string; keyPoints: string[] }> {
+): Promise<{ oneLiner: string; longSummary: string; keyPoints: string[] }> {
   const trimmed = content.trim();
   if (!trimmed) {
     throw new Error("Cannot summarize empty content");
@@ -487,19 +524,22 @@ export async function summarizeArticleFull(
 
   if (modelConfig.providerType === "mock") {
     const short = trimmed.split("\n")[0].slice(0, 100);
+    const long = trimmed.split("\n").slice(0, 4).join(" ").slice(0, 400);
     return {
       oneLiner: `Mock summary: ${short}`,
+      longSummary: `Mock long summary: ${long}`,
       keyPoints: ["Mock key point 1", "Mock key point 2"]
     };
   }
 
   const prompt = `Summarize the following article. Return a JSON object with:
 - "oneLiner": a single concise sentence summarizing the article
+- "longSummary": 1-3 short paragraphs that preserve all key facts, names, numbers, and context from the article
 - "keyPoints": an array of 2-5 key takeaway bullet points (each a short sentence)
 
 Respond ONLY with valid JSON, no markdown or explanation.
 
-Example response: {"oneLiner": "Researchers find new method for...", "keyPoints": ["Key finding one.", "Key finding two."]}
+Example response: {"oneLiner": "Researchers find new method for...", "longSummary": "Researchers at X report... (longer summary here)", "keyPoints": ["Key finding one.", "Key finding two."]}
 
 Article:
 ${trimmed}`;
@@ -509,9 +549,11 @@ ${trimmed}`;
     return parseJsonFromLlm(raw, fullSummarySchema);
   } catch {
     // Fallback: use the raw text as a one-liner
-    const cleaned = sanitizeSummary(raw);
+    const cleanedShort = sanitizeSummary(raw);
+    const cleanedLong = sanitizeLongSummary(raw);
     return {
-      oneLiner: cleaned || raw.slice(0, 300),
+      oneLiner: cleanedShort || raw.slice(0, 300),
+      longSummary: cleanedLong || cleanedShort || raw,
       keyPoints: []
     };
   }
@@ -597,11 +639,13 @@ export async function processArticle(
 
   // 3. Summarize (full)
   let summary = article.summary ?? "";
+  let summaryLong = article.summaryLong ?? "";
   let keyPoints: string[] = [];
   try {
     recordPipelineEvent(articleId, "summarize", "start");
     const full = await summarizeArticleFull(content, configOverride);
     summary = full.oneLiner;
+    summaryLong = full.longSummary;
     keyPoints = full.keyPoints;
     recordPipelineEvent(articleId, "summarize", "success");
   } catch (err) {
@@ -622,6 +666,7 @@ export async function processArticle(
       importancy: grade.importancy,
       quality: grade.quality,
       summary,
+      summaryLong,
       keyPoints: JSON.stringify(keyPoints),
       processedAt: new Date()
     })
@@ -632,7 +677,7 @@ export async function processArticle(
   try {
     recordPipelineEvent(articleId, "vectorize", "start");
     await upsertArticleVector(
-      { ...article, summary },
+      { ...article, summary, summaryLong },
       configOverride
     );
     recordPipelineEvent(articleId, "vectorize", "success");

@@ -113,13 +113,14 @@ describeLive("LLM Pipeline (Live)", () => {
   });
 
   describe("summarizeArticleFull", () => {
-    it("returns oneLiner and keyPoints", { timeout: 120000 }, async () => {
+    it("returns oneLiner, longSummary, and keyPoints", { timeout: 120000 }, async () => {
       const result = await summarizeArticleFull(
         sampleArticle,
         getLocalLlmConfig()
       );
       expect(result.oneLiner.length).toBeGreaterThan(0);
       expect(result.oneLiner.length).toBeLessThan(500);
+      expect(result.longSummary.length).toBeGreaterThan(0);
       expect(Array.isArray(result.keyPoints)).toBe(true);
       expect(result.keyPoints.length).toBeGreaterThan(0);
       for (const point of result.keyPoints) {

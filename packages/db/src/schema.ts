@@ -37,6 +37,7 @@ export const articles = sqliteTable(
     rawHtml: text("raw_html"),
     cleanContent: text("clean_content"),
     summary: text("summary"),
+    summaryLong: text("summary_long"),
     tags: text("tags"),
     grade: integer("grade"),
     importancy: integer("importancy"),
