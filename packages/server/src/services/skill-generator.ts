@@ -267,15 +267,17 @@ function pickMostCommonClass(
       counts.set(cls, (counts.get(cls) ?? 0) + 1);
     });
   });
-  let best: { cls: string; count: number } | null = null;
-  counts.forEach((count, cls) => {
-    if (!best || count > best.count) {
-      best = { cls, count };
+  let bestCls: string | undefined;
+  let bestCount = 0;
+  for (const [cls, count] of counts) {
+    if (!bestCls || count > bestCount) {
+      bestCls = cls;
+      bestCount = count;
     }
-  });
-  if (!best) return undefined;
-  if (best.count / Math.max(1, elements.length) < minShare) return undefined;
-  return best.cls;
+  }
+  if (!bestCls) return undefined;
+  if (bestCount / Math.max(1, elements.length) < minShare) return undefined;
+  return bestCls;
 }
 
 function inferListSelectors(doc: Document, baseUrl: string): SelectorHints | undefined {
