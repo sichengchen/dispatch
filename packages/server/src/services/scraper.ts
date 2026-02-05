@@ -17,6 +17,56 @@ const scrapeQueue: InstanceType<typeof PQueue> = new PQueue({ concurrency: 3 });
 
 export { scrapeQueue };
 
+// ---------------------------------------------------------------------------
+// URL validation to prevent SSRF attacks
+// ---------------------------------------------------------------------------
+
+const BLOCKED_HOSTS = new Set([
+  "localhost",
+  "127.0.0.1",
+  "0.0.0.0",
+  "::1",
+  "[::1]"
+]);
+
+const PRIVATE_IP_RANGES = [
+  /^10\./,
+  /^172\.(1[6-9]|2[0-9]|3[0-1])\./,
+  /^192\.168\./,
+  /^169\.254\./,
+  /^fc00:/i,
+  /^fd00:/i,
+  /^fe80:/i
+];
+
+export function validateUrl(url: string): { valid: boolean; error?: string } {
+  try {
+    const parsed = new URL(url);
+
+    // Only allow http/https
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return { valid: false, error: "Only HTTP and HTTPS URLs are allowed" };
+    }
+
+    // Block localhost and loopback
+    const hostname = parsed.hostname.toLowerCase();
+    if (BLOCKED_HOSTS.has(hostname)) {
+      return { valid: false, error: "Localhost URLs are not allowed" };
+    }
+
+    // Block private IP ranges
+    for (const pattern of PRIVATE_IP_RANGES) {
+      if (pattern.test(hostname)) {
+        return { valid: false, error: "Private network URLs are not allowed" };
+      }
+    }
+
+    return { valid: true };
+  } catch {
+    return { valid: false, error: "Invalid URL format" };
+  }
+}
+
 function parseDate(value?: string | null): Date | null {
   if (!value) return null;
   const date = new Date(value);
@@ -42,6 +92,11 @@ export type ArticleContent = {
 // ---------------------------------------------------------------------------
 
 export async function scrapeHTML(url: string): Promise<ArticleContent | null> {
+  const validation = validateUrl(url);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
   const res = await fetch(url);
   if (!res.ok) return null;
 
@@ -68,6 +123,11 @@ function extractReadable(html: string, url: string): ArticleContent | null {
 // ---------------------------------------------------------------------------
 
 export async function scrapeSPA(url: string): Promise<ArticleContent | null> {
+  const validation = validateUrl(url);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();

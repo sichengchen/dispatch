@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { trpc } from "../lib/trpc";
+import { parseStringArray } from "../lib/utils";
 import { useUiStore } from "../store/ui";
 
 export function ArticleList() {
@@ -119,27 +120,21 @@ export function ArticleList() {
                     </span>
                   )}
                 </div>
-                {article.tags && (() => {
-                  try {
-                    const parsed = JSON.parse(article.tags) as string[];
-                    if (parsed.length > 0) {
-                      return (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {parsed.slice(0, 3).map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                        </div>
-                      );
-                    }
-                    return null;
-                  } catch {
-                    return null;
-                  }
+                {(() => {
+                  const tags = parseStringArray(article.tags);
+                  if (tags.length === 0) return null;
+                  return (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {tags.slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  );
                 })()}
                 <div className="mt-1 text-xs text-slate-500">{article.summary ?? "No summary yet."}</div>
               </button>

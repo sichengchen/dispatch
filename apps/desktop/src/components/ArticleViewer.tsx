@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { trpc } from "../lib/trpc";
+import { parseStringArray } from "../lib/utils";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Separator } from "./ui/separator";
@@ -26,19 +27,6 @@ type ArticleViewerProps = {
   onSelectArticle?: (id: number) => void;
   backLabel?: string;
 };
-
-function parseStringArray(raw: string | null | undefined): string[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item) => typeof item === "string") as string[];
-    }
-  } catch {
-    // ignore parse errors
-  }
-  return [];
-}
 
 export function ArticleViewer({ article, onBack, onSelectArticle, backLabel }: ArticleViewerProps) {
   const articleId = article?.id ?? null;
