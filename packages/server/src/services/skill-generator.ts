@@ -842,17 +842,15 @@ export async function generateSkill(
 
     // 5. Update source in database
     const source = db.select().from(sources).where(eq(sources.id, sourceId)).get();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const sourceAny = source as any;
-    const newVersion = (sourceAny?.skillVersion ?? 0) + 1;
+    const newVersion = (source?.skillVersion ?? 0) + 1;
 
     db.update(sources)
       .set({
         hasSkill: true,
         skillVersion: newVersion,
         skillGeneratedAt: new Date(),
-        scrapingStrategy: "skill" as "rss" | "html" | "spa" | "skill",
-      } as any)
+        scrapingStrategy: "skill",
+      })
       .where(eq(sources.id, sourceId))
       .run();
 
