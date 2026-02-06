@@ -121,7 +121,7 @@ export function GeneralTab({
           <Label htmlFor="app-title">App Title</Label>
           <Input
             id="app-title"
-            placeholder="Dispatch"
+            placeholder="The Dispatch"
             value={appTitle}
             onChange={(e) => setAppTitle(e.target.value)}
           />
@@ -236,37 +236,49 @@ export function GeneralTab({
             <div className="text-xs text-slate-500">No tag weights yet.</div>
           )}
           {interestScores.map((row) => (
-            <div key={row.id} className="grid grid-cols-[1fr_120px_auto] items-center gap-2">
-              <div className="rounded bg-slate-100 px-2 py-1.5 text-sm text-slate-700">
-                {row.key}
+            <div key={row.id} className="space-y-2">
+              <div className="flex items-center justify-between text-sm text-slate-700">
+                <div className="flex items-center gap-2">
+                  <Label>{row.key}</Label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    className="h-auto px-1 py-0 text-xs text-slate-400 hover:text-slate-600"
+                    onClick={() => {
+                      setInterestScores((prev) =>
+                        prev.filter((item) => item.id !== row.id)
+                      );
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <span className="font-mono text-xs text-slate-500">
+                  {Number(row.score) > 0 ? `+${row.score}` : row.score}
+                </span>
               </div>
-              <Input
-                type="number"
-                min="-10"
-                max="10"
-                step="1"
-                value={row.score}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setInterestScores((prev) =>
-                    prev.map((item) =>
-                      item.id === row.id ? { ...item, score: nextValue } : item
-                    )
-                  );
-                }}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                type="button"
-                onClick={() => {
-                  setInterestScores((prev) =>
-                    prev.filter((item) => item.id !== row.id)
-                  );
-                }}
-              >
-                Remove
-              </Button>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Less interested</span>
+                  <span>Neutral</span>
+                  <span>More interested</span>
+                </div>
+                <Slider
+                  value={[Number(row.score) || 0]}
+                  min={-10}
+                  max={10}
+                  step={1}
+                  onValueChange={(value) => {
+                    const nextValue = String(value[0] ?? 0);
+                    setInterestScores((prev) =>
+                      prev.map((item) =>
+                        item.id === row.id ? { ...item, score: nextValue } : item
+                      )
+                    );
+                  }}
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -289,37 +301,49 @@ export function GeneralTab({
             <div className="text-xs text-slate-500">No source weights yet.</div>
           )}
           {sourceScores.map((row) => (
-            <div key={row.id} className="grid grid-cols-[1fr_120px_auto] items-center gap-2">
-              <div className="rounded bg-slate-100 px-2 py-1.5 text-sm text-slate-700">
-                {row.key}
+            <div key={row.id} className="space-y-2">
+              <div className="flex items-center justify-between text-sm text-slate-700">
+                <div className="flex items-center gap-2">
+                  <Label>{row.key}</Label>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    type="button"
+                    className="h-auto px-1 py-0 text-xs text-slate-400 hover:text-slate-600"
+                    onClick={() => {
+                      setSourceScores((prev) =>
+                        prev.filter((item) => item.id !== row.id)
+                      );
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <span className="font-mono text-xs text-slate-500">
+                  {Number(row.score) > 0 ? `+${row.score}` : row.score}
+                </span>
               </div>
-              <Input
-                type="number"
-                min="-10"
-                max="10"
-                step="1"
-                value={row.score}
-                onChange={(e) => {
-                  const nextValue = e.target.value;
-                  setSourceScores((prev) =>
-                    prev.map((item) =>
-                      item.id === row.id ? { ...item, score: nextValue } : item
-                    )
-                  );
-                }}
-              />
-              <Button
-                size="sm"
-                variant="ghost"
-                type="button"
-                onClick={() => {
-                  setSourceScores((prev) =>
-                    prev.filter((item) => item.id !== row.id)
-                  );
-                }}
-              >
-                Remove
-              </Button>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-[11px] text-slate-500">
+                  <span>Less trusted</span>
+                  <span>Neutral</span>
+                  <span>More trusted</span>
+                </div>
+                <Slider
+                  value={[Number(row.score) || 0]}
+                  min={-10}
+                  max={10}
+                  step={1}
+                  onValueChange={(value) => {
+                    const nextValue = String(value[0] ?? 0);
+                    setSourceScores((prev) =>
+                      prev.map((item) =>
+                        item.id === row.id ? { ...item, score: nextValue } : item
+                      )
+                    );
+                  }}
+                />
+              </div>
             </div>
           ))}
         </div>
