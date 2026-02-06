@@ -65,6 +65,7 @@ const digestConfigSchema = z.object({
   topN: z.number().int().positive().max(50).optional(),
   hoursBack: z.number().positive().optional(),
   preferredLanguage: z.string().min(1).optional(),
+  useBold: z.boolean().optional(),
 });
 
 const fetchScheduleConfigSchema = z.object({
@@ -273,6 +274,7 @@ export function getDefaultDigestConfig(): DigestConfig {
     topN: 10,
     hoursBack: 24,
     preferredLanguage: "English",
+    useBold: true,
   };
 }
 

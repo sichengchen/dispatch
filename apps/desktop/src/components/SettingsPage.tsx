@@ -26,6 +26,7 @@ type InitialState = {
   sourceScores: ScoreRow[];
   routing: RoutingState;
   digestPreferredLanguage: string;
+  digestUseBold: boolean;
   skillGeneratorMaxSteps: number;
   extractionAgentMaxSteps: number;
   chatAgentMaxSteps: number;
@@ -86,6 +87,7 @@ export function SettingsPage() {
   });
   const [appTitle, setAppTitle] = useState("");
   const [digestPreferredLanguage, setDigestPreferredLanguage] = useState("English");
+  const [digestUseBold, setDigestUseBold] = useState(true);
   const [skillGeneratorMaxSteps, setSkillGeneratorMaxSteps] = useState(100);
   const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
   const [chatAgentMaxSteps, setChatAgentMaxSteps] = useState(10);
@@ -114,6 +116,7 @@ export function SettingsPage() {
     setInterestScores(buildScoreRows(cfg.grading?.interestByTag));
     setSourceScores(buildScoreRows(cfg.grading?.sourceWeights));
     setDigestPreferredLanguage(cfg.digest?.preferredLanguage ?? "English");
+    setDigestUseBold((cfg.digest as { useBold?: boolean } | undefined)?.useBold ?? true);
     setSkillGeneratorMaxSteps(cfg.agent?.skillGeneratorMaxSteps ?? 40);
     setExtractionAgentMaxSteps(cfg.agent?.extractionAgentMaxSteps ?? 20);
     setChatAgentMaxSteps(cfg.agent?.chatAgentMaxSteps ?? 10);
@@ -188,6 +191,7 @@ export function SettingsPage() {
       sourceScores: buildScoreRows(cfg.grading?.sourceWeights),
       routing: nextRouting,
       digestPreferredLanguage: cfg.digest?.preferredLanguage ?? "English",
+      digestUseBold: (cfg.digest as { useBold?: boolean } | undefined)?.useBold ?? true,
       skillGeneratorMaxSteps: cfg.agent?.skillGeneratorMaxSteps ?? 40,
       extractionAgentMaxSteps: cfg.agent?.extractionAgentMaxSteps ?? 20,
       chatAgentMaxSteps: cfg.agent?.chatAgentMaxSteps ?? 10,
@@ -230,6 +234,7 @@ export function SettingsPage() {
 
     // Compare simple values
     if (digestPreferredLanguage !== initial.digestPreferredLanguage) return true;
+    if (digestUseBold !== initial.digestUseBold) return true;
     if (skillGeneratorMaxSteps !== initial.skillGeneratorMaxSteps) return true;
     if (extractionAgentMaxSteps !== initial.extractionAgentMaxSteps) return true;
     if (chatAgentMaxSteps !== initial.chatAgentMaxSteps) return true;
@@ -244,6 +249,7 @@ export function SettingsPage() {
     sourceScores,
     routing,
     digestPreferredLanguage,
+    digestUseBold,
     skillGeneratorMaxSteps,
     extractionAgentMaxSteps,
     chatAgentMaxSteps,
@@ -311,8 +317,9 @@ export function SettingsPage() {
       },
       digest: {
         ...existingDigest,
-        preferredLanguage: digestPreferredLanguage || undefined
-      },
+        preferredLanguage: digestPreferredLanguage || undefined,
+        useBold: digestUseBold
+      } as typeof existingDigest,
       agent: {
         skillGeneratorMaxSteps,
         extractionAgentMaxSteps,
@@ -343,6 +350,8 @@ export function SettingsPage() {
             setSourceScores={setSourceScores}
             digestPreferredLanguage={digestPreferredLanguage}
             setDigestPreferredLanguage={setDigestPreferredLanguage}
+            digestUseBold={digestUseBold}
+            setDigestUseBold={setDigestUseBold}
             skillGeneratorMaxSteps={skillGeneratorMaxSteps}
             setSkillGeneratorMaxSteps={setSkillGeneratorMaxSteps}
             extractionAgentMaxSteps={extractionAgentMaxSteps}

@@ -33,11 +33,27 @@ type DigestViewProps = {
   error?: { message: string } | null;
   onSelectArticle?: (id: number) => void;
   referenceLinkBehavior?: "internal" | "external";
+  useBold?: boolean;
 };
 
 function formatWeight(weight: number | null | undefined): string {
   if (weight == null || Number.isNaN(weight)) return "—";
   return weight.toFixed(1);
+}
+
+/**
+ * Render text with **bold** markers as React nodes
+ */
+function renderBoldText(text: string): ReactNode {
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  if (parts.length === 1) return text;
+
+  return parts.map((part, i) => {
+    if (part.startsWith("**") && part.endsWith("**")) {
+      return <strong key={i}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
 }
 
 export function DigestView({
@@ -49,7 +65,8 @@ export function DigestView({
   isLoading = false,
   error = null,
   onSelectArticle,
-  referenceLinkBehavior = "internal"
+  referenceLinkBehavior = "internal",
+  useBold = true
 }: DigestViewProps) {
   const utils = trpc.useUtils();
 
@@ -126,7 +143,7 @@ export function DigestView({
         </CardHeader>
         <CardContent className="space-y-5">
           {overviewLine && (
-            <p className="text-sm leading-7 text-slate-700">{overviewLine}</p>
+            <p className="text-sm leading-7 text-slate-700">{useBold ? renderBoldText(overviewLine) : overviewLine}</p>
           )}
           {isLoading && (
             <div className="text-sm text-slate-500">Loading digest content...</div>
@@ -158,19 +175,19 @@ export function DigestView({
                   <div className="text-sm font-semibold text-slate-900">
                     {capitalizeFirst(topic.topic)}
                   </div>
-                  <div className="space-y-2 text-sm text-slate-700">
+                  <ul className="list-disc space-y-2 pl-5 text-sm text-slate-700">
                     {topic.keyPoints.map((point, index) => (
-                      <p key={`${topic.topic}-kp-${index}`} className="leading-relaxed">
-                        {point.text}
+                      <li key={`${topic.topic}-kp-${index}`} className="leading-relaxed">
+                        {useBold ? renderBoldText(point.text) : point.text}
                         {renderRefs(point.refs)}
-                      </p>
+                      </li>
                     ))}
                     {topic.keyPoints.length === 0 && (
-                      <p className="text-slate-500">
+                      <li className="text-slate-500">
                         No key points available for this topic yet.
-                      </p>
+                      </li>
                     )}
-                  </div>
+                  </ul>
                 </div>
               ))}
             </div>

@@ -12,6 +12,7 @@ import {
   SelectValue
 } from "../ui/select";
 import { Slider } from "../ui/slider";
+import { Switch } from "../ui/switch";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,6 +42,8 @@ type GeneralTabProps = {
   setSourceScores: React.Dispatch<React.SetStateAction<ScoreRow[]>>;
   digestPreferredLanguage: string;
   setDigestPreferredLanguage: (value: string) => void;
+  digestUseBold: boolean;
+  setDigestUseBold: (value: boolean) => void;
   skillGeneratorMaxSteps: number;
   setSkillGeneratorMaxSteps: (value: number) => void;
   extractionAgentMaxSteps: number;
@@ -71,6 +74,8 @@ export function GeneralTab({
   setSourceScores,
   digestPreferredLanguage,
   setDigestPreferredLanguage,
+  digestUseBold,
+  setDigestUseBold,
   skillGeneratorMaxSteps,
   setSkillGeneratorMaxSteps,
   extractionAgentMaxSteps,
@@ -351,17 +356,33 @@ export function GeneralTab({
 
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="space-y-2">
-          <div className="text-sm font-semibold text-slate-900">Languages</div>
+          <div className="text-sm font-semibold text-slate-900">Digest</div>
           <div className="text-xs text-slate-500">
-            Preferred language for digest generation, summaries, topics, and chat agents.
+            Configure digest generation preferences.
           </div>
           <div className="mt-2 space-y-1">
-            <Label htmlFor="digest-language">Digest Preferred Language</Label>
+            <Label htmlFor="digest-language">Preferred Language</Label>
             <Input
               id="digest-language"
               placeholder="English"
               value={digestPreferredLanguage}
               onChange={(e) => setDigestPreferredLanguage(e.target.value)}
+            />
+            <div className="text-[11px] text-slate-500">
+              Language for digest summaries, topics, and chat agents.
+            </div>
+          </div>
+          <div className="mt-3 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="digest-bold">Use Bold Text</Label>
+              <div className="text-[11px] text-slate-500">
+                Allow bold text emphasis in digest key points.
+              </div>
+            </div>
+            <Switch
+              id="digest-bold"
+              checked={digestUseBold}
+              onCheckedChange={setDigestUseBold}
             />
           </div>
         </div>

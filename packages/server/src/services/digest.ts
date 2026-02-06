@@ -61,6 +61,7 @@ export async function generateDigest(options?: {
   const topN = options?.topN ?? config.topN ?? 10;
   const hoursBack = options?.hoursBack ?? config.hoursBack ?? 24;
   const preferredLanguage = config.preferredLanguage?.trim() || undefined;
+  const useBold = config.useBold ?? true;
 
   const runId = startTaskRun("digest", "Digest Generation", {
     topN,
@@ -141,8 +142,9 @@ Rules:
 - The overview should be a short paragraph (3-6 sentences) with light analysis of the issues.
 - For each key point, include references as article numbers.
 - If a point is supported by multiple articles, include multiple refs.
-- Write the overview and key points in ${preferredLanguage ?? "the same language as the sources"}.
-- Return STRICT JSON, no markdown.
+- Write the overview and key points in ${preferredLanguage ?? "the same language as the sources"}.${useBold ? `
+- CRITICAL: Use **double asterisks** around key terms (company names, products, numbers) in BOTH overview AND key points. Example: "The **tech industry** saw **Apple** release **iOS 18**"` : ""}
+- Return STRICT JSON${useBold ? " (bold markers like **text** are allowed inside strings)" : ""}.
 
 JSON schema:
 {
@@ -151,7 +153,7 @@ JSON schema:
     {
       "topic": "Topic name",
       "keyPoints": [
-        { "text": "Key point", "refs": [1,3] }
+        { "text": "Key point text here", "refs": [1,3] }
       ]
     }
   ]

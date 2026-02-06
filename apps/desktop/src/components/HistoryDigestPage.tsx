@@ -16,6 +16,8 @@ export function HistoryDigestPage({
   onSelectArticle,
   referenceLinkBehavior = "internal"
 }: HistoryDigestPageProps) {
+  const { data: settings } = trpc.settings.get.useQuery();
+  const useBold = (settings?.digest as { useBold?: boolean } | undefined)?.useBold ?? true;
   const { data: digest, isLoading, error } = trpc.digests.byId.useQuery({
     id: digestId
   });
@@ -42,6 +44,7 @@ export function HistoryDigestPage({
       error={error}
       onSelectArticle={onSelectArticle}
       referenceLinkBehavior={referenceLinkBehavior}
+      useBold={useBold}
       headerAction={
         <Button size="sm" variant="outline" onClick={onBack}>
           Back to History
