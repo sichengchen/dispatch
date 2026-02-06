@@ -9,6 +9,8 @@ import {
   getSkillPath,
   getSkillsDir,
   skillExists,
+  type SkillGenerationOptions,
+  type SkillGenerationResult,
 } from "../src/services/skill-generator";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -130,6 +132,41 @@ describe("Skill Generator", () => {
       await expect(parseSkillFile(invalidPath)).rejects.toThrow();
 
       fs.rmSync(path.dirname(invalidPath), { recursive: true, force: true });
+    });
+  });
+
+  describe("SkillGenerationOptions", () => {
+    it("has correct type structure", () => {
+      // Type-level test: verify the options interface structure
+      const optionsWithRobotsTxt: SkillGenerationOptions = {
+        robotsTxt: "User-agent: *\nDisallow: /private/",
+      };
+      expect(optionsWithRobotsTxt.robotsTxt).toBeDefined();
+      expect(optionsWithRobotsTxt.configOverride).toBeUndefined();
+
+      const optionsEmpty: SkillGenerationOptions = {};
+      expect(optionsEmpty.robotsTxt).toBeUndefined();
+
+      const optionsBoth: SkillGenerationOptions = {
+        robotsTxt: "User-agent: *\nAllow: /",
+        configOverride: {
+          routing: {},
+        },
+      };
+      expect(optionsBoth.robotsTxt).toBeDefined();
+      expect(optionsBoth.configOverride).toBeDefined();
+    });
+
+    it("allows optional robotsTxt parameter", () => {
+      // Verify robotsTxt can be undefined
+      const options: SkillGenerationOptions = {};
+      expect(options.robotsTxt).toBeUndefined();
+
+      // Verify robotsTxt can be a string
+      const optionsWithRobots: SkillGenerationOptions = {
+        robotsTxt: "User-agent: *\nDisallow: /admin/\nDisallow: /api/",
+      };
+      expect(optionsWithRobots.robotsTxt).toContain("Disallow: /admin/");
     });
   });
 });

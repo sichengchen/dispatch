@@ -296,14 +296,20 @@ interface SkillDiscovery {
   };
 }
 
+interface DiscoverSkillOptions {
+  robotsTxt?: string;
+  configOverride?: ModelsConfig;
+}
+
 /**
  * Use an AI agent to discover the extraction selectors for a website
  */
 async function discoverSkillWithAgent(
   homepageUrl: string,
   sourceName: string,
-  configOverride?: ModelsConfig
+  options?: DiscoverSkillOptions
 ): Promise<SkillDiscovery> {
+  const { robotsTxt, configOverride } = options ?? {};
   console.log(`[skill-generator] Starting agentic skill discovery for ${sourceName}`);
 
   const config = configOverride ?? getModelsConfig();
@@ -340,6 +346,24 @@ async function discoverSkillWithAgent(
   // Create tools
   const tools = createSkillGeneratorAgentTools(ctx, result);
 
+  // Build robots.txt guidance section if provided
+  const robotsTxtSection = robotsTxt
+    ? `
+
+## Robots.txt Guidance
+
+The website has provided the following robots.txt file. Respect these rules when discovering and extracting articles:
+
+\`\`\`
+${robotsTxt}
+\`\`\`
+
+- Avoid crawling paths that are disallowed
+- Respect any crawl-delay directives
+- Focus on paths that are explicitly allowed or not mentioned (implicitly allowed)
+`
+    : "";
+
   const systemPrompt = `You are a web scraping expert. Your job is to analyze a website and write detailed extraction instructions.
 
 You have these tools available:
@@ -353,7 +377,7 @@ You have these tools available:
 - finish_skill: Save your extraction instructions
 
 Your goal is to write comprehensive extraction instructions that will guide an extraction agent.
-
+${robotsTxtSection}
 Strategy:
 1. First fetch the homepage (try without spa first)
 2. Use get_structure to understand the page layout
@@ -370,7 +394,7 @@ When you call finish_skill, write the instructionBody as detailed markdown that:
 2. Provides specific selectors (CSS and/or XPath) for finding article links
 3. Describes any URL patterns to filter or validate links
 4. Explains how to extract article content (Readability, selectors, etc.)
-5. Notes any special handling needed (pagination, lazy loading, etc.)
+5. Notes any special handling needed (pagination, lazy loading, etc.)${robotsTxt ? "\n6. Notes any paths to avoid based on robots.txt rules" : ""}
 
 Be thorough - the extraction agent will only have your instructions to work with.`;
 
@@ -548,6 +572,11 @@ export interface SkillGenerationResult {
   };
 }
 
+export interface SkillGenerationOptions {
+  robotsTxt?: string;
+  configOverride?: ModelsConfig;
+}
+
 /**
  * Generate an extraction skill for a source
  */
@@ -555,14 +584,15 @@ export async function generateSkill(
   sourceId: number,
   homepageUrl: string,
   sourceName: string,
-  configOverride?: ModelsConfig
+  options?: SkillGenerationOptions
 ): Promise<SkillGenerationResult> {
+  const { robotsTxt, configOverride } = options ?? {};
   console.log(`[skill-generator] Generating skill for source ${sourceId}: ${sourceName}`);
 
   try {
     // 1. Use AI agent to discover selectors
     console.log(`[skill-generator] Starting agentic discovery for: ${homepageUrl}`);
-    const discovery = await discoverSkillWithAgent(homepageUrl, sourceName, configOverride);
+    const discovery = await discoverSkillWithAgent(homepageUrl, sourceName, { robotsTxt, configOverride });
     console.log(`[skill-generator] Agent discovered: tier=${discovery.tier}, hints=${JSON.stringify(discovery.hints)}`);
 
     // 2. Generate SKILL.md content from discovery
@@ -624,12 +654,12 @@ export async function generateSkill(
  */
 export async function regenerateSkill(
   sourceId: number,
-  configOverride?: ModelsConfig
+  options?: SkillGenerationOptions
 ): Promise<SkillGenerationResult> {
   const source = db.select().from(sources).where(eq(sources.id, sourceId)).get();
   if (!source) {
     return { success: false, error: `Source ${sourceId} not found` };
   }
 
-  return generateSkill(sourceId, source.url, source.name, configOverride);
+  return generateSkill(sourceId, source.url, source.name, options);
 }

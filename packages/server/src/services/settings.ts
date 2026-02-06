@@ -82,6 +82,7 @@ const pipelineScheduleConfigSchema = z.object({
 const agentConfigSchema = z.object({
   skillGeneratorMaxSteps: z.number().int().min(5).max(100).optional(),
   extractionAgentMaxSteps: z.number().int().min(5).max(100).optional(),
+  chatAgentMaxSteps: z.number().int().min(1).max(20).optional(),
 });
 
 const settingsSchema = z.object({
@@ -304,6 +305,7 @@ export function getDefaultAgentConfig(): AgentConfig {
   return {
     skillGeneratorMaxSteps: 100,
     extractionAgentMaxSteps: 100,
+    chatAgentMaxSteps: 10,
   };
 }
 

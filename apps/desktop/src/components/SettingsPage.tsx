@@ -73,6 +73,7 @@ export function SettingsPage() {
   const [digestPreferredLanguage, setDigestPreferredLanguage] = useState("English");
   const [skillGeneratorMaxSteps, setSkillGeneratorMaxSteps] = useState(100);
   const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
+  const [chatAgentMaxSteps, setChatAgentMaxSteps] = useState(10);
   const [digestReferenceLinkBehavior, setDigestReferenceLinkBehavior] =
     useState<"internal" | "external">("internal");
   const [externalLinkBehavior, setExternalLinkBehavior] =
@@ -98,6 +99,7 @@ export function SettingsPage() {
     setDigestPreferredLanguage(cfg.digest?.preferredLanguage ?? "English");
     setSkillGeneratorMaxSteps(cfg.agent?.skillGeneratorMaxSteps ?? 40);
     setExtractionAgentMaxSteps(cfg.agent?.extractionAgentMaxSteps ?? 20);
+    setChatAgentMaxSteps(cfg.agent?.chatAgentMaxSteps ?? 10);
 
     const nextCatalog: CatalogEntry[] =
       llm.catalog && llm.catalog.length > 0
@@ -220,7 +222,8 @@ export function SettingsPage() {
       },
       agent: {
         skillGeneratorMaxSteps,
-        extractionAgentMaxSteps
+        extractionAgentMaxSteps,
+        chatAgentMaxSteps
       }
     });
   };
@@ -258,6 +261,8 @@ export function SettingsPage() {
             setSkillGeneratorMaxSteps={setSkillGeneratorMaxSteps}
             extractionAgentMaxSteps={extractionAgentMaxSteps}
             setExtractionAgentMaxSteps={setExtractionAgentMaxSteps}
+            chatAgentMaxSteps={chatAgentMaxSteps}
+            setChatAgentMaxSteps={setChatAgentMaxSteps}
             digestReferenceLinkBehavior={digestReferenceLinkBehavior}
             setDigestReferenceLinkBehavior={setDigestReferenceLinkBehavior}
             externalLinkBehavior={externalLinkBehavior}

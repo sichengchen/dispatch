@@ -43,6 +43,8 @@ type GeneralTabProps = {
   setSkillGeneratorMaxSteps: (value: number) => void;
   extractionAgentMaxSteps: number;
   setExtractionAgentMaxSteps: (value: number) => void;
+  chatAgentMaxSteps: number;
+  setChatAgentMaxSteps: (value: number) => void;
   digestReferenceLinkBehavior: "internal" | "external";
   setDigestReferenceLinkBehavior: (value: "internal" | "external") => void;
   externalLinkBehavior: "internal" | "external";
@@ -69,6 +71,8 @@ export function GeneralTab({
   setSkillGeneratorMaxSteps,
   extractionAgentMaxSteps,
   setExtractionAgentMaxSteps,
+  chatAgentMaxSteps,
+  setChatAgentMaxSteps,
   digestReferenceLinkBehavior,
   setDigestReferenceLinkBehavior,
   externalLinkBehavior,
@@ -300,12 +304,12 @@ export function GeneralTab({
 
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="space-y-2">
-          <div className="text-sm font-semibold text-slate-900">Digest</div>
+          <div className="text-sm font-semibold text-slate-900">Languages</div>
           <div className="text-xs text-slate-500">
-            Preferred language for digest overview and topic summaries.
+            Preferred language for digest generation, summaries, topics, and chat agents.
           </div>
           <div className="mt-2 space-y-1">
-            <Label htmlFor="digest-language">Preferred Language</Label>
+            <Label htmlFor="digest-language">Digest Preferred Language</Label>
             <Input
               id="digest-language"
               placeholder="English"
@@ -319,11 +323,11 @@ export function GeneralTab({
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="text-sm font-semibold text-slate-900">Agents</div>
         <div className="mt-1 text-xs text-slate-500">
-          Configure max steps for AI agents used in skill discovery and article extraction.
+          Configure max steps for AI agents used in website analysis, article extraction, and chat.
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-4">
+        <div className="mt-3 grid grid-cols-3 gap-4">
           <div className="space-y-1">
-            <Label htmlFor="skill-max-steps">Skill Generator Max Steps</Label>
+            <Label htmlFor="skill-max-steps">Analysis Agent Max Steps</Label>
             <Input
               id="skill-max-steps"
               type="number"
@@ -352,6 +356,22 @@ export function GeneralTab({
             />
             <div className="text-[11px] text-slate-500">
               Steps for extracting articles
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="chat-max-steps">Chat Agent Max Steps</Label>
+            <Input
+              id="chat-max-steps"
+              type="number"
+              min="1"
+              max="20"
+              value={chatAgentMaxSteps}
+              onChange={(e) =>
+                setChatAgentMaxSteps(Math.max(1, Math.min(20, Number(e.target.value) || 10)))
+              }
+            />
+            <div className="text-[11px] text-slate-500">
+              Tool call rounds for chat agents
             </div>
           </div>
         </div>
