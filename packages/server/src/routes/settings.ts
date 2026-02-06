@@ -36,6 +36,7 @@ const modelsConfigSchema = z.object({
 });
 
 const uiConfigSchema = z.object({
+  appTitle: z.string().min(1).optional(),
   digestReferenceLinkBehavior: z.enum(["internal", "external"]).optional(),
   externalLinkBehavior: z.enum(["internal", "external"]).optional()
 });

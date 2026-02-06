@@ -126,7 +126,7 @@ export function GeneralTab({
             onChange={(e) => setAppTitle(e.target.value)}
           />
           <div className="text-[11px] text-slate-500">
-            The name displayed in the header. Leave empty for "Dispatch".
+            The name displayed in the header. Leave empty for "The Dispatch".
           </div>
         </div>
       </div>

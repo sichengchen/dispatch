@@ -30,7 +30,7 @@ export default function App() {
     select: (data) => data.ui
   });
 
-  const appTitle = uiSettings?.appTitle || "Dispatch";
+  const appTitle = uiSettings?.appTitle || "The Dispatch";
   const digestLinkBehavior = uiSettings?.digestReferenceLinkBehavior ?? "internal";
   const externalLinkBehavior = uiSettings?.externalLinkBehavior ?? "internal";
 
