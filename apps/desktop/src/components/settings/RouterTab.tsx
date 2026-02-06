@@ -28,7 +28,7 @@ export function RouterTab({ catalog, routing, setRouting }: RouterTabProps) {
         return (
           <div
             key={task.id}
-            className="rounded-lg border border-slate-200 bg-slate-50 p-3"
+            className="rounded-lg border border-slate-200 bg-white p-3"
           >
             <div>
               <div className="text-sm font-semibold text-slate-900">{task.label}</div>

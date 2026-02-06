@@ -196,7 +196,7 @@ export function GeneralTab({
 
         <div className="mt-4 space-y-2">
           <div>
-            <div className="text-xs font-semibold text-slate-700">Interest by tag</div>
+            <Label>Interest by tag</Label>
             <div className="text-[11px] text-slate-500">
               Scores range from -10 to 10. Search and select tags from your articles.
             </div>
@@ -249,7 +249,7 @@ export function GeneralTab({
         </div>
         <div className="mt-4 space-y-2">
           <div>
-            <div className="text-xs font-semibold text-slate-700">Source weights</div>
+            <Label>Source weights</Label>
             <div className="text-[11px] text-slate-500">
               Scores range from -10 to 10. Search and select from your sources.
             </div>
@@ -407,7 +407,7 @@ function DangerZone() {
   });
 
   return (
-    <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+    <div className="rounded-lg border border-rose-200 bg-white p-3">
       <div className="text-sm font-semibold text-rose-900">Danger Zone</div>
       <div className="mt-1 text-xs text-rose-700">
         Irreversible actions. Proceed with caution.

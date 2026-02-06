@@ -143,7 +143,7 @@ export function ModelsTab() {
       )}
 
       {isAdding && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
           <div className="mb-3 text-sm font-medium">New Model</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -395,7 +395,7 @@ function ModelCard({
 
   if (isEditing) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-3 text-sm font-medium">Edit Model</div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -500,7 +500,7 @@ function ModelCard({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2">

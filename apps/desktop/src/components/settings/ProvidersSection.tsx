@@ -112,7 +112,7 @@ export function ProvidersSection() {
       </div>
 
       {isAdding && (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
           <div className="mb-3 text-sm font-medium">New Provider</div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
@@ -278,7 +278,7 @@ function ProviderCard({
 
   if (isEditing) {
     return (
-      <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <div className="rounded-lg border border-slate-200 bg-white p-4">
         <div className="mb-3 text-sm font-medium">Edit Provider</div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">
@@ -358,7 +358,7 @@ function ProviderCard({
   }
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <div className="flex items-center gap-2">
