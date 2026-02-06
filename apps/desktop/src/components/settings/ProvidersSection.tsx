@@ -369,12 +369,11 @@ function ProviderCard({
               {provider.type === "anthropic" ? "Anthropic" : "OpenAI Compatible"}
             </div>
           </div>
-          <div className="mt-1 text-xs text-slate-500">
-            {provider.type === "openai-compatible" && provider.credentials.baseUrl && (
-              <div>Base URL: {provider.credentials.baseUrl}</div>
-            )}
-            <div>API Key: {provider.credentials.apiKey.slice(0, 8)}...</div>
-          </div>
+          {provider.type === "openai-compatible" && provider.credentials.baseUrl && (
+            <div className="mt-1 text-xs text-slate-500">
+              Base URL: {provider.credentials.baseUrl}
+            </div>
+          )}
         </div>
         <div className="flex gap-1">
           <Button
