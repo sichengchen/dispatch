@@ -10,7 +10,8 @@ import { DashboardPage } from "./components/DashboardPage";
 import { HistoryPage } from "./components/HistoryPage";
 import { HistoryDigestPage } from "./components/HistoryDigestPage";
 import { SourcesPage } from "./components/SourcesPage";
-import { Button } from "./components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 export default function App() {
   const [activeView, setActiveView] = useState<
@@ -77,6 +78,7 @@ export default function App() {
   };
 
   return (
+    <TooltipProvider>
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
@@ -89,46 +91,23 @@ export default function App() {
             <h1 className="text-2xl font-semibold text-slate-900">Dispatch</h1>
             <p className="text-sm text-slate-500">Your newspaper at home</p>
           </button>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant={activeView === "home" ? "default" : "outline"}
-              onClick={() => setActiveView("home")}
-            >
-              Home
-            </Button>
-            <Button
-              size="sm"
-              variant={activeView === "history" ? "default" : "outline"}
-              onClick={() => {
-                setActiveView("history");
+          <Tabs
+            value={activeView === "history-detail" ? "history" : activeView === "article" ? "home" : activeView}
+            onValueChange={(value) => {
+              if (value === "history") {
                 setHistoryDigestId(null);
-              }}
-            >
-              History
-            </Button>
-            <Button
-              size="sm"
-              variant={activeView === "dashboard" ? "default" : "outline"}
-              onClick={() => setActiveView("dashboard")}
-            >
-              Dashboard
-            </Button>
-            <Button
-              size="sm"
-              variant={activeView === "sources" ? "default" : "outline"}
-              onClick={() => setActiveView("sources")}
-            >
-              Sources
-            </Button>
-            <Button
-              size="sm"
-              variant={activeView === "settings" ? "default" : "outline"}
-              onClick={() => setActiveView("settings")}
-            >
-              Settings
-            </Button>
-          </div>
+              }
+              setActiveView(value as typeof activeView);
+            }}
+          >
+            <TabsList>
+              <TabsTrigger value="home">Home</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
+              <TabsTrigger value="dashboard">Dashboard</TabsTrigger>
+              <TabsTrigger value="sources">Sources</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </header>
       <main className="mx-auto w-full max-w-6xl px-6 py-6">
@@ -177,5 +156,6 @@ export default function App() {
       </main>
       <Toaster position="bottom-right" richColors />
     </div>
+    </TooltipProvider>
   );
 }

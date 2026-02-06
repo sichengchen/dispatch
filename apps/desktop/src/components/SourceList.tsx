@@ -22,6 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
+import { Skeleton } from "./ui/skeleton";
 
 export function SourceList() {
   const { data: sources = [], isLoading } = trpc.sources.list.useQuery();
@@ -222,7 +223,16 @@ export function SourceList() {
           <span>Select all</span>
         </div>
       )}
-      {isLoading && <div className="text-sm text-slate-500">Loading...</div>}
+      {isLoading && (
+        <div className="space-y-2 px-3">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="space-y-1.5 py-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ))}
+        </div>
+      )}
       {!isLoading && sources.length === 0 && (
         <div className="text-sm text-slate-500">No sources yet.</div>
       )}

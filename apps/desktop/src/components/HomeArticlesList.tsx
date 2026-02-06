@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import { trpc } from "../lib/trpc";
+import { Alert, AlertDescription } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
+import { Skeleton } from "./ui/skeleton";
 
 type HomeArticlesListProps = {
   onSelectArticle?: (id: number) => void;
@@ -41,12 +43,19 @@ export function HomeArticlesList({ onSelectArticle }: HomeArticlesListProps) {
       </CardHeader>
       <CardContent>
         {isLoading && (
-          <div className="text-sm text-slate-500">Loading articles…</div>
+          <div className="space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-full" />
+              </div>
+            ))}
+          </div>
         )}
         {error && (
-          <div className="text-sm text-rose-600">
-            Failed to load articles: {error.message}
-          </div>
+          <Alert variant="destructive">
+            <AlertDescription>Failed to load articles: {error.message}</AlertDescription>
+          </Alert>
         )}
         {!isLoading && !error && ordered.length === 0 && (
           <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">

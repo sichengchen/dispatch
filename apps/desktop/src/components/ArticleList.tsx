@@ -3,6 +3,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { trpc } from "../lib/trpc";
 import { parseStringArray } from "../lib/utils";
 import { useUiStore } from "../store/ui";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Skeleton } from "./ui/skeleton";
 
 export function ArticleList() {
   const selectedSourceId = useUiStore((state) => state.selectedSourceId);
@@ -32,14 +34,24 @@ export function ArticleList() {
   }, [selectedSourceId, rowVirtualizer]);
 
   if (isLoading) {
-    return <div className="text-sm text-slate-500">Loading...</div>;
+    return (
+      <div className="space-y-3 p-2">
+        {[...Array(5)].map((_, i) => (
+          <div key={i} className="space-y-2">
+            <Skeleton className="h-4 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+            <Skeleton className="h-3 w-full" />
+          </div>
+        ))}
+      </div>
+    );
   }
 
   if (error) {
     return (
-      <div className="text-sm text-rose-600">
-        Failed to load articles: {error.message}
-      </div>
+      <Alert variant="destructive">
+        <AlertDescription>Failed to load articles: {error.message}</AlertDescription>
+      </Alert>
     );
   }
 

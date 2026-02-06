@@ -11,6 +11,7 @@ import {
 } from "./ui/dialog";
 import { ScrollArea } from "./ui/scroll-area";
 import { Separator } from "./ui/separator";
+import { Skeleton } from "./ui/skeleton";
 
 type DigestHistoryDialogProps = {
   onSelectArticle?: (id: number) => void;
@@ -68,7 +69,15 @@ export function DigestHistoryDialog({
         </DialogHeader>
         <ScrollArea className="max-h-[520px] pr-4">
           {isLoading && (
-            <div className="text-sm text-slate-500">Loading digests…</div>
+            <div className="space-y-4">
+              {[...Array(3)].map((_, i) => (
+                <div key={i} className="rounded-lg border border-slate-200 p-4 space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-32" />
+                  <Skeleton className="h-16 w-full" />
+                </div>
+              ))}
+            </div>
           )}
           {!isLoading && !hasDigests && (
             <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">

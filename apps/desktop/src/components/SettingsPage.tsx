@@ -3,6 +3,8 @@ import { toast } from "sonner";
 import type { UiConfig } from "@dispatch/api";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
+import { Alert, AlertDescription } from "./ui/alert";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { GeneralTab } from "./settings/GeneralTab";
 import { ModelsTab } from "./settings/ModelsTab";
 import { RouterTab } from "./settings/RouterTab";
@@ -39,6 +41,7 @@ function resolveCatalogEntry(entries: CatalogEntry[], modelId: string) {
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
+  const handleTabChange = (value: string) => setActiveTab(value as Tab);
   const settingsQuery = trpc.settings.get.useQuery(undefined, {
     refetchOnWindowFocus: false,
     refetchOnMount: false
@@ -233,74 +236,52 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <div className="mt-2 flex gap-2">
-        <Button
-          size="sm"
-          variant={activeTab === "general" ? "default" : "outline"}
-          onClick={() => setActiveTab("general")}
-          type="button"
-        >
-          General
-        </Button>
-        <Button
-          size="sm"
-          variant={activeTab === "providers" ? "default" : "outline"}
-          onClick={() => setActiveTab("providers")}
-          type="button"
-        >
-          Providers
-        </Button>
-        <Button
-          size="sm"
-          variant={activeTab === "models" ? "default" : "outline"}
-          onClick={() => setActiveTab("models")}
-          type="button"
-        >
-          Models
-        </Button>
-        <Button
-          size="sm"
-          variant={activeTab === "router" ? "default" : "outline"}
-          onClick={() => setActiveTab("router")}
-          type="button"
-        >
-          Router
-        </Button>
-      </div>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-2">
+        <TabsList>
+          <TabsTrigger value="general">General</TabsTrigger>
+          <TabsTrigger value="providers">Providers</TabsTrigger>
+          <TabsTrigger value="models">Models</TabsTrigger>
+          <TabsTrigger value="router">Router</TabsTrigger>
+        </TabsList>
 
-      {activeTab === "general" && (
-        <GeneralTab
-          gradingWeights={gradingWeights}
-          setGradingWeights={setGradingWeights}
-          interestScores={interestScores}
-          setInterestScores={setInterestScores}
-          sourceScores={sourceScores}
-          setSourceScores={setSourceScores}
-          digestPreferredLanguage={digestPreferredLanguage}
-          setDigestPreferredLanguage={setDigestPreferredLanguage}
-          skillGeneratorMaxSteps={skillGeneratorMaxSteps}
-          setSkillGeneratorMaxSteps={setSkillGeneratorMaxSteps}
-          extractionAgentMaxSteps={extractionAgentMaxSteps}
-          setExtractionAgentMaxSteps={setExtractionAgentMaxSteps}
-          digestReferenceLinkBehavior={digestReferenceLinkBehavior}
-          setDigestReferenceLinkBehavior={setDigestReferenceLinkBehavior}
-          externalLinkBehavior={externalLinkBehavior}
-          setExternalLinkBehavior={setExternalLinkBehavior}
-        />
-      )}
+        <TabsContent value="general">
+          <GeneralTab
+            gradingWeights={gradingWeights}
+            setGradingWeights={setGradingWeights}
+            interestScores={interestScores}
+            setInterestScores={setInterestScores}
+            sourceScores={sourceScores}
+            setSourceScores={setSourceScores}
+            digestPreferredLanguage={digestPreferredLanguage}
+            setDigestPreferredLanguage={setDigestPreferredLanguage}
+            skillGeneratorMaxSteps={skillGeneratorMaxSteps}
+            setSkillGeneratorMaxSteps={setSkillGeneratorMaxSteps}
+            extractionAgentMaxSteps={extractionAgentMaxSteps}
+            setExtractionAgentMaxSteps={setExtractionAgentMaxSteps}
+            digestReferenceLinkBehavior={digestReferenceLinkBehavior}
+            setDigestReferenceLinkBehavior={setDigestReferenceLinkBehavior}
+            externalLinkBehavior={externalLinkBehavior}
+            setExternalLinkBehavior={setExternalLinkBehavior}
+          />
+        </TabsContent>
 
-      {activeTab === "providers" && <ProvidersSection />}
+        <TabsContent value="providers">
+          <ProvidersSection />
+        </TabsContent>
 
-      {activeTab === "models" && <ModelsTab />}
+        <TabsContent value="models">
+          <ModelsTab />
+        </TabsContent>
 
-      {activeTab === "router" && (
-        <RouterTab catalog={catalog} routing={routing} setRouting={setRouting} />
-      )}
+        <TabsContent value="router">
+          <RouterTab catalog={catalog} routing={routing} setRouting={setRouting} />
+        </TabsContent>
+      </Tabs>
 
       {errorMessage && (
-        <div className="mt-3 rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700">
-          {errorMessage}
-        </div>
+        <Alert variant="destructive" className="mt-3">
+          <AlertDescription>{errorMessage}</AlertDescription>
+        </Alert>
       )}
 
       <div className="flex items-center justify-end gap-2">

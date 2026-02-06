@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "./ui/select";
+import { Alert, AlertDescription } from "./ui/alert";
 
 type AddingState = "idle" | "adding" | "generating-skill" | "done" | "error";
 
@@ -188,15 +189,17 @@ export function AddSourceDialog() {
             )}
             {/* Skill warning */}
             {skillError && (
-              <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-xs text-amber-700">
-                ⚠️ {skillError} — You can regenerate the skill later from source settings.
-              </div>
+              <Alert variant="warning" className="py-2">
+                <AlertDescription className="text-xs">
+                  {skillError} — You can regenerate the skill later from source settings.
+                </AlertDescription>
+              </Alert>
             )}
             {/* Error message */}
             {errorMessage && (
-              <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-xs text-rose-700">
-                {errorMessage}
-              </div>
+              <Alert variant="destructive" className="py-2">
+                <AlertDescription className="text-xs">{errorMessage}</AlertDescription>
+              </Alert>
             )}
           </div>
           <DialogFooter>

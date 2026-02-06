@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "./ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 
 type StatusTone = "ok" | "warning" | "error" | "neutral";
 
@@ -699,9 +700,15 @@ export function DashboardPage() {
             Configure automated fetch and digest schedules.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+        <CardContent className="space-y-4">
+          <Tabs defaultValue="fetch">
+            <TabsList>
+              <TabsTrigger value="fetch">Article Fetch</TabsTrigger>
+              <TabsTrigger value="pipeline">AI Pipeline</TabsTrigger>
+              <TabsTrigger value="digest">Digest</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="fetch" className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold text-slate-900">Article Fetch</div>
@@ -747,9 +754,9 @@ export function DashboardPage() {
                   )}
                 </div>
               )}
-            </div>
+            </TabsContent>
 
-            <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <TabsContent value="pipeline" className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold text-slate-900">AI Pipeline</div>
@@ -809,11 +816,9 @@ export function DashboardPage() {
                   )}
                 </div>
               )}
-            </div>
-          </div>
+            </TabsContent>
 
-          <div className="grid gap-6 md:grid-cols-2">
-            <div className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+            <TabsContent value="digest" className="space-y-4 mt-4">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="text-sm font-semibold text-slate-900">Digest Generation</div>
@@ -897,8 +902,8 @@ export function DashboardPage() {
                   )}
                 </div>
               )}
-            </div>
-          </div>
+            </TabsContent>
+          </Tabs>
 
           <div className="flex items-center justify-between">
             <Button

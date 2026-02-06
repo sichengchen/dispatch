@@ -1,6 +1,6 @@
 import { trpc } from "../../lib/trpc";
-import { Autocomplete } from "../ui/autocomplete";
 import { Button } from "../ui/button";
+import { Combobox } from "../ui/combobox";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
@@ -185,9 +185,11 @@ export function GeneralTab({
               Scores range from -10 to 10. Search and select tags from your articles.
             </div>
           </div>
-          <Autocomplete
+          <Combobox
             options={tagOptions}
-            placeholder="Search tags..."
+            placeholder="Add tag..."
+            searchPlaceholder="Search tags..."
+            emptyText="No tags found."
             onSelect={handleAddTag}
             excludeValues={existingTagKeys}
           />
@@ -236,9 +238,11 @@ export function GeneralTab({
               Scores range from -10 to 10. Search and select from your sources.
             </div>
           </div>
-          <Autocomplete
+          <Combobox
             options={sourceOptions}
-            placeholder="Search sources..."
+            placeholder="Add source..."
+            searchPlaceholder="Search sources..."
+            emptyText="No sources found."
             onSelect={handleAddSource}
             excludeValues={existingSourceKeys}
           />
