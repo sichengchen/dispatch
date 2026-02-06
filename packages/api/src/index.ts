@@ -1,2 +1,2 @@
 export type { AppRouter } from "@dispatch/server";
-export type { Provider, DiscoveredModel } from "@dispatch/lib";
+export type { Provider, DiscoveredModel, ModelCatalogEntry } from "@dispatch/lib";

@@ -229,7 +229,15 @@ type ProviderCardProps = {
   isEditing: boolean;
   onEdit: () => void;
   onCancelEdit: () => void;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: {
+    id: string;
+    name: string;
+    type: "anthropic" | "openai-compatible";
+    credentials: {
+      apiKey: string;
+      baseUrl?: string;
+    };
+  }) => void;
   onDelete: (id: string) => void;
   onRefresh: (id: string) => void;
   isUpdating: boolean;

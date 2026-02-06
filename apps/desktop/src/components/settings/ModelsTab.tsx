@@ -10,7 +10,8 @@ import {
   SelectValue
 } from "../ui/select";
 import { trpc } from "../../lib/trpc";
-import { generateId } from "./types";
+import { generateId, type Provider, type DiscoveredModel } from "./types";
+import type { ModelCatalogEntry } from "@dispatch/api";
 
 export function ModelsTab() {
   const [isAdding, setIsAdding] = useState(false);
@@ -75,7 +76,7 @@ export function ModelsTab() {
   // Auto-set capabilities when a discovered model is selected
   useEffect(() => {
     if (addFormData.model && !addFormData.useCustomModel && discoveredModels) {
-      const selectedModel = discoveredModels.find((m: any) => m.id === addFormData.model);
+      const selectedModel = discoveredModels.find((m: DiscoveredModel) => m.id === addFormData.model);
       if (selectedModel?.capabilities) {
         setAddFormData(prev => ({
           ...prev,
@@ -91,7 +92,7 @@ export function ModelsTab() {
     if (addFormData.useCustomModel && discoveredModels && discoveredModels.length > 0) {
       setAddFormData(prev => ({ ...prev, useCustomModel: false, model: "" }));
     }
-  }, [addFormData.providerId]); // Only trigger on provider change
+  }, [addFormData.providerId, addFormData.useCustomModel, discoveredModels]);
 
   const handleAdd = () => {
     if (!addFormData.providerId || !addFormData.model) return;
@@ -196,18 +197,18 @@ export function ModelsTab() {
                     </div>
                     <div className="max-h-[300px] overflow-y-auto">
                       {discoveredModels
-                        .filter((m: any) => {
+                        .filter((m: DiscoveredModel) => {
                           if (!modelSearchQuery) return true;
                           const query = modelSearchQuery.toLowerCase();
                           const name = (m.name || m.id).toLowerCase();
                           return name.includes(query);
                         })
-                        .map((m: any) => (
+                        .map((m: DiscoveredModel) => (
                           <SelectItem key={m.id} value={m.id}>
                             {m.name || m.id}
                           </SelectItem>
                         ))}
-                      {discoveredModels.filter((m: any) => {
+                      {discoveredModels.filter((m: DiscoveredModel) => {
                         if (!modelSearchQuery) return true;
                         const query = modelSearchQuery.toLowerCase();
                         const name = (m.name || m.id).toLowerCase();
@@ -338,12 +339,19 @@ export function ModelsTab() {
 }
 
 type ModelCardProps = {
-  model: any;
-  providers: any[];
+  model: ModelCatalogEntry;
+  providers: Provider[];
   isEditing: boolean;
   onEdit: () => void;
   onCancelEdit: () => void;
-  onUpdate: (data: any) => void;
+  onUpdate: (data: {
+    id: string;
+    providerType: "anthropic" | "openai";
+    model: string;
+    label: string;
+    capabilities: Array<"chat" | "embedding">;
+    providerId: string;
+  }) => void;
   onDelete: (id: string) => void;
   isUpdating: boolean;
   updateError?: string;
