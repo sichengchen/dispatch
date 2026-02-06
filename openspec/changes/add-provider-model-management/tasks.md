@@ -90,15 +90,15 @@
 
 ## 8. Integration & Testing
 
-- [ ] 8.1 Test provider CRUD operations end-to-end (create, list, update, delete)
-- [x] 8.2 Test model discovery with valid Anthropic credentials
-- [x] 8.3 Test model discovery with valid OpenAI-compatible credentials
-- [x] 8.4 Test model discovery caching (verify second call uses cache)
-- [x] 8.5 Test force refresh bypasses cache
-- [x] 8.6 Test error handling: invalid API key shows appropriate error
-- [x] 8.7 Test error handling: network timeout shows appropriate error
-- [ ] 8.8 Test provider deletion cascades to models correctly
-- [x] 8.9 Test settings migration with existing dispatch.settings.json
-- [ ] 8.10 Test full workflow: add provider → discover models → add model → assign to router
-- [x] 8.11 Verify backward compatibility (app still works with migrated settings)
-- [ ] 8.12 Test UI shows correct error states for all failure scenarios
+- [x] 8.1 Test provider CRUD operations end-to-end (create, list, update, delete) - Manual E2E test passed
+- [x] 8.2 Test model discovery with valid Anthropic credentials - Automated test in model-discovery.test.ts
+- [x] 8.3 Test model discovery with valid OpenAI-compatible credentials - Automated test in model-discovery.test.ts
+- [x] 8.4 Test model discovery caching (verify second call uses cache) - Automated test in model-discovery.test.ts
+- [x] 8.5 Test force refresh bypasses cache - Automated test in model-discovery.test.ts
+- [x] 8.6 Test error handling: invalid API key shows appropriate error - Automated test in model-discovery.test.ts
+- [x] 8.7 Test error handling: network timeout shows appropriate error - Automated test in model-discovery.test.ts
+- [x] 8.8 Test provider deletion cascades to models correctly - Manual E2E test passed
+- [x] 8.9 Test settings migration with existing dispatch.settings.json - Automated test in settings-providers.test.ts
+- [x] 8.10 Test full workflow: add provider → discover models → add model → assign to router - Manual E2E test passed
+- [x] 8.11 Verify backward compatibility (app still works with migrated settings) - Automated test in settings-providers.test.ts
+- [x] 8.12 Test UI shows correct error states for all failure scenarios - Manual E2E test passed

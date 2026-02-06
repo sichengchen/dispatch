@@ -152,14 +152,12 @@ describe("Model Discovery Service", () => {
 
       const models = await discoverModels(openaiProvider);
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.openai.com/v1/models",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer sk-test-456"
-          })
-        })
-      );
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://api.openai.com/v1/models");
+      expect(options.headers).toEqual({
+        Authorization: "Bearer sk-test-456"
+      });
+      expect(options.signal).toBeDefined();
 
       expect(models.length).toBeGreaterThan(0);
     });
