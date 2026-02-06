@@ -4,13 +4,6 @@ import { Button } from "../ui/button";
 import { Combobox } from "../ui/combobox";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from "../ui/select";
 import { Slider } from "../ui/slider";
 import { Switch } from "../ui/switch";
 import {
@@ -141,46 +134,36 @@ export function GeneralTab({
         <div className="mt-1 text-xs text-slate-500">
           Configure how the reader behave.
         </div>
-        <div className="mt-3 space-y-2">
-          <Label htmlFor="digest-link-behavior">Articles</Label>
-          <Select
-            value={digestReferenceLinkBehavior}
-            onValueChange={(value) =>
-              setDigestReferenceLinkBehavior(value as "internal" | "external")
-            }
-          >
-            <SelectTrigger id="digest-link-behavior">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="internal">Open in article reader</SelectItem>
-              <SelectItem value="external">Open original article</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="text-[11px] text-slate-500">
-            Controls what happens when clicking articles in digest.
+        <div className="mt-3 flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="digest-link-behavior">Enable built-in article reader</Label>
+            <div className="text-[11px] text-slate-500">
+              Controls what happens when clicking articles in digest.
+            </div>
           </div>
+          <Switch
+            id="digest-link-behavior"
+            checked={digestReferenceLinkBehavior === "internal"}
+            onCheckedChange={(checked) =>
+              setDigestReferenceLinkBehavior(checked ? "internal" : "external")
+            }
+          />
         </div>
 
-        <div className="mt-4 space-y-2">
-          <Label htmlFor="external-link-behavior">External Link</Label>
-          <Select
-            value={externalLinkBehavior}
-            onValueChange={(value) =>
-              setExternalLinkBehavior(value as "internal" | "external")
-            }
-          >
-            <SelectTrigger id="external-link-behavior">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="internal">Open in app</SelectItem>
-              <SelectItem value="external">Open in external browser</SelectItem>
-            </SelectContent>
-          </Select>
-          <div className="text-[11px] text-slate-500">
-            Controls what happens when opening external article links.
+        <div className="mt-4 flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="external-link-behavior">Open links in external browser</Label>
+            <div className="text-[11px] text-slate-500">
+              Controls what happens when opening external article links.
+            </div>
           </div>
+          <Switch
+            id="external-link-behavior"
+            checked={externalLinkBehavior === "external"}
+            onCheckedChange={(checked) =>
+              setExternalLinkBehavior(checked ? "external" : "internal")
+            }
+          />
         </div>
       </div>
 

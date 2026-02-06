@@ -16,7 +16,7 @@ import {
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Checkbox } from "./ui/checkbox";
+import { Switch } from "./ui/switch";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import {
@@ -708,7 +708,7 @@ export function DashboardPage() {
                     How often to fetch new articles from sources.
                   </div>
                 </div>
-                <Checkbox
+                <Switch
                   id="fetch-enabled"
                   checked={fetchEnabled}
                   onCheckedChange={(checked) => setFetchEnabled(checked === true)}
@@ -756,7 +756,7 @@ export function DashboardPage() {
                     Process pending articles through the AI pipeline.
                   </div>
                 </div>
-                <Checkbox
+                <Switch
                   id="pipeline-enabled"
                   checked={pipelineEnabled}
                   onCheckedChange={(checked) => setPipelineEnabled(checked === true)}
@@ -818,7 +818,7 @@ export function DashboardPage() {
                     When to generate daily briefings.
                   </div>
                 </div>
-                <Checkbox
+                <Switch
                   id="digest-enabled"
                   checked={digestEnabled}
                   onCheckedChange={(checked) => setDigestEnabled(checked === true)}
