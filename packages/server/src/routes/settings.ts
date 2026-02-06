@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { sources, articles, digests } from "@dispatch/db";
+import { getDefaultModelsConfig } from "@dispatch/lib";
 import { t } from "../trpc";
 import {
   getModelsConfig,
@@ -10,7 +12,8 @@ import {
   getPipelineScheduleConfig,
   getAgentConfig,
   saveSettings,
-  loadSettings
+  loadSettings,
+  getDefaultGradingConfig
 } from "../services/settings";
 import { discoverModels as discoverModelsService } from "../services/model-discovery";
 
@@ -349,5 +352,26 @@ export const settingsRouter = t.router({
 
       saveSettings(updatedSettings);
       return { success: true };
-    })
+    }),
+
+  // Data management endpoints
+  deleteAllData: t.procedure.mutation(({ ctx }) => {
+    // Delete all data from the database (sources, articles, digests)
+    // Due to cascade delete on articles, deleting sources will also delete articles
+    ctx.db.delete(digests).run();
+    ctx.db.delete(articles).run();
+    ctx.db.delete(sources).run();
+    return { success: true };
+  }),
+
+  resetSettings: t.procedure.mutation(() => {
+    // Reset settings to defaults while preserving the file
+    const defaultSettings = {
+      providers: [],
+      models: getDefaultModelsConfig(),
+      grading: getDefaultGradingConfig()
+    };
+    saveSettings(defaultSettings);
+    return { success: true };
+  })
 });

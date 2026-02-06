@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { trpc } from "../../lib/trpc";
 import { Button } from "../ui/button";
 import { Combobox } from "../ui/combobox";
@@ -11,6 +12,17 @@ import {
   SelectValue
 } from "../ui/select";
 import { Slider } from "../ui/slider";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "../ui/alert-dialog";
 import {
   type GradingWeights,
   type ScoreRow,
@@ -345,6 +357,123 @@ export function GeneralTab({
         </div>
       </div>
 
+      <DangerZone />
+    </div>
+  );
+}
+
+function DangerZone() {
+  const utils = trpc.useUtils();
+  const deleteAllData = trpc.settings.deleteAllData.useMutation({
+    onSuccess: () => {
+      toast.success("All data deleted");
+      utils.sources.list.invalidate();
+      utils.articles.list.invalidate();
+      utils.digests.list.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to delete data");
+    }
+  });
+
+  const resetSettings = trpc.settings.resetSettings.useMutation({
+    onSuccess: () => {
+      toast.success("Settings reset to defaults");
+      utils.settings.get.invalidate();
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to reset settings");
+    }
+  });
+
+  return (
+    <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+      <div className="text-sm font-semibold text-rose-900">Danger Zone</div>
+      <div className="mt-1 text-xs text-rose-700">
+        Irreversible actions. Proceed with caution.
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-rose-300 text-rose-700 hover:bg-rose-100"
+              type="button"
+              disabled={deleteAllData.isPending}
+            >
+              {deleteAllData.isPending ? "Deleting…" : "Delete All Data"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete all data?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently delete all sources, articles, and digests.
+                Your settings will be preserved. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant="ghost" type="button">
+                  Cancel
+                </Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  variant="default"
+                  className="bg-rose-600 hover:bg-rose-700"
+                  type="button"
+                  onClick={() => deleteAllData.mutate()}
+                >
+                  Delete All Data
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-rose-300 text-rose-700 hover:bg-rose-100"
+              type="button"
+              disabled={resetSettings.isPending}
+            >
+              {resetSettings.isPending ? "Resetting…" : "Reset All Settings"}
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Reset all settings?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will reset all settings to their default values, including
+                providers, models, and grading configuration. Your data (sources,
+                articles, digests) will be preserved. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel asChild>
+                <Button variant="ghost" type="button">
+                  Cancel
+                </Button>
+              </AlertDialogCancel>
+              <AlertDialogAction asChild>
+                <Button
+                  variant="default"
+                  className="bg-rose-600 hover:bg-rose-700"
+                  type="button"
+                  onClick={() => resetSettings.mutate()}
+                >
+                  Reset Settings
+                </Button>
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
     </div>
   );
 }
