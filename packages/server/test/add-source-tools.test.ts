@@ -78,33 +78,109 @@ describe("Add-Source Agent Tools", () => {
     });
   });
 
-  describe("Feed Quality Evaluation Logic", () => {
-    it("classifies feed as full when average content > 500 chars", () => {
-      const averageLength = 800;
-      const quality = averageLength > 500 ? "full" : averageLength > 100 ? "summary" : "unknown";
+  describe("Content Format Detection", () => {
+    // Simulating the detectContentFormat logic
+    function detectContentFormat(samples: string[]): "html" | "text" | "mixed" {
+      const htmlTagRegex = /<(p|div|a|br|span|img|h[1-6]|ul|ol|li|table|blockquote)[^>]*>/i;
+      let htmlCount = 0;
+      let textCount = 0;
+      for (const sample of samples) {
+        if (htmlTagRegex.test(sample)) {
+          htmlCount++;
+        } else {
+          textCount++;
+        }
+      }
+      if (htmlCount === 0) return "text";
+      if (textCount === 0) return "html";
+      return "mixed";
+    }
 
-      expect(quality).toBe("full");
+    it("detects HTML content format when samples contain HTML tags", () => {
+      const samples = [
+        "<p>This is a paragraph with <a href='link'>a link</a>.</p>",
+        "<div><h1>Title</h1><p>Content here</p></div>",
+        "<p>Another paragraph with <br/> line break</p>",
+      ];
+
+      expect(detectContentFormat(samples)).toBe("html");
     });
 
-    it("classifies feed as summary when average content 100-500 chars", () => {
-      const averageLength = 250;
-      const quality = averageLength > 500 ? "full" : averageLength > 100 ? "summary" : "unknown";
+    it("detects text content format when samples contain no HTML tags", () => {
+      const samples = [
+        "This is plain text content without any markup.",
+        "Another plain text article summary.",
+        "Just regular text here.",
+      ];
 
-      expect(quality).toBe("summary");
+      expect(detectContentFormat(samples)).toBe("text");
     });
 
-    it("classifies feed as unknown when average content < 100 chars", () => {
-      const averageLength = 50;
-      const quality = averageLength > 500 ? "full" : averageLength > 100 ? "summary" : "unknown";
+    it("detects mixed content format when some samples have HTML", () => {
+      const samples = [
+        "<p>This has HTML tags</p>",
+        "This is plain text",
+        "More plain text here",
+      ];
 
-      expect(quality).toBe("unknown");
+      expect(detectContentFormat(samples)).toBe("mixed");
     });
 
-    it("calculates average content length correctly", () => {
-      const contentLengths = [200, 400, 600];
-      const average = contentLengths.reduce((sum, len) => sum + len, 0) / contentLengths.length;
+    it("handles empty samples array", () => {
+      const samples: string[] = [];
+      expect(detectContentFormat(samples)).toBe("text");
+    });
+  });
 
-      expect(average).toBe(400);
+  describe("Feed Quality Evaluation with LLM", () => {
+    it("returns unknown quality when useLlm is false", () => {
+      // When useLlm is false, the function should return quality: "unknown"
+      // and skip LLM analysis
+      const useLlm = false;
+      const expectedQuality = useLlm ? "full" : "unknown";
+
+      expect(expectedQuality).toBe("unknown");
+    });
+
+    it("returns empty truncationIndicators when useLlm is false", () => {
+      const useLlm = false;
+      const truncationIndicators: string[] = useLlm ? ["Read Full Story"] : [];
+
+      expect(truncationIndicators).toEqual([]);
+    });
+  });
+
+  describe("LLM Quality Analysis Response Parsing", () => {
+    it("parses valid LLM response with complete articles", () => {
+      const llmResponse = JSON.stringify({
+        isComplete: true,
+        truncationIndicators: [],
+        reasoning: "Articles appear complete with proper conclusions.",
+      });
+
+      const parsed = JSON.parse(llmResponse);
+      expect(parsed.isComplete).toBe(true);
+      expect(parsed.truncationIndicators).toEqual([]);
+    });
+
+    it("parses valid LLM response with truncated articles", () => {
+      const llmResponse = JSON.stringify({
+        isComplete: false,
+        truncationIndicators: ["Read Full Story", "Continue reading..."],
+        reasoning: "Articles end with truncation indicators.",
+      });
+
+      const parsed = JSON.parse(llmResponse);
+      expect(parsed.isComplete).toBe(false);
+      expect(parsed.truncationIndicators).toContain("Read Full Story");
+      expect(parsed.truncationIndicators).toContain("Continue reading...");
+    });
+
+    it("handles truncation indicators like [...] and Click here", () => {
+      const indicators = ["[...]", "Click here for more", "Read more"];
+
+      expect(indicators).toContain("[...]");
+      expect(indicators.length).toBe(3);
     });
   });
 

@@ -5,10 +5,12 @@
 import { z } from "zod";
 import { JSDOM } from "jsdom";
 import Parser from "rss-parser";
-import { tool, zodSchema } from "ai";
+import { generateText, tool, zodSchema } from "ai";
 import { db, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
+import { createProviderMap, getModelConfig, type ProviderKeyMap } from "@dispatch/lib";
 import { generateSkill, type SkillGenerationOptions } from "../skill-generator";
+import { getModelsConfig, getProviders } from "../settings";
 
 const parser = new Parser();
 
@@ -132,16 +134,149 @@ export function createCheckRssTool() {
 
 const evaluateFeedSchema = z.object({
   feedUrl: z.string().url().describe("The RSS/Atom feed URL to evaluate"),
+  useLlm: z.boolean().optional().default(true).describe("Whether to use LLM for quality analysis (default: true)"),
+});
+
+// Schema for LLM quality analysis response
+const qualityAnalysisSchema = z.object({
+  isComplete: z.boolean().describe("Whether the articles appear to be complete"),
+  truncationIndicators: z.array(z.string()).describe("List of truncation indicators found (e.g., 'Read Full Story', '[...]')"),
+  reasoning: z.string().describe("Brief explanation of the assessment"),
 });
 
 /**
- * Evaluate an RSS feed's quality (full content vs summaries)
+ * Detect content format (HTML vs plain text) in RSS content
  */
-async function evaluateFeed(feedUrl: string): Promise<{
+function detectContentFormat(samples: string[]): "html" | "text" | "mixed" {
+  const htmlTagRegex = /<(p|div|a|br|span|img|h[1-6]|ul|ol|li|table|blockquote)[^>]*>/i;
+
+  let htmlCount = 0;
+  let textCount = 0;
+
+  for (const sample of samples) {
+    if (htmlTagRegex.test(sample)) {
+      htmlCount++;
+    } else {
+      textCount++;
+    }
+  }
+
+  if (htmlCount === 0) return "text";
+  if (textCount === 0) return "html";
+  return "mixed";
+}
+
+/**
+ * Use LLM to analyze content quality and detect truncation
+ */
+async function analyzeContentQuality(
+  samples: Array<{ title: string; content: string }>
+): Promise<{
+  quality: "full" | "summary";
+  truncationIndicators: string[];
+}> {
+  const modelsConfig = getModelsConfig();
+  const providers = getProviders();
+  const modelConfig = getModelConfig(modelsConfig, "skill", providers);
+
+  // Handle mock provider or missing config
+  if (modelConfig.providerType === "mock") {
+    return { quality: "summary", truncationIndicators: ["Unable to analyze - mock provider configured"] };
+  }
+
+  // Find the provider for this model from catalog
+  const catalogEntry = modelsConfig.catalog?.find((e) => e.id === modelConfig.modelId);
+  const modelProvider = catalogEntry?.providerId
+    ? providers.find((p) => p.id === catalogEntry.providerId)
+    : undefined;
+
+  if (!modelProvider) {
+    return { quality: "summary", truncationIndicators: ["Unable to analyze - no provider configured"] };
+  }
+
+  // Build provider keys from the provider credentials
+  const providerKeys: ProviderKeyMap = {};
+  if (modelConfig.providerType === "anthropic") {
+    providerKeys.anthropic = modelProvider.credentials.apiKey;
+  } else if (modelConfig.providerType === "openai") {
+    providerKeys.openai = {
+      apiKey: modelProvider.credentials.apiKey,
+      baseUrl: modelProvider.credentials.baseUrl || "",
+    };
+  }
+
+  const providerMap = createProviderMap(providerKeys);
+  const provider = providerMap[modelConfig.providerType as "anthropic" | "openai"];
+
+  if (!provider) {
+    return { quality: "summary", truncationIndicators: ["Unable to analyze - no LLM configured"] };
+  }
+
+  const model = provider(modelConfig.model);
+
+  // Prepare sample content for analysis (truncate to 2000 chars each)
+  const sampleText = samples
+    .map((s, i) => `Article ${i + 1}: "${s.title}"\n${s.content.slice(0, 2000)}`)
+    .join("\n\n---\n\n");
+
+  const prompt = `Analyze these RSS feed article samples to determine if they contain full articles or truncated excerpts.
+
+Look for signs of truncation:
+- Explicit indicators like "Read Full Story", "Continue reading", "Read more", "[...]", "Click here"
+- Abrupt endings mid-sentence or mid-thought
+- Content that seems incomplete or cuts off suddenly
+- Very short content that appears to be a teaser
+
+SAMPLES:
+${sampleText}
+
+Respond with JSON matching this schema:
+{
+  "isComplete": boolean (true if articles appear complete, false if truncated),
+  "truncationIndicators": string[] (specific phrases or issues found, empty if none),
+  "reasoning": string (brief explanation)
+}`;
+
+  try {
+    const { text } = await generateText({
+      model,
+      prompt,
+      temperature: 0.1,
+    });
+
+    // Parse the JSON response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return { quality: "summary", truncationIndicators: ["Failed to parse LLM response"] };
+    }
+
+    const parsed = qualityAnalysisSchema.safeParse(JSON.parse(jsonMatch[0]));
+    if (!parsed.success) {
+      return { quality: "summary", truncationIndicators: ["Invalid LLM response format"] };
+    }
+
+    return {
+      quality: parsed.data.isComplete ? "full" : "summary",
+      truncationIndicators: parsed.data.truncationIndicators,
+    };
+  } catch (error) {
+    console.error("[add-source-tools] LLM analysis failed:", error);
+    return { quality: "summary", truncationIndicators: ["LLM analysis failed"] };
+  }
+}
+
+/**
+ * Evaluate an RSS feed's quality using LLM-based content analysis
+ */
+async function evaluateFeed(
+  feedUrl: string,
+  useLlm: boolean = true
+): Promise<{
   success: boolean;
   quality: "full" | "summary" | "unknown";
+  contentFormat: "html" | "text" | "mixed";
+  truncationIndicators: string[];
   itemCount: number;
-  averageContentLength: number;
   sampleTitles: string[];
   error?: string;
 }> {
@@ -152,42 +287,51 @@ async function evaluateFeed(feedUrl: string): Promise<{
       return {
         success: true,
         quality: "unknown",
+        contentFormat: "text",
+        truncationIndicators: [],
         itemCount: 0,
-        averageContentLength: 0,
         sampleTitles: [],
         error: "Feed has no items",
       };
     }
 
-    // Calculate average content length
-    const contentLengths = feed.items.map((item) => {
-      const content = item.content || item["content:encoded"] || item.contentSnippet || "";
-      return content.length;
-    });
+    // Extract content samples for analysis
+    const samples = feed.items.slice(0, 3).map((item) => ({
+      title: item.title || "Untitled",
+      content: item.content || item["content:encoded"] || item.contentSnippet || "",
+    }));
 
-    const averageLength =
-      contentLengths.reduce((sum, len) => sum + len, 0) / contentLengths.length;
+    const sampleTitles = samples.map((s) => s.title);
+    const contentStrings = samples.map((s) => s.content);
 
-    // Determine quality based on average content length
-    // Full articles typically have > 500 characters
-    const quality: "full" | "summary" | "unknown" =
-      averageLength > 500 ? "full" : averageLength > 100 ? "summary" : "unknown";
+    // Detect content format (HTML vs text)
+    const contentFormat = detectContentFormat(contentStrings);
 
-    const sampleTitles = feed.items.slice(0, 3).map((item) => item.title || "Untitled");
+    // Determine quality using LLM or return unknown if disabled
+    let quality: "full" | "summary" | "unknown" = "unknown";
+    let truncationIndicators: string[] = [];
+
+    if (useLlm) {
+      const analysis = await analyzeContentQuality(samples);
+      quality = analysis.quality;
+      truncationIndicators = analysis.truncationIndicators;
+    }
 
     return {
       success: true,
       quality,
+      contentFormat,
+      truncationIndicators,
       itemCount: feed.items.length,
-      averageContentLength: Math.round(averageLength),
       sampleTitles,
     };
   } catch (error) {
     return {
       success: false,
       quality: "unknown",
+      contentFormat: "text",
+      truncationIndicators: [],
       itemCount: 0,
-      averageContentLength: 0,
       sampleTitles: [],
       error: error instanceof Error ? error.message : "Failed to parse feed",
     };
@@ -197,11 +341,11 @@ async function evaluateFeed(feedUrl: string): Promise<{
 export function createEvaluateFeedTool() {
   return tool({
     description:
-      "Evaluate an RSS feed to determine if it contains full article content or just summaries. Returns quality assessment and sample data.",
+      "Evaluate an RSS feed to determine if it contains full article content or just summaries. Uses LLM analysis to detect truncation indicators. Returns quality assessment, content format, and any truncation issues found.",
     inputSchema: zodSchema(evaluateFeedSchema),
-    execute: async ({ feedUrl }) => {
-      console.log(`[add-source-tools] evaluate_feed: ${feedUrl}`);
-      return await evaluateFeed(feedUrl);
+    execute: async ({ feedUrl, useLlm }) => {
+      console.log(`[add-source-tools] evaluate_feed: ${feedUrl} (useLlm: ${useLlm})`);
+      return await evaluateFeed(feedUrl, useLlm);
     },
   });
 }

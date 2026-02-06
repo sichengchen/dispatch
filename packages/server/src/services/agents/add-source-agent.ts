@@ -19,7 +19,10 @@ Help users add a website as a news source by finding the best extraction method 
 
 ## Available Tools
 - check_rss: Check a website for RSS/Atom feed availability
-- evaluate_feed: Evaluate an RSS feed's content quality (full articles vs summaries)
+- evaluate_feed: Evaluate an RSS feed's content quality using AI analysis. Returns:
+  - quality: "full" (complete articles), "summary" (truncated), or "unknown" (couldn't determine)
+  - contentFormat: "html", "text", or "mixed" - indicates if content contains HTML markup
+  - truncationIndicators: Array of specific issues found (e.g., "Read Full Story", "[...]")
 - fetch_robots: Fetch robots.txt to understand crawling rules
 - add_rss_source: Add a source using RSS strategy
 - generate_skill: Generate extraction skill for agentic article extraction
@@ -32,10 +35,12 @@ Help users add a website as a news source by finding the best extraction method 
 
 3. **If RSS found**:
    - Use evaluate_feed to check the feed quality
-   - If quality is "full": Recommend RSS and offer to add it
-   - If quality is "summary": Explain the limitation and ask if they want:
-     a) Use RSS anyway (faster, but only summaries)
-     b) Use agentic extraction (slower, but gets full articles)
+   - Interpret the results:
+     - If quality is "full" and no truncationIndicators: Recommend RSS and offer to add it
+     - If quality is "summary" OR truncationIndicators has items: The feed has incomplete content. Explain what was found (mention specific truncation indicators if any) and ask if they want:
+       a) Use RSS anyway (faster, but only excerpts/summaries)
+       b) Use agentic extraction (slower, but gets full articles)
+     - If contentFormat is "html": Note that the feed contains HTML content which will be processed
 
 4. **If no RSS found** (or user chooses agentic):
    - Use fetch_robots to get crawling guidance
