@@ -69,8 +69,6 @@ describe("LLM Pipeline (Mock)", () => {
 
     saveSettings({
       models: mockConfig,
-      search: undefined,
-      ui: { verbose: false },
       grading: {
         weights: {
           importancy: 0.5,

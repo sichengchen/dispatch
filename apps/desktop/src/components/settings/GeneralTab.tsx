@@ -1,7 +1,6 @@
 import { trpc } from "../../lib/trpc";
 import { Autocomplete } from "../ui/autocomplete";
 import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import {
@@ -20,8 +19,6 @@ import {
 } from "./types";
 
 type GeneralTabProps = {
-  verboseMode: boolean;
-  setVerboseMode: (value: boolean) => void;
   gradingWeights: GradingWeights;
   setGradingWeights: React.Dispatch<React.SetStateAction<GradingWeights>>;
   interestScores: ScoreRow[];
@@ -48,8 +45,6 @@ const WEIGHT_ITEMS = [
 ] as const;
 
 export function GeneralTab({
-  verboseMode,
-  setVerboseMode,
   gradingWeights,
   setGradingWeights,
   interestScores,
@@ -97,23 +92,6 @@ export function GeneralTab({
 
   return (
     <div className="mt-4 space-y-4">
-      <div className="rounded-lg border border-slate-200 bg-white p-3">
-        <div className="text-sm font-semibold text-slate-900">Diagnostics</div>
-        <div className="mt-1 text-xs text-slate-500">
-          Show detailed pipeline steps for each article.
-        </div>
-        <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-          <Checkbox
-            id="verbose-mode"
-            checked={verboseMode}
-            onCheckedChange={(checked) => {
-              setVerboseMode(checked === true);
-            }}
-          />
-          <Label htmlFor="verbose-mode">Verbose mode</Label>
-        </div>
-      </div>
-
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="text-sm font-semibold text-slate-900">Reader</div>
         <div className="mt-1 text-xs text-slate-500">

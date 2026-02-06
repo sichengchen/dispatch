@@ -33,7 +33,6 @@ const modelsConfigSchema = z.object({
 });
 
 const uiConfigSchema = z.object({
-  verbose: z.boolean().optional(),
   digestReferenceLinkBehavior: z.enum(["internal", "external"]).optional(),
   externalLinkBehavior: z.enum(["internal", "external"]).optional()
 });

@@ -53,7 +53,6 @@ export function SettingsPage() {
     }
   });
 
-  const [verboseMode, setVerboseMode] = useState(false);
   const [gradingWeights, setGradingWeights] = useState<GradingWeights>(
     DEFAULT_GRADING_WEIGHTS
   );
@@ -82,7 +81,6 @@ export function SettingsPage() {
     const cfg = settingsQuery.data;
     const llm = cfg.models;
 
-    setVerboseMode(cfg.ui?.verbose ?? false);
     setDigestReferenceLinkBehavior(cfg.ui?.digestReferenceLinkBehavior ?? "internal");
     setExternalLinkBehavior(cfg.ui?.externalLinkBehavior ?? "internal");
     const nextWeights = cfg.grading?.weights;
@@ -203,7 +201,6 @@ export function SettingsPage() {
         catalog: existingCatalog
       },
       ui: {
-        verbose: verboseMode,
         digestReferenceLinkBehavior,
         externalLinkBehavior
       } as UiConfig,
@@ -273,8 +270,6 @@ export function SettingsPage() {
 
       {activeTab === "general" && (
         <GeneralTab
-          verboseMode={verboseMode}
-          setVerboseMode={setVerboseMode}
           gradingWeights={gradingWeights}
           setGradingWeights={setGradingWeights}
           interestScores={interestScores}

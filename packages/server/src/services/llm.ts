@@ -22,7 +22,6 @@ import {
   type GradeInputs
 } from "./grading";
 import { upsertArticleVector } from "./vector";
-import { clearPipelineEvents, recordPipelineEvent } from "./pipeline-log";
 import { finishTaskRun, startTaskRun, updateTaskRun } from "./task-log";
 
 // ---------------------------------------------------------------------------
@@ -563,7 +562,6 @@ export async function processArticle(
   articleId: number,
   configOverride?: ModelsConfig
 ): Promise<void> {
-  clearPipelineEvents(articleId);
   const article = db
     .select()
     .from(articles)
@@ -584,7 +582,6 @@ export async function processArticle(
   const content = article.cleanContent || article.rawHtml || article.title;
   if (!content) {
     console.warn(`Article ${articleId} has no content to process`);
-    recordPipelineEvent(articleId, "classify", "skip", "No content");
     finishTaskRun(runId, "warning", { reason: "No content" });
     return;
   }
@@ -599,25 +596,16 @@ export async function processArticle(
   let tags: string[] = [];
   try {
     updateTaskRun(runId, { meta: { step: "classify" } });
-    recordPipelineEvent(articleId, "classify", "start");
     tags = await classifyArticle(content, configOverride);
-    recordPipelineEvent(articleId, "classify", "success");
   } catch (err) {
     pipelineHadError = true;
     console.error(`[pipeline] classify failed for article ${articleId}`, err);
-    recordPipelineEvent(
-      articleId,
-      "classify",
-      "error",
-      err instanceof Error ? err.message : String(err)
-    );
   }
 
   // 2. Grade
   let grade = { score: 5, justification: "", importancy: 5, quality: 5 };
   try {
     updateTaskRun(runId, { meta: { step: "grade" } });
-    recordPipelineEvent(articleId, "grade", "start");
     grade = await gradeArticle(
       content,
       {
@@ -628,21 +616,9 @@ export async function processArticle(
       },
       configOverride
     );
-    recordPipelineEvent(
-      articleId,
-      "grade",
-      "success",
-      `score=${grade.score} importancy=${grade.importancy} quality=${grade.quality}`
-    );
   } catch (err) {
     pipelineHadError = true;
     console.error(`[pipeline] grade failed for article ${articleId}`, err);
-    recordPipelineEvent(
-      articleId,
-      "grade",
-      "error",
-      err instanceof Error ? err.message : String(err)
-    );
   }
 
   // 3. Summarize (full)
@@ -651,21 +627,13 @@ export async function processArticle(
   let keyPoints: string[] = [];
   try {
     updateTaskRun(runId, { meta: { step: "summarize" } });
-    recordPipelineEvent(articleId, "summarize", "start");
     const full = await summarizeArticleFull(content, configOverride);
     summary = full.oneLiner;
     summaryLong = full.longSummary;
     keyPoints = full.keyPoints;
-    recordPipelineEvent(articleId, "summarize", "success");
   } catch (err) {
     pipelineHadError = true;
     console.error(`[pipeline] summarize failed for article ${articleId}`, err);
-    recordPipelineEvent(
-      articleId,
-      "summarize",
-      "error",
-      err instanceof Error ? err.message : String(err)
-    );
   }
 
   // 4. Persist results
@@ -686,21 +654,13 @@ export async function processArticle(
   // 5. Vectorize for related-articles search
   try {
     updateTaskRun(runId, { meta: { step: "vectorize" } });
-    recordPipelineEvent(articleId, "vectorize", "start");
     await upsertArticleVector(
       { ...article, summary, summaryLong },
       configOverride
     );
-    recordPipelineEvent(articleId, "vectorize", "success");
   } catch (err) {
     pipelineHadError = true;
     console.error(`[pipeline] vectorization failed for article ${articleId}`, err);
-    recordPipelineEvent(
-      articleId,
-      "vectorize",
-      "error",
-      err instanceof Error ? err.message : String(err)
-    );
   }
 
   finishTaskRun(runId, pipelineHadError ? "warning" : "success", {

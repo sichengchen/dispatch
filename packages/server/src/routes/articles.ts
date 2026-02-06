@@ -4,7 +4,6 @@ import { and, desc, eq, inArray } from "drizzle-orm";
 import { articles, sources } from "@dispatch/db";
 import { t } from "../trpc";
 import { getRelatedArticles } from "../services/vector";
-import { getPipelineEvents } from "../services/pipeline-log";
 import { processArticle } from "../services/llm";
 import { computeFinalGrade } from "../services/grading";
 import { getGradingConfig } from "../services/settings";
@@ -218,11 +217,6 @@ export const articlesRouter = t.router({
         const right = order.get(b.id) ?? 0;
         return left - right;
       });
-    }),
-  pipelineLog: t.procedure
-    .input(z.object({ id: z.number().int().positive() }))
-    .query(({ input }) => {
-      return getPipelineEvents(input.id);
     }),
   reprocess: t.procedure
     .input(z.object({ id: z.number().int().positive() }))
