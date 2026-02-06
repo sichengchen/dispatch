@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { useUiStore } from "../store/ui";
 import { Button } from "./ui/button";
@@ -29,18 +30,17 @@ export function SourceList() {
   const utils = trpc.useUtils();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [refreshingId, setRefreshingId] = useState<number | null>(null);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
   const refreshSource = trpc.sources.refresh.useMutation({
     onMutate: (input) => {
       setRefreshingId(input.id);
-      setRefreshError(null);
     },
     onSuccess: () => {
       utils.sources.list.invalidate();
       utils.articles.list.invalidate();
+      toast.success("Source refreshed");
     },
     onError: (err) => {
-      setRefreshError(err.message || "Refresh failed.");
+      toast.error(err.message || "Refresh failed");
     },
     onSettled: () => {
       setRefreshingId(null);
@@ -54,17 +54,19 @@ export function SourceList() {
     onSuccess: () => {
       utils.sources.list.invalidate();
       utils.articles.list.invalidate();
+      toast.success("Source retry started");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Retry failed");
     },
     onSettled: () => {
       setRetryingId(null);
     }
   });
   const [deletingId, setDeletingId] = useState<number | null>(null);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
   const deleteSource = trpc.sources.delete.useMutation({
     onMutate: (input) => {
       setDeletingId(input.id);
-      setDeleteError(null);
     },
     onSuccess: (_, variables) => {
       utils.sources.list.invalidate();
@@ -72,15 +74,15 @@ export function SourceList() {
       if (selectedSourceId === variables.id) {
         setSelectedSourceId(null);
       }
+      toast.success("Source deleted");
     },
     onError: (err) => {
-      setDeleteError(err.message || "Delete failed.");
+      toast.error(err.message || "Delete failed");
     },
     onSettled: () => {
       setDeletingId(null);
     }
   });
-  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
   const deleteMany = trpc.sources.deleteMany.useMutation({
     onSuccess: (_, variables) => {
       utils.sources.list.invalidate();
@@ -89,25 +91,25 @@ export function SourceList() {
         setSelectedSourceId(null);
       }
       setSelectedIds(new Set());
+      toast.success(`${variables.ids.length} sources deleted`);
     },
     onError: (err) => {
-      setBulkDeleteError(err.message || "Bulk delete failed.");
+      toast.error(err.message || "Bulk delete failed");
     }
   });
 
   // Skill management
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
-  const [skillError, setSkillError] = useState<string | null>(null);
   const regenerateSkill = trpc.sources.regenerateSkill.useMutation({
     onMutate: (input) => {
       setRegeneratingId(input.id);
-      setSkillError(null);
     },
     onSuccess: () => {
       utils.sources.list.invalidate();
+      toast.success("Skill regenerated");
     },
     onError: (err) => {
-      setSkillError(err.message || "Skill regeneration failed.");
+      toast.error(err.message || "Skill regeneration failed");
     },
     onSettled: () => {
       setRegeneratingId(null);
@@ -126,13 +128,13 @@ export function SourceList() {
         } else {
           // Fallback: copy path to clipboard
           await navigator.clipboard.writeText(result.skillPath);
-          alert(`Skill path copied to clipboard:\n${result.skillPath}`);
+          toast.info("Skill path copied to clipboard");
         }
       } else {
-        setSkillError("Skill file not found. Try regenerating the skill.");
+        toast.error("Skill file not found. Try regenerating the skill.");
       }
     } catch (err) {
-      setSkillError(err instanceof Error ? err.message : "Failed to open skill file.");
+      toast.error(err instanceof Error ? err.message : "Failed to open skill file");
     }
   };
 
@@ -222,26 +224,6 @@ export function SourceList() {
       {isLoading && <div className="text-sm text-slate-500">Loading...</div>}
       {!isLoading && sources.length === 0 && (
         <div className="text-sm text-slate-500">No sources yet.</div>
-      )}
-      {refreshError && (
-        <div className="text-xs text-rose-600">
-          {refreshError}
-        </div>
-      )}
-      {deleteError && (
-        <div className="text-xs text-rose-600">
-          {deleteError}
-        </div>
-      )}
-      {bulkDeleteError && (
-        <div className="text-xs text-rose-600">
-          {bulkDeleteError}
-        </div>
-      )}
-      {skillError && (
-        <div className="text-xs text-rose-600">
-          {skillError}
-        </div>
       )}
       {sources.map((source) => {
         const isRefreshing = refreshingId === source.id;

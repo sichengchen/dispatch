@@ -45,8 +45,7 @@ function insertArticle(sourceId: number, title: string, content: string) {
       title,
       url: `https://vector-test.example.com/${uid}`,
       cleanContent: content,
-      fetchedAt: new Date(),
-      isRead: false
+      fetchedAt: new Date()
     })
     .run();
   return Number(result.lastInsertRowid);

@@ -1,6 +1,18 @@
 import { type ReactNode, useState, useEffect } from "react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { cn } from "../lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "./ui/alert-dialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
@@ -205,6 +217,10 @@ export function DashboardPage() {
     onSuccess: () => {
       utils.settings.get.invalidate();
       utils.tasks.dashboard.invalidate();
+      toast.success("Schedules saved");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to save schedules");
     }
   });
 
@@ -244,6 +260,10 @@ export function DashboardPage() {
       utils.digests.latest.invalidate();
       utils.digests.list.invalidate();
       utils.tasks.dashboard.invalidate();
+      toast.success("Digest generated");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Digest generation failed");
     }
   });
 
@@ -251,17 +271,29 @@ export function DashboardPage() {
     onMutate: () => setIsPollingFast(true),
     onSuccess: () => {
       utils.tasks.dashboard.invalidate();
+      toast.success("Fetch started");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to start fetch");
     }
   });
   const runPipeline = trpc.tasks.runPipeline.useMutation({
     onMutate: () => setIsPollingFast(true),
     onSuccess: () => {
       utils.tasks.dashboard.invalidate();
+      toast.success("Pipeline started");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to start pipeline");
     }
   });
   const stopTask = trpc.tasks.stopTask.useMutation({
     onSuccess: () => {
       utils.tasks.dashboard.invalidate();
+      toast.success("Task stopped");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to stop task");
     }
   });
 
@@ -447,15 +479,39 @@ export function DashboardPage() {
                             <div className="text-xs text-slate-500 truncate">{sourceUrl}</div>
                           )}
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
-                          onClick={() => stopTask.mutate({ runId: run.id })}
-                          disabled={stopTask.isPending}
-                        >
-                          Stop
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-amber-700 hover:text-amber-900 hover:bg-amber-100"
+                              disabled={stopTask.isPending}
+                            >
+                              Stop
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Stop this task?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will cancel the current fetch operation. You can restart it later.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel asChild>
+                                <Button variant="ghost">Cancel</Button>
+                              </AlertDialogCancel>
+                              <AlertDialogAction asChild>
+                                <Button
+                                  variant="default"
+                                  onClick={() => stopTask.mutate({ runId: run.id })}
+                                >
+                                  Stop Task
+                                </Button>
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   );
@@ -481,15 +537,39 @@ export function DashboardPage() {
                           </div>
                           <div className="text-sm text-slate-700 truncate">{title}</div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-blue-700 hover:text-blue-900 hover:bg-blue-100"
-                          onClick={() => stopTask.mutate({ runId: run.id })}
-                          disabled={stopTask.isPending}
-                        >
-                          Stop
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-blue-700 hover:text-blue-900 hover:bg-blue-100"
+                              disabled={stopTask.isPending}
+                            >
+                              Stop
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Stop this task?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will cancel the current pipeline operation. The article will remain unprocessed.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel asChild>
+                                <Button variant="ghost">Cancel</Button>
+                              </AlertDialogCancel>
+                              <AlertDialogAction asChild>
+                                <Button
+                                  variant="default"
+                                  onClick={() => stopTask.mutate({ runId: run.id })}
+                                >
+                                  Stop Task
+                                </Button>
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                       <div className="flex items-center gap-1 ml-5">
                         {pipelineStages.map((stage, idx) => {

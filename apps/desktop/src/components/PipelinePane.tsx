@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
@@ -36,6 +37,10 @@ export function PipelinePane({ article }: { article: PipelineArticle | null }) {
     onSuccess: () => {
       utils.articles.byId.invalidate({ id: articleId ?? 0 });
       utils.articles.list.invalidate();
+      toast.success("Pipeline completed");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Pipeline failed");
     }
   });
 

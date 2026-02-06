@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
@@ -60,6 +61,10 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
     onSuccess: () => {
       utils.digests.latest.invalidate();
       utils.digests.list.invalidate();
+      toast.success("Digest generated");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Digest generation failed");
     }
   });
 

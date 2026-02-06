@@ -112,22 +112,6 @@ describe("Backend — Hono + tRPC", () => {
     expect(overlap).toBe(false);
   });
 
-  it("Articles.MarkRead: articles.markRead then re-fetch", async () => {
-    const allRes = await trpcQuery("articles.list", { page: 1, pageSize: 20 });
-    const all = allRes.data ?? [];
-    const target = all.find((article: any) => article.isRead === false) ?? all[0];
-
-    expect(target).toBeTruthy();
-
-    const markRes = await trpcMutation("articles.markRead", { id: target.id });
-    expect(markRes.res.ok).toBe(true);
-
-    const afterRes = await trpcQuery("articles.list", { page: 1, pageSize: 50 });
-    const after = afterRes.data ?? [];
-    const updated = after.find((article: any) => article.id === target.id);
-    expect(updated?.isRead).toBe(true);
-  });
-
   it("cleanup: delete added source", async () => {
     if (!state.addedSourceId) {
       expect(true).toBe(true);

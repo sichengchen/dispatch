@@ -62,8 +62,7 @@ describe("LLM Pipeline (Mock)", () => {
         url: `https://example.com/pipeline-test-${uid}`,
         cleanContent:
           "This is a test article about technology and AI. It covers many important topics.",
-        fetchedAt: new Date(),
-        isRead: false
+        fetchedAt: new Date()
       })
       .run();
     testArticleId = Number(articleResult.lastInsertRowid);

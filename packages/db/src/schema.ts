@@ -52,14 +52,12 @@ export const articles = sqliteTable(
     publishedAt: integer("published_at", { mode: "timestamp_ms" }),
     fetchedAt: integer("fetched_at", { mode: "timestamp_ms" })
       .notNull()
-      .default(sql`(unixepoch() * 1000)`),
-    isRead: integer("is_read", { mode: "boolean" }).notNull().default(false)
+      .default(sql`(unixepoch() * 1000)`)
   },
   (table) => ({
     urlUnique: uniqueIndex("articles_url_unique").on(table.url),
     sourceIdIdx: index("articles_source_id_idx").on(table.sourceId),
     publishedAtIdx: index("articles_published_at_idx").on(table.publishedAt),
-    isReadIdx: index("articles_is_read_idx").on(table.isRead),
     gradeIdx: index("articles_grade_idx").on(table.grade),
   })
 );

@@ -71,6 +71,13 @@
       "when": 1770265827247,
       "tag": "0009_add-skill-columns",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1770337672347,
+      "tag": "0010_hard_spot",
+      "breakpoints": true
     }
   ]
 }

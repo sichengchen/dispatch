@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { trpc } from "./lib/trpc";
 import { useUiStore } from "./store/ui";
+import { Toaster } from "sonner";
 import { SettingsPage } from "./components/SettingsPage";
 import { HomeDigest } from "./components/HomeDigest";
 import { HomeArticlesList } from "./components/HomeArticlesList";
@@ -160,6 +161,7 @@ export default function App() {
           />
         )}
       </main>
+      <Toaster position="bottom-right" richColors />
     </div>
   );
 }

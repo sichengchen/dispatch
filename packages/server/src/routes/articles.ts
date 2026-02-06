@@ -72,7 +72,6 @@ export const articlesRouter = t.router({
           processedAt: articles.processedAt,
           publishedAt: articles.publishedAt,
           fetchedAt: articles.fetchedAt,
-          isRead: articles.isRead,
           sourceName: sources.name,
           sourceUrl: sources.url
         })
@@ -132,7 +131,6 @@ export const articlesRouter = t.router({
           processedAt: articles.processedAt,
           publishedAt: articles.publishedAt,
           fetchedAt: articles.fetchedAt,
-          isRead: articles.isRead,
           sourceName: sources.name,
           sourceUrl: sources.url
         })
@@ -225,21 +223,6 @@ export const articlesRouter = t.router({
     .input(z.object({ id: z.number().int().positive() }))
     .query(({ input }) => {
       return getPipelineEvents(input.id);
-    }),
-  markRead: t.procedure
-    .input(z.object({ id: z.number().int().positive() }))
-    .mutation(({ ctx, input }) => {
-      const result = ctx.db
-        .update(articles)
-        .set({ isRead: true })
-        .where(eq(articles.id, input.id))
-        .run();
-
-      if (result.changes === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
-      }
-
-      return { ok: true };
     }),
   reprocess: t.procedure
     .input(z.object({ id: z.number().int().positive() }))

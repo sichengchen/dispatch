@@ -122,8 +122,7 @@ export async function scrapeRSS(sourceId: number): Promise<ScrapeResult> {
           rawHtml: item.content ?? null,
           cleanContent: content || null,
           publishedAt,
-          fetchedAt: new Date(),
-          isRead: false
+          fetchedAt: new Date()
         })
         .onConflictDoNothing()
         .run();

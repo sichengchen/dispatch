@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import { GeneralTab } from "./settings/GeneralTab";
@@ -43,6 +44,10 @@ export function SettingsPage() {
   const updateSettings = trpc.settings.update.useMutation({
     onSuccess: () => {
       settingsQuery.refetch();
+      toast.success("Settings saved");
+    },
+    onError: (err) => {
+      toast.error(err.message || "Failed to save settings");
     }
   });
 
