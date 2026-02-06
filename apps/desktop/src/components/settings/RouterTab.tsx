@@ -35,7 +35,6 @@ export function RouterTab({ catalog, routing, setRouting }: RouterTabProps) {
               <div className="text-xs text-slate-500">{task.hint}</div>
             </div>
             <div className="mt-3 space-y-1">
-              <Label>Model</Label>
               <Select
                 value={selectedId}
                 onValueChange={(value) => {

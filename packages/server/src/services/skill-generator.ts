@@ -3,13 +3,19 @@ import * as path from "node:path";
 import { z } from "zod";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
-import { chromium } from "playwright";
 import { generateText, stepCountIs, tool, zodSchema } from "ai";
 import { db, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { callLlm } from "./llm";
 import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/lib";
 import { getModelsConfig, getProviders, getDataPaths, getAgentConfig } from "./settings";
+import {
+  createToolContext,
+  createSkillGeneratorToolSet,
+  closeBrowserSession,
+  fetchPage
+} from "./agents/tools";
+import type { ToolContext } from "./agents/tools";
 
 // ---------------------------------------------------------------------------
 // Skill schema and types
@@ -243,254 +249,39 @@ export function skillExists(sourceId: number): boolean {
 // Agentic Skill Generation - Tools and Agent
 // ---------------------------------------------------------------------------
 
-/**
- * Fetch HTML from a URL (static or with browser)
- */
-async function fetchPage(url: string, useSpa: boolean = false): Promise<string> {
-  if (useSpa) {
-    const browser = await chromium.launch({ headless: true });
-    try {
-      const page = await browser.newPage();
-      await page.goto(url, { waitUntil: "networkidle", timeout: 30000 });
-      return await page.content();
-    } finally {
-      await browser.close();
-    }
-  } else {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-      }
-    });
-    if (!res.ok) throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
-    return await res.text();
-  }
-}
-
-/**
- * Run CSS selector on HTML and return matching elements
- */
-function runSelector(html: string, selector: string, baseUrl: string): Array<{
-  text: string;
-  href?: string;
-  tag: string;
-  classes: string[];
-  outerHtml: string;
-}> {
-  const dom = new JSDOM(html, { url: baseUrl });
-  const doc = dom.window.document;
-  const elements = doc.querySelectorAll(selector);
-
-  const results: Array<{ text: string; href?: string; tag: string; classes: string[]; outerHtml: string }> = [];
-  elements.forEach((el: Element) => {
-    const anchor = el as HTMLAnchorElement;
-    results.push({
-      text: el.textContent?.trim().slice(0, 200) ?? "",
-      href: anchor.href || undefined,
-      tag: el.tagName.toLowerCase(),
-      classes: Array.from(el.classList),
-      outerHtml: el.outerHTML.slice(0, 500)
-    });
-  });
-
-  return results;
-}
-
-/**
- * Get HTML structure summary for a page
- */
-function getHtmlStructure(html: string, baseUrl: string): {
-  title: string;
-  metaDescription: string;
-  mainSections: Array<{ tag: string; classes: string[]; childCount: number }>;
-  linkCount: number;
-  articleElementCount: number;
-} {
-  const dom = new JSDOM(html, { url: baseUrl });
-  const doc = dom.window.document;
-
-  const title = doc.querySelector("title")?.textContent ?? "";
-  const metaDescription = doc.querySelector("meta[name='description']")?.getAttribute("content") ?? "";
-
-  const mainSections: Array<{ tag: string; classes: string[]; childCount: number }> = [];
-  doc.querySelectorAll("main, section, article, [role='main'], .content, #content").forEach((el: Element) => {
-    mainSections.push({
-      tag: el.tagName.toLowerCase(),
-      classes: Array.from(el.classList),
-      childCount: el.children.length
-    });
-  });
-
-  const linkCount = doc.querySelectorAll("a[href]").length;
-  const articleElementCount = doc.querySelectorAll("article, [class*='article'], [class*='post'], [class*='story']").length;
-
-  return { title, metaDescription, mainSections, linkCount, articleElementCount };
-}
-
-/**
- * Extract readable content from HTML using Readability.js
- */
-function extractReadable(html: string, url: string): {
-  title: string;
-  content: string;
-  excerpt: string;
-} | null {
-  const dom = new JSDOM(html, { url });
-  const reader = new Readability(dom.window.document);
-  const article = reader.parse();
-
-  if (!article) return null;
-
-  return {
-    title: article.title ?? "",
-    content: article.textContent?.slice(0, 1000) ?? "",
-    excerpt: article.excerpt ?? ""
-  };
-}
-
-// Tool schemas for the agentic skill generator
-const fetchPageSchema = z.object({
-  url: z.string().describe("The URL to fetch"),
-  spa: z.boolean().optional().describe("Use headless browser for JavaScript-heavy sites")
-});
-
-const runSelectorSchema = z.object({
-  selector: z.string().describe("CSS selector to run on the cached page"),
-  limit: z.number().optional().describe("Maximum number of results to return (default 20)")
-});
-
-const getStructureSchema = z.object({});
-
-const testArticleLinkSchema = z.object({
-  url: z.string().describe("Article URL to test"),
-  spa: z.boolean().optional().describe("Use headless browser")
-});
-
 const finishSkillSchema = z.object({
   tier: z.enum(["html", "spa"]).describe("Whether the site requires JavaScript rendering"),
-  articleLinkSelector: z.string().describe("CSS selector to find article links on the list page"),
-  titleSelector: z.string().optional().describe("CSS selector for article title (on list or article page)"),
-  dateSelector: z.string().optional().describe("CSS selector for article date"),
-  contentSelector: z.string().optional().describe("CSS selector for article content"),
-  fallbackToReadability: z.boolean().describe("Whether to use Readability.js as fallback for content extraction"),
-  notes: z.string().optional().describe("Any special notes about extracting from this site")
+  instructionBody: z.string().describe("Markdown instructions for extracting articles from this site. Write detailed, clear instructions including selectors, patterns, and any special handling needed."),
+  hints: z.object({
+    articleLinkSelector: z.string().optional().describe("Primary CSS selector for article links (for validation)"),
+    urlPattern: z.string().optional().describe("Regex pattern that article URLs should match")
+  }).optional().describe("Optional structured hints for validation")
 });
 
 /**
  * Create tools for the skill generator agent
  */
-function createSkillGeneratorTools(
-  homepageUrl: string,
-  pageCache: Map<string, string>,
+function createSkillGeneratorAgentTools(
+  ctx: ToolContext,
   result: { skill: SkillDiscovery | null }
 ) {
+  // Get shared tools
+  const sharedTools = createSkillGeneratorToolSet(ctx);
+
+  // Add the finish_skill tool specific to skill generation
   return {
-    fetch_page: tool({
-      description: "Fetch HTML content from a URL. Use spa=true for JavaScript-heavy sites that require browser rendering.",
-      inputSchema: zodSchema(fetchPageSchema),
-      execute: async (input) => {
-        try {
-          console.log(`[skill-generator] fetch_page: ${input.url} (spa=${input.spa ?? false})`);
-          const html = await fetchPage(input.url, input.spa ?? false);
-          pageCache.set(input.url, html);
-          return { success: true, length: html.length, cached: true };
-        } catch (error) {
-          return { error: error instanceof Error ? error.message : String(error) };
-        }
-      }
-    }),
-
-    get_structure: tool({
-      description: "Get an overview of the HTML structure of the homepage (main sections, element counts, etc.)",
-      inputSchema: zodSchema(getStructureSchema),
-      execute: async () => {
-        const html = pageCache.get(homepageUrl);
-        if (!html) {
-          return { error: "Homepage not cached. Call fetch_page first." };
-        }
-        console.log(`[skill-generator] get_structure`);
-        return getHtmlStructure(html, homepageUrl);
-      }
-    }),
-
-    run_selector: tool({
-      description: "Run a CSS selector on the cached homepage to find elements. Returns text, href, tag, classes for each match.",
-      inputSchema: zodSchema(runSelectorSchema),
-      execute: async (input) => {
-        const html = pageCache.get(homepageUrl);
-        if (!html) {
-          return { error: "Homepage not cached. Call fetch_page first." };
-        }
-        try {
-          console.log(`[skill-generator] run_selector: ${input.selector}`);
-          let results = runSelector(html, input.selector, homepageUrl);
-          if (input.limit && results.length > input.limit) {
-            results = results.slice(0, input.limit);
-          }
-          // Filter to show article-like links
-          const articleLinks = results.filter(r => {
-            if (!r.href) return false;
-            try {
-              const url = new URL(r.href);
-              const origin = new URL(homepageUrl).origin;
-              if (url.origin !== origin) return false;
-              if (url.pathname === "/" || url.pathname === "") return false;
-              return true;
-            } catch {
-              return false;
-            }
-          });
-          return {
-            totalMatches: results.length,
-            articleLikeLinks: articleLinks.length,
-            results: results.slice(0, input.limit ?? 20)
-          };
-        } catch (error) {
-          return { error: error instanceof Error ? error.message : String(error) };
-        }
-      }
-    }),
-
-    test_article_link: tool({
-      description: "Fetch an article page and test if content can be extracted with Readability.js",
-      inputSchema: zodSchema(testArticleLinkSchema),
-      execute: async (input) => {
-        try {
-          console.log(`[skill-generator] test_article_link: ${input.url}`);
-          const html = await fetchPage(input.url, input.spa ?? false);
-          pageCache.set(input.url, html);
-
-          const readable = extractReadable(html, input.url);
-          if (!readable) {
-            return { success: false, error: "Readability could not extract content" };
-          }
-          return {
-            success: true,
-            title: readable.title,
-            excerpt: readable.excerpt,
-            contentLength: readable.content.length
-          };
-        } catch (error) {
-          return { error: error instanceof Error ? error.message : String(error) };
-        }
-      }
-    }),
-
+    ...sharedTools,
     finish_skill: tool({
-      description: "Finalize the skill configuration after discovering the correct selectors. Call this when you have found working selectors.",
+      description: "Finalize the skill by writing extraction instructions. Write clear, detailed markdown instructions that explain HOW to extract articles. Include specific selectors (CSS/XPath), patterns, and any special handling needed.",
       inputSchema: zodSchema(finishSkillSchema),
       execute: async (input) => {
-        console.log(`[skill-generator] finish_skill: tier=${input.tier}, selector=${input.articleLinkSelector}`);
+        console.log(`[skill-generator] finish_skill: tier=${input.tier}`);
         result.skill = {
           tier: input.tier,
-          articleLinkSelector: input.articleLinkSelector,
-          titleSelector: input.titleSelector,
-          dateSelector: input.dateSelector,
-          contentSelector: input.contentSelector,
-          fallbackToReadability: input.fallbackToReadability,
-          notes: input.notes
+          instructionBody: input.instructionBody,
+          hints: input.hints
         };
-        return { success: true, message: "Skill configuration saved" };
+        return { success: true, message: "Skill instructions saved" };
       }
     })
   };
@@ -498,12 +289,11 @@ function createSkillGeneratorTools(
 
 interface SkillDiscovery {
   tier: "html" | "spa";
-  articleLinkSelector: string;
-  titleSelector?: string;
-  dateSelector?: string;
-  contentSelector?: string;
-  fallbackToReadability: boolean;
-  notes?: string;
+  instructionBody: string;
+  hints?: {
+    articleLinkSelector?: string;
+    urlPattern?: string;
+  };
 }
 
 /**
@@ -543,46 +333,52 @@ async function discoverSkillWithAgent(
 
   const model = providerFn(modelConfig.model);
 
-  // Page cache and result container
-  const pageCache = new Map<string, string>();
+  // Create tool context and result container
+  const ctx = createToolContext({ baseUrl: homepageUrl, continueOnError: true });
   const result: { skill: SkillDiscovery | null } = { skill: null };
 
   // Create tools
-  const tools = createSkillGeneratorTools(homepageUrl, pageCache, result);
+  const tools = createSkillGeneratorAgentTools(ctx, result);
 
-  const systemPrompt = `You are a web scraping expert. Your job is to analyze a website and discover the CSS selectors needed to extract articles from it.
+  const systemPrompt = `You are a web scraping expert. Your job is to analyze a website and write detailed extraction instructions.
 
 You have these tools available:
 - fetch_page: Fetch HTML from a URL (use spa=true for JavaScript-heavy sites)
 - get_structure: Get an overview of the page structure
-- run_selector: Test a CSS selector and see what elements it matches
+- run_selector: Test a CSS selector
+- run_xpath: Test an XPath expression (useful for complex DOM traversal)
+- run_regex: Test a regular expression pattern
 - test_article_link: Test if an article can be extracted with Readability.js
-- finish_skill: Save the final selector configuration
+- browser_navigate, browser_click, browser_scroll, browser_wait_for, browser_get_html: Browser tools for SPA sites
+- finish_skill: Save your extraction instructions
 
-Your goal is to find:
-1. A CSS selector that finds article links on the homepage/list page
-2. Whether the site needs JavaScript rendering (spa) or works with static HTML
-3. Optional: selectors for titles, dates, and content
+Your goal is to write comprehensive extraction instructions that will guide an extraction agent.
 
 Strategy:
 1. First fetch the homepage (try without spa first)
 2. Use get_structure to understand the page layout
 3. Try different selectors to find article links:
-   - Look for <article> elements with links inside
-   - Look for elements with classes containing "article", "post", "story", "card"
-   - Look for links in main/section elements
-   - Check for date patterns in URLs (like /2024/01/15/)
+   - CSS selectors (preferred): article a, [class*='post'] a, etc.
+   - XPath for complex patterns: //article//a[@href]
+   - Regex for URL patterns: /articles/\\d{4}/
 4. Test at least one article link to verify Readability.js works
-5. If static fetch finds no articles, retry with spa=true
-6. Call finish_skill when you've found working selectors
+5. If static fetch finds no articles, try browser tools for SPA sites
+6. Call finish_skill with detailed markdown instructions
 
-Be thorough but efficient. Try multiple selector strategies if the first ones don't work.`;
+When you call finish_skill, write the instructionBody as detailed markdown that:
+1. Explains the page structure and layout you observed
+2. Provides specific selectors (CSS and/or XPath) for finding article links
+3. Describes any URL patterns to filter or validate links
+4. Explains how to extract article content (Readability, selectors, etc.)
+5. Notes any special handling needed (pagination, lazy loading, etc.)
 
-  const userPrompt = `Discover the extraction selectors for:
+Be thorough - the extraction agent will only have your instructions to work with.`;
+
+  const userPrompt = `Analyze this website and write extraction instructions:
 - Website: ${homepageUrl}
 - Name: ${sourceName}
 
-Find the CSS selector that will extract article links from this website. Start by fetching the homepage.`;
+Start by fetching the homepage, then discover how to extract articles. When done, call finish_skill with comprehensive markdown instructions.`;
 
   try {
     const agentConfig = getAgentConfig();
@@ -608,11 +404,16 @@ Find the CSS selector that will extract article links from this website. Start b
   } catch (error) {
     console.error("[skill-generator] Agent error:", error);
     throw error;
+  } finally {
+    // Cleanup browser session if used
+    await closeBrowserSession(ctx);
   }
 }
 
 /**
  * Generate SKILL.md content from discovered configuration
+ *
+ * The frontmatter is system-controlled, but the body is LLM-authored.
  */
 function generateSkillContent(
   sourceId: number,
@@ -622,7 +423,8 @@ function generateSkillContent(
 ): string {
   const skillName = sourceName.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-extractor";
 
-  let content = `---
+  // Only frontmatter is system-generated
+  const frontmatter = `---
 name: ${skillName}
 description: Extracts articles from ${sourceName}.
 metadata:
@@ -633,71 +435,10 @@ metadata:
   homepageUrl: "${homepageUrl}"
 ---
 
-# ${sourceName} Extraction Skill
-
-## List Page
-
-Fetch the homepage: \`${homepageUrl}\`
-${discovery.tier === "spa" ? "\n**Note:** This site requires JavaScript rendering. Use spa=true when fetching." : ""}
-
-### Article Links
-
-Use the following CSS selector to find article links:
-
-\`\`\`
-${discovery.articleLinkSelector}
-\`\`\`
 `;
 
-  if (discovery.titleSelector) {
-    content += `
-### Title Selector
-
-\`\`\`
-${discovery.titleSelector}
-\`\`\`
-`;
-  }
-
-  if (discovery.dateSelector) {
-    content += `
-### Date Selector
-
-\`\`\`
-${discovery.dateSelector}
-\`\`\`
-`;
-  }
-
-  content += `
-## Article Page
-`;
-
-  if (discovery.contentSelector) {
-    content += `
-### Content Selector
-
-\`\`\`
-${discovery.contentSelector}
-\`\`\`
-`;
-  }
-
-  content += `
-### Fallback
-
-${discovery.fallbackToReadability ? "Use Readability.js to extract article content if the selector fails." : "Do not use Readability.js fallback."}
-`;
-
-  if (discovery.notes) {
-    content += `
-## Notes
-
-${discovery.notes}
-`;
-  }
-
-  return content;
+  // Body is LLM-authored
+  return frontmatter + discovery.instructionBody;
 }
 
 /**
@@ -717,14 +458,27 @@ async function validateSkill(
     fs.mkdirSync(tempDir, { recursive: true });
     fs.writeFileSync(tempPath, skillContent);
 
-    await parseSkillFile(tempPath, configOverride);
+    // Parse skill to verify syntax and extract config
+    const parsedSkill = await parseSkillFile(tempPath, configOverride);
+
+    // Get selector from hints or parsed extraction config
+    const articleLinkSelector = discovery.hints?.articleLinkSelector
+      ?? parsedSkill.extraction.listPage.articleLinkSelector;
+
+    if (!articleLinkSelector) {
+      return {
+        valid: false,
+        error: "No article link selector found in skill",
+        sampleCount: 0,
+      };
+    }
 
     // Fetch homepage and validate selector
     const html = await fetchPage(homepageUrl, discovery.tier === "spa");
     const dom = new JSDOM(html, { url: homepageUrl });
     const doc = dom.window.document;
 
-    const nodes = Array.from(doc.querySelectorAll(discovery.articleLinkSelector));
+    const nodes = Array.from(doc.querySelectorAll(articleLinkSelector));
     const validLinks = nodes.filter((node) => {
       const anchor = node as HTMLAnchorElement;
       return Boolean(anchor.href && anchor.textContent?.trim());
@@ -733,12 +487,12 @@ async function validateSkill(
     if (validLinks.length < 1) {
       return {
         valid: false,
-        error: `Selector "${discovery.articleLinkSelector}" returned no links.`,
+        error: `Selector "${articleLinkSelector}" returned no links.`,
         sampleCount: 0,
       };
     }
 
-    // Test extraction on one article
+    // Test extraction on one article using Readability
     const firstLink = validLinks[0] as HTMLAnchorElement;
     const testUrl = firstLink.href;
 
@@ -747,19 +501,9 @@ async function validateSkill(
       const testDom = new JSDOM(testHtml, { url: testUrl });
       const testDoc = testDom.window.document;
 
-      let contentFound = false;
-      if (discovery.contentSelector) {
-        const contentEl = testDoc.querySelector(discovery.contentSelector);
-        if (contentEl?.textContent?.trim()) {
-          contentFound = true;
-        }
-      }
-
-      if (!contentFound && discovery.fallbackToReadability) {
-        const reader = new Readability(testDoc);
-        const result = reader.parse();
-        contentFound = Boolean(result?.textContent?.trim());
-      }
+      const reader = new Readability(testDoc);
+      const result = reader.parse();
+      const contentFound = Boolean(result?.textContent?.trim());
 
       if (!contentFound) {
         return { valid: false, error: "Could not extract content from test article", sampleCount: 1 };
@@ -819,7 +563,7 @@ export async function generateSkill(
     // 1. Use AI agent to discover selectors
     console.log(`[skill-generator] Starting agentic discovery for: ${homepageUrl}`);
     const discovery = await discoverSkillWithAgent(homepageUrl, sourceName, configOverride);
-    console.log(`[skill-generator] Agent discovered: tier=${discovery.tier}, selector=${discovery.articleLinkSelector}`);
+    console.log(`[skill-generator] Agent discovered: tier=${discovery.tier}, hints=${JSON.stringify(discovery.hints)}`);
 
     // 2. Generate SKILL.md content from discovery
     console.log(`[skill-generator] Generating SKILL.md content...`);

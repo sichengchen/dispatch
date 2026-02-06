@@ -31,12 +31,12 @@ export type ScoreRow = {
 };
 
 export const TASKS: Array<{ id: Task; label: string; hint: string }> = [
-  { id: "summarize", label: "Summarize", hint: "One-liner and key points" },
-  { id: "classify", label: "Classify", hint: "Topic tags" },
-  { id: "grade", label: "Grade", hint: "Quality score" },
-  { id: "embed", label: "Embeddings", hint: "Related articles" },
-  { id: "digest", label: "Digest", hint: "Daily briefing generation" },
-  { id: "skill", label: "Agentic Extraction", hint: "Agentic web source extraction" }
+  { id: "summarize", label: "Summarize", hint: "For one-liner and key points" },
+  { id: "classify", label: "Classify", hint: "For topic tags" },
+  { id: "grade", label: "Grade", hint: "For quality score" },
+  { id: "embed", label: "Embeddings", hint: "For generating related articles, must be embedding models" },
+  { id: "digest", label: "Digest", hint: "For daily briefing generation" },
+  { id: "skill", label: "Agents", hint: "For agents to perform tasks like article extraction, better models are recommended" }
 ];
 
 export const DEFAULT_MODEL = "claude-3-5-sonnet-20240620";
