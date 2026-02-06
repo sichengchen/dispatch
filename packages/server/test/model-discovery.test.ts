@@ -48,15 +48,13 @@ describe("Model Discovery Service", () => {
 
       const models = await discoverModels(anthropicProvider);
 
-      expect(mockFetch).toHaveBeenCalledWith(
-        "https://api.anthropic.com/v1/models",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            "x-api-key": "test-key-123",
-            "anthropic-version": "2023-06-01"
-          })
-        })
-      );
+      const [url, options] = mockFetch.mock.calls[0];
+      expect(url).toBe("https://api.anthropic.com/v1/models");
+      expect(options.headers).toEqual({
+        "x-api-key": "test-key-123",
+        "anthropic-version": "2023-06-01"
+      });
+      expect(options.signal).toBeDefined();
 
       expect(models).toHaveLength(2);
       expect(models[0]).toEqual({
