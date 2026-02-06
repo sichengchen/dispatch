@@ -58,9 +58,7 @@ export function HomeArticlesList({ onSelectArticle }: HomeArticlesListProps) {
           </Alert>
         )}
         {!isLoading && !error && ordered.length === 0 && (
-          <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-            No articles yet.
-          </div>
+          <div className="text-sm text-slate-500">No articles yet.</div>
         )}
         {!isLoading && !error && ordered.length > 0 && (
           <ol className="list-decimal space-y-4 pl-5 text-sm text-slate-800">

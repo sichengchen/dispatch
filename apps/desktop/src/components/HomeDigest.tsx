@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
-import { openArticleReference } from "../lib/digest-utils";
+import { openArticleReference, parseDigestContent } from "../lib/digest-utils";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
@@ -10,50 +10,9 @@ type HomeDigestProps = {
   referenceLinkBehavior?: "internal" | "external";
 };
 
-type DigestContent = {
-  overview: string;
-  topics: {
-    topic: string;
-    keyPoints: { text: string; refs: number[] }[];
-  }[];
-};
-
 function capitalizeFirst(value: string): string {
   if (!value) return value;
   return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
-function extractJsonBlock(raw: string): string {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) return fenced[1].trim();
-  const objectMatch = trimmed.match(/(\{[\s\S]*\})/);
-  if (objectMatch?.[1]) return objectMatch[1].trim();
-  return trimmed;
-}
-
-function parseDigestContent(raw?: string | null): DigestContent | null {
-  if (!raw) return null;
-  const cleaned = extractJsonBlock(raw);
-  try {
-    const parsed = JSON.parse(cleaned) as unknown;
-    if (typeof parsed === "string") {
-      return parseDigestContent(parsed);
-    }
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "overview" in parsed &&
-      "topics" in parsed
-    ) {
-      const typed = parsed as DigestContent;
-      if (!typed?.overview || !Array.isArray(typed.topics)) return null;
-      return typed;
-    }
-  } catch {
-    return null;
-  }
-  return null;
 }
 
 export function HomeDigest({
@@ -164,12 +123,12 @@ export function HomeDigest({
           </div>
         )}
         {!isLoading && !error && !parsed && !digest?.content && (
-          <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+          <div className="text-sm text-slate-500">
             No structured digest yet. Generate one to see topic summaries.
           </div>
         )}
         {!isLoading && !error && parsed?.topics.length === 0 && (
-          <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
+          <div className="text-sm text-slate-500">
             No articles yet. Add sources to generate a digest.
           </div>
         )}

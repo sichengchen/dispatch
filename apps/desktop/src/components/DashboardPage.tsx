@@ -373,12 +373,7 @@ export function DashboardPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <CardTitle className="text-lg">Dashboard</CardTitle>
-            <CardDescription>
-              Operational overview and schedule configuration.
-            </CardDescription>
-          </div>
+          <CardTitle className="text-lg">Dashboard</CardTitle>
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
@@ -450,7 +445,7 @@ export function DashboardPage() {
 
             if (!hasActivity) {
               return (
-                <div className="rounded-lg border border-dashed border-slate-200 p-4 text-center text-sm text-slate-500">
+                <div className="text-sm text-slate-500">
                   No tasks currently running. System is idle.
                 </div>
               );
@@ -696,9 +691,6 @@ export function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Schedule Configuration</CardTitle>
-          <CardDescription>
-            Configure automated fetch and digest schedules.
-          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <Tabs defaultValue="fetch">
@@ -965,9 +957,7 @@ export function DashboardPage() {
         </CardHeader>
         <CardContent>
           {recentRuns.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-              No recent runs yet.
-            </div>
+            <div className="text-sm text-slate-500">No recent runs yet.</div>
           )}
           {recentRuns.length > 0 && (
             <div className="overflow-hidden rounded-lg border border-slate-100">

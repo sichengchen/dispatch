@@ -1,6 +1,6 @@
 import { AddSourceDialog } from "./AddSourceDialog";
 import { SourceList } from "./SourceList";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Separator } from "./ui/separator";
 
 export function SourcesPage() {
@@ -8,10 +8,7 @@ export function SourcesPage() {
     <div className="space-y-4">
       <Card className="w-full">
         <CardHeader className="flex flex-row items-center justify-between text-left">
-          <div>
-            <CardTitle className="text-base">Sources</CardTitle>
-            <CardDescription>Add and manage your news sources.</CardDescription>
-          </div>
+          <CardTitle className="text-base">Sources</CardTitle>
           <AddSourceDialog />
         </CardHeader>
         <CardContent className="w-full">

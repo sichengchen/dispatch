@@ -1,39 +1,13 @@
 import { useMemo } from "react";
 import { trpc } from "../lib/trpc";
+import { getDigestPreview } from "../lib/digest-utils";
 import { Button } from "./ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Separator } from "./ui/separator";
 
 type HistoryPageProps = {
   onOpenDigest: (id: number) => void;
 };
-
-type DigestContent = {
-  overview?: string;
-};
-
-function extractJsonBlock(raw: string): string {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) return fenced[1].trim();
-  const objectMatch = trimmed.match(/(\{[\s\S]*\})/);
-  if (objectMatch?.[1]) return objectMatch[1].trim();
-  return trimmed;
-}
-
-function getDigestPreview(content: string): string {
-  try {
-    const cleaned = extractJsonBlock(content);
-    const parsed = JSON.parse(cleaned) as DigestContent | string;
-    if (typeof parsed === "string") {
-      return getDigestPreview(parsed);
-    }
-    if (parsed?.overview) return parsed.overview;
-  } catch {
-    // ignore parse errors
-  }
-  return content;
-}
 
 export function HistoryPage({ onOpenDigest }: HistoryPageProps) {
   const { data: digests = [], isLoading, error } = trpc.digests.list.useQuery({
@@ -49,17 +23,9 @@ export function HistoryPage({ onOpenDigest }: HistoryPageProps) {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-900">Digest History</h2>
-        <p className="text-sm text-slate-500">
-          Browse previous digests and open full details.
-        </p>
-      </div>
-
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">History</CardTitle>
-          <CardDescription>Recent digest runs.</CardDescription>
+          <CardTitle className="text-base">Digest History</CardTitle>
         </CardHeader>
         <CardContent>
           {isLoading && (
@@ -71,9 +37,7 @@ export function HistoryPage({ onOpenDigest }: HistoryPageProps) {
             </div>
           )}
           {!isLoading && !error && digestCards.length === 0 && (
-            <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-              No digests yet.
-            </div>
+            <div className="text-sm text-slate-500">No digests yet.</div>
           )}
           {!isLoading && !error && digestCards.length > 0 && (
             <div className="space-y-3">

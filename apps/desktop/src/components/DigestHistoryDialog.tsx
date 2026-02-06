@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { trpc } from "../lib/trpc";
-import { openArticleReference } from "../lib/digest-utils";
+import { getDigestPreview, openArticleReference } from "../lib/digest-utils";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -17,34 +17,6 @@ type DigestHistoryDialogProps = {
   onSelectArticle?: (id: number) => void;
   referenceLinkBehavior?: "internal" | "external";
 };
-
-type DigestContent = {
-  overview?: string;
-  topics?: Array<{ topic: string }>;
-};
-
-function extractJsonBlock(raw: string): string {
-  const trimmed = raw.trim();
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) return fenced[1].trim();
-  const objectMatch = trimmed.match(/(\{[\s\S]*\})/);
-  if (objectMatch?.[1]) return objectMatch[1].trim();
-  return trimmed;
-}
-
-function getDigestPreview(content: string): string {
-  try {
-    const cleaned = extractJsonBlock(content);
-    const parsed = JSON.parse(cleaned) as DigestContent | string;
-    if (typeof parsed === "string") {
-      return getDigestPreview(parsed);
-    }
-    if (parsed?.overview) return parsed.overview;
-  } catch {
-    // ignore parse errors
-  }
-  return content;
-}
 
 export function DigestHistoryDialog({
   onSelectArticle,
@@ -80,9 +52,7 @@ export function DigestHistoryDialog({
             </div>
           )}
           {!isLoading && !hasDigests && (
-            <div className="rounded-lg border border-dashed border-slate-200 p-4 text-sm text-slate-500">
-              No digests yet.
-            </div>
+            <div className="text-sm text-slate-500">No digests yet.</div>
           )}
           {!isLoading && hasDigests && (
             <div className="space-y-4">
