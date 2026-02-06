@@ -64,6 +64,15 @@ export {
   createBrowserTools
 } from "./browser-tools";
 
+// Chat tools
+export {
+  presentChoicesSchema,
+  finishConversationSchema,
+  createPresentChoicesTool,
+  createFinishConversationTool,
+  createChatToolSet
+} from "./chat-tools";
+
 // ---------------------------------------------------------------------------
 // Tool context factory
 // ---------------------------------------------------------------------------

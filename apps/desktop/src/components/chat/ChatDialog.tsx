@@ -1,14 +1,16 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { Button } from "../ui/button";
 import { ChatMessage } from "./ChatMessage";
 import { ChatInput } from "./ChatInput";
 import { ScrollArea } from "../ui/scroll-area";
 import { getApiUrl } from "../../lib/server";
+import { hasCompletionBlock } from "./choice-utils";
 
 interface Message {
   id: string;
@@ -23,6 +25,7 @@ export interface ChatDialogProps {
   agentId: string;
   initialMessage?: string;
   apiEndpoint?: string;
+  onComplete?: () => void;
 }
 
 export function ChatDialog({
@@ -32,12 +35,28 @@ export function ChatDialog({
   agentId,
   initialMessage,
   apiEndpoint = "/api/agents/chat",
+  onComplete,
 }: ChatDialogProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const hasCalledComplete = useRef(false);
+
+  // Check if conversation is complete (any message contains a completion block)
+  const isComplete = useMemo(
+    () => messages.some((m) => m.role === "assistant" && hasCompletionBlock(m.content)),
+    [messages]
+  );
+
+  // Call onComplete when conversation completes
+  useEffect(() => {
+    if (isComplete && onComplete && !hasCalledComplete.current) {
+      hasCalledComplete.current = true;
+      onComplete();
+    }
+  }, [isComplete, onComplete]);
 
   // Initialize with initial message when dialog opens
   useEffect(() => {
@@ -175,11 +194,16 @@ export function ChatDialog({
         setMessages([]);
         setStreamingContent("");
         setIsLoading(false);
+        hasCalledComplete.current = false;
       }
       onOpenChange(newOpen);
     },
     [onOpenChange]
   );
+
+  const handleDone = useCallback(() => {
+    handleOpenChange(false);
+  }, [handleOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -190,13 +214,23 @@ export function ChatDialog({
 
         <ScrollArea className="flex-1 px-4" ref={scrollRef}>
           <div className="space-y-3 py-4">
-            {messages.map((message) => (
-              <ChatMessage
-                key={message.id}
-                role={message.role}
-                content={message.content}
-              />
-            ))}
+            {messages.map((message, index) => {
+              // Check if this assistant message has been answered
+              // (i.e., there's a user message after it)
+              const isAnswered =
+                message.role === "assistant" &&
+                messages.slice(index + 1).some((m) => m.role === "user");
+
+              return (
+                <ChatMessage
+                  key={message.id}
+                  role={message.role}
+                  content={message.content}
+                  onSend={handleSend}
+                  isAnswered={isAnswered}
+                />
+              );
+            })}
             {isLoading && streamingContent && (
               <ChatMessage
                 role="assistant"
@@ -214,11 +248,19 @@ export function ChatDialog({
           </div>
         </ScrollArea>
 
-        <ChatInput
-          onSend={handleSend}
-          disabled={isLoading}
-          placeholder="Type your message..."
-        />
+        {isComplete ? (
+          <div className="border-t border-slate-200 p-4">
+            <Button onClick={handleDone} className="w-full">
+              Done
+            </Button>
+          </div>
+        ) : (
+          <ChatInput
+            onSend={handleSend}
+            disabled={isLoading}
+            placeholder="Type your message..."
+          />
+        )}
       </DialogContent>
     </Dialog>
   );
