@@ -7,7 +7,6 @@ dispatch.settings.json
 .DS_Store
 .turbo/
 PLAN.md
-.agent/
 test-results/
 .mcp.json
 .npmrc
