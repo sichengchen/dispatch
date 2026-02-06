@@ -70,7 +70,7 @@ export function ArticleViewer({
               {externalLinkBehavior === "external" ? (
                 <button
                   type="button"
-                  onClick={() => window.open(article.url, "_blank", "noopener,noreferrer")}
+                  onClick={() => window.dispatchApi?.openExternal?.(article.url)}
                   className="underline hover:text-slate-900"
                 >
                   Open original

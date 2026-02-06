@@ -26,5 +26,6 @@ interface Window {
   dispatchApi?: {
     request: (payload: DispatchApiRequest) => Promise<DispatchApiResponse>;
     getServerUrl?: () => string;
+    openExternal?: (url: string) => Promise<void>;
   };
 }

@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const require = createRequire(import.meta.url)
-const { app, BrowserWindow, ipcMain } = require('electron')
+const { app, BrowserWindow, ipcMain, shell } = require('electron')
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
@@ -257,6 +257,10 @@ ipcMain.handle('dispatch:request', async (_event: IpcMainInvokeEvent, payload: {
     headers: Array.from(response.headers.entries()),
     body
   }
+})
+
+ipcMain.handle('dispatch:openExternal', async (_event: IpcMainInvokeEvent, url: string) => {
+  await shell.openExternal(url)
 })
 
 app.on('before-quit', () => {

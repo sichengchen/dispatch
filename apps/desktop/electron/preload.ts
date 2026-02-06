@@ -34,4 +34,7 @@ contextBridge.exposeInMainWorld('dispatchApi', {
   getServerUrl() {
     return serverUrl
   },
+  openExternal(url: string) {
+    return ipcRenderer.invoke('dispatch:openExternal', url)
+  },
 })
