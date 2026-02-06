@@ -26,9 +26,16 @@ type ArticleViewerProps = {
   onBack: () => void;
   onSelectArticle?: (id: number) => void;
   backLabel?: string;
+  externalLinkBehavior?: "internal" | "external";
 };
 
-export function ArticleViewer({ article, onBack, onSelectArticle, backLabel }: ArticleViewerProps) {
+export function ArticleViewer({
+  article,
+  onBack,
+  onSelectArticle,
+  backLabel,
+  externalLinkBehavior = "internal"
+}: ArticleViewerProps) {
   const articleId = article?.id ?? null;
   const { data: related = [], isLoading: isLoadingRelated } =
     trpc.articles.related.useQuery(
@@ -59,14 +66,26 @@ export function ArticleViewer({ article, onBack, onSelectArticle, backLabel }: A
         <div className="flex items-center gap-2 text-xs text-slate-500">
           {article.sourceName ?? "Unknown source"}
           {article.url && (
-            <a
-              href={article.url}
-              target="_blank"
-              rel="noreferrer"
-              className="underline hover:text-slate-900"
-            >
-              Open original
-            </a>
+            <>
+              {externalLinkBehavior === "external" ? (
+                <button
+                  type="button"
+                  onClick={() => window.open(article.url, "_blank", "noopener,noreferrer")}
+                  className="underline hover:text-slate-900"
+                >
+                  Open original
+                </button>
+              ) : (
+                <a
+                  href={article.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-slate-900"
+                >
+                  Open original
+                </a>
+              )}
+            </>
           )}
         </div>
       </div>

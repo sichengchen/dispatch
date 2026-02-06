@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { UiConfig } from "@dispatch/api";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
 import { GeneralTab } from "./settings/GeneralTab";
@@ -70,6 +71,10 @@ export function SettingsPage() {
   const [digestPreferredLanguage, setDigestPreferredLanguage] = useState("English");
   const [skillGeneratorMaxSteps, setSkillGeneratorMaxSteps] = useState(100);
   const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
+  const [digestReferenceLinkBehavior, setDigestReferenceLinkBehavior] =
+    useState<"internal" | "external">("internal");
+  const [externalLinkBehavior, setExternalLinkBehavior] =
+    useState<"internal" | "external">("internal");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,6 +83,8 @@ export function SettingsPage() {
     const llm = cfg.models;
 
     setVerboseMode(cfg.ui?.verbose ?? false);
+    setDigestReferenceLinkBehavior(cfg.ui?.digestReferenceLinkBehavior ?? "internal");
+    setExternalLinkBehavior(cfg.ui?.externalLinkBehavior ?? "internal");
     const nextWeights = cfg.grading?.weights;
     setGradingWeights({
       importancy: nextWeights?.importancy ?? DEFAULT_GRADING_WEIGHTS.importancy,
@@ -196,8 +203,10 @@ export function SettingsPage() {
         catalog: existingCatalog
       },
       ui: {
-        verbose: verboseMode
-      },
+        verbose: verboseMode,
+        digestReferenceLinkBehavior,
+        externalLinkBehavior
+      } as UiConfig,
       grading: {
         weights,
         interestByTag: Object.keys(interestByTag).length ? interestByTag : undefined,
@@ -278,6 +287,10 @@ export function SettingsPage() {
           setSkillGeneratorMaxSteps={setSkillGeneratorMaxSteps}
           extractionAgentMaxSteps={extractionAgentMaxSteps}
           setExtractionAgentMaxSteps={setExtractionAgentMaxSteps}
+          digestReferenceLinkBehavior={digestReferenceLinkBehavior}
+          setDigestReferenceLinkBehavior={setDigestReferenceLinkBehavior}
+          externalLinkBehavior={externalLinkBehavior}
+          setExternalLinkBehavior={setExternalLinkBehavior}
         />
       )}
 

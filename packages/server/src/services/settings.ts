@@ -33,7 +33,9 @@ const modelsConfigSchema: z.ZodType<ModelsConfig> = z.object({
 });
 
 const uiConfigSchema = z.object({
-  verbose: z.boolean().optional()
+  verbose: z.boolean().optional(),
+  digestReferenceLinkBehavior: z.enum(["internal", "external"]).optional(),
+  externalLinkBehavior: z.enum(["internal", "external"]).optional()
 });
 
 const gradingWeightsSchema = z.object({
@@ -96,6 +98,8 @@ const settingsSchema = z.object({
 
 export type UiConfig = {
   verbose?: boolean;
+  digestReferenceLinkBehavior?: "internal" | "external";
+  externalLinkBehavior?: "internal" | "external";
 };
 
 export type GradingWeights = z.infer<typeof gradingWeightsSchema>;

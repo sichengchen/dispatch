@@ -508,7 +508,7 @@ function ModelCard({
               {model.label || model.model}
             </div>
             <div className="rounded bg-slate-200 px-2 py-0.5 text-xs text-slate-600">
-              {model.capabilities.join(", ")}
+              {model.capabilities?.join(", ") ?? "chat"}
             </div>
           </div>
           <div className="mt-1 text-xs text-slate-500">

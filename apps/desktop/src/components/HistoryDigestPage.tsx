@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { trpc } from "../lib/trpc";
+import { openArticleReference } from "../lib/digest-utils";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Separator } from "./ui/separator";
@@ -8,6 +9,7 @@ type HistoryDigestPageProps = {
   digestId: number;
   onBack: () => void;
   onSelectArticle?: (id: number) => void;
+  referenceLinkBehavior?: "internal" | "external";
 };
 
 type DigestContent = {
@@ -59,8 +61,10 @@ function capitalizeFirst(value: string): string {
 export function HistoryDigestPage({
   digestId,
   onBack,
-  onSelectArticle
+  onSelectArticle,
+  referenceLinkBehavior = "internal"
 }: HistoryDigestPageProps) {
+  const utils = trpc.useUtils();
   const { data: digest, isLoading, error } = trpc.digests.byId.useQuery({
     id: digestId
   });
@@ -98,7 +102,14 @@ export function HistoryDigestPage({
                 <button
                   type="button"
                   className="underline hover:text-slate-900"
-                  onClick={() => onSelectArticle?.(articleId)}
+                  onClick={() =>
+                    openArticleReference(
+                      articleId,
+                      referenceLinkBehavior,
+                      utils.client,
+                      onSelectArticle
+                    )
+                  }
                 >
                   {ref}
                 </button>

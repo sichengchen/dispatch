@@ -7,6 +7,7 @@ import { resolvePort } from "./services/server-startup";
 import { startScheduler } from "./services/scheduler";
 
 export type { AppRouter } from "./app";
+export type { UiConfig } from "./services/settings";
 
 function findWorkspaceRoot(startDir: string) {
   let current = startDir;

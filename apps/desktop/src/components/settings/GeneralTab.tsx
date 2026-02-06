@@ -4,6 +4,13 @@ import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "../ui/select";
 import { Slider } from "../ui/slider";
 import {
   type GradingWeights,
@@ -27,6 +34,10 @@ type GeneralTabProps = {
   setSkillGeneratorMaxSteps: (value: number) => void;
   extractionAgentMaxSteps: number;
   setExtractionAgentMaxSteps: (value: number) => void;
+  digestReferenceLinkBehavior: "internal" | "external";
+  setDigestReferenceLinkBehavior: (value: "internal" | "external") => void;
+  externalLinkBehavior: "internal" | "external";
+  setExternalLinkBehavior: (value: "internal" | "external") => void;
 };
 
 const WEIGHT_ITEMS = [
@@ -50,7 +61,11 @@ export function GeneralTab({
   skillGeneratorMaxSteps,
   setSkillGeneratorMaxSteps,
   extractionAgentMaxSteps,
-  setExtractionAgentMaxSteps
+  setExtractionAgentMaxSteps,
+  digestReferenceLinkBehavior,
+  setDigestReferenceLinkBehavior,
+  externalLinkBehavior,
+  setExternalLinkBehavior
 }: GeneralTabProps) {
   const { data: availableTags = [] } = trpc.articles.uniqueTags.useQuery();
   const { data: availableSources = [] } = trpc.sources.listForWeights.useQuery();
@@ -100,6 +115,54 @@ export function GeneralTab({
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-900">Reader</div>
+        <div className="mt-1 text-xs text-slate-500">
+          Configure how the reader behave.
+        </div>
+        <div className="mt-3 space-y-2">
+          <Label htmlFor="digest-link-behavior">Articles</Label>
+          <Select
+            value={digestReferenceLinkBehavior}
+            onValueChange={(value) =>
+              setDigestReferenceLinkBehavior(value as "internal" | "external")
+            }
+          >
+            <SelectTrigger id="digest-link-behavior">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="internal">Open in article reader</SelectItem>
+              <SelectItem value="external">Open original article</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="text-[11px] text-slate-500">
+            Controls what happens when clicking articles in digest.
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          <Label htmlFor="external-link-behavior">External Link</Label>
+          <Select
+            value={externalLinkBehavior}
+            onValueChange={(value) =>
+              setExternalLinkBehavior(value as "internal" | "external")
+            }
+          >
+            <SelectTrigger id="external-link-behavior">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="internal">Open in app</SelectItem>
+              <SelectItem value="external">Open in external browser</SelectItem>
+            </SelectContent>
+          </Select>
+          <div className="text-[11px] text-slate-500">
+            Controls what happens when opening external article links.
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="text-sm font-semibold text-slate-900">Grading</div>
         <div className="mt-1 text-xs text-slate-500">
           Configure the grade equation. Weights auto-normalize.
@@ -135,22 +198,6 @@ export function GeneralTab({
               </div>
             </div>
           ))}
-        </div>
-
-        <div className="mt-4 space-y-2">
-          <div className="text-sm font-semibold text-slate-900">Digest</div>
-          <div className="text-xs text-slate-500">
-            Preferred language for digest overview and topic summaries.
-          </div>
-          <div className="mt-2 space-y-1">
-            <Label htmlFor="digest-language">Preferred Language</Label>
-            <Input
-              id="digest-language"
-              placeholder="English"
-              value={digestPreferredLanguage}
-              onChange={(e) => setDigestPreferredLanguage(e.target.value)}
-            />
-          </div>
         </div>
 
         <div className="mt-4 space-y-2">
@@ -204,7 +251,6 @@ export function GeneralTab({
             </div>
           ))}
         </div>
-
         <div className="mt-4 space-y-2">
           <div>
             <div className="text-xs font-semibold text-slate-700">Source weights</div>
@@ -259,7 +305,25 @@ export function GeneralTab({
       </div>
 
       <div className="rounded-lg border border-slate-200 bg-white p-3">
-        <div className="text-sm font-semibold text-slate-900">Agent Configuration</div>
+        <div className="space-y-2">
+          <div className="text-sm font-semibold text-slate-900">Digest</div>
+          <div className="text-xs text-slate-500">
+            Preferred language for digest overview and topic summaries.
+          </div>
+          <div className="mt-2 space-y-1">
+            <Label htmlFor="digest-language">Preferred Language</Label>
+            <Input
+              id="digest-language"
+              placeholder="English"
+              value={digestPreferredLanguage}
+              onChange={(e) => setDigestPreferredLanguage(e.target.value)}
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-900">Agents</div>
         <div className="mt-1 text-xs text-slate-500">
           Configure max steps for AI agents used in skill discovery and article extraction.
         </div>

@@ -1,11 +1,13 @@
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { trpc } from "../lib/trpc";
+import { openArticleReference } from "../lib/digest-utils";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
 type HomeDigestProps = {
   onSelectArticle?: (id: number) => void;
+  referenceLinkBehavior?: "internal" | "external";
 };
 
 type DigestContent = {
@@ -54,7 +56,10 @@ function parseDigestContent(raw?: string | null): DigestContent | null {
   return null;
 }
 
-export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
+export function HomeDigest({
+  onSelectArticle,
+  referenceLinkBehavior = "internal"
+}: HomeDigestProps) {
   const utils = trpc.useUtils();
   const { data: digest, isLoading, error } = trpc.digests.latest.useQuery();
   const generateDigest = trpc.digests.generate.useMutation({
@@ -96,7 +101,17 @@ export function HomeDigest({ onSelectArticle }: HomeDigestProps) {
           return (
             <span key={`${ref}-${index}`}>
               {articleId ? (
-                <button type="button" onClick={() => onSelectArticle?.(articleId)}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    openArticleReference(
+                      articleId,
+                      referenceLinkBehavior,
+                      utils.client,
+                      onSelectArticle
+                    )
+                  }
+                >
                   {content}
                 </button>
               ) : (

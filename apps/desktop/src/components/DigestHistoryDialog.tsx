@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { trpc } from "../lib/trpc";
+import { openArticleReference } from "../lib/digest-utils";
 import { Button } from "./ui/button";
 import {
   Dialog,
@@ -13,6 +14,7 @@ import { Separator } from "./ui/separator";
 
 type DigestHistoryDialogProps = {
   onSelectArticle?: (id: number) => void;
+  referenceLinkBehavior?: "internal" | "external";
 };
 
 type DigestContent = {
@@ -44,8 +46,10 @@ function getDigestPreview(content: string): string {
 }
 
 export function DigestHistoryDialog({
-  onSelectArticle
+  onSelectArticle,
+  referenceLinkBehavior = "internal"
 }: DigestHistoryDialogProps) {
+  const utils = trpc.useUtils();
   const [open, setOpen] = useState(false);
   const { data: digests = [], isLoading } = trpc.digests.list.useQuery({
     limit: 14
@@ -101,7 +105,12 @@ export function DigestHistoryDialog({
                           key={id}
                           type="button"
                           onClick={() => {
-                            onSelectArticle?.(id);
+                            openArticleReference(
+                              id,
+                              referenceLinkBehavior,
+                              utils.client,
+                              onSelectArticle
+                            );
                             setOpen(false);
                           }}
                           className="text-xs text-slate-600 underline hover:text-slate-900"

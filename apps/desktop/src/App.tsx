@@ -24,6 +24,15 @@ export default function App() {
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
   const setSelectedArticleId = useUiStore((state) => state.setSelectedArticleId);
 
+  const { data: uiSettings } = trpc.settings.get.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+    select: (data) => data.ui
+  });
+
+  const digestLinkBehavior = uiSettings?.digestReferenceLinkBehavior ?? "internal";
+  const externalLinkBehavior = uiSettings?.externalLinkBehavior ?? "internal";
+
   const { data: selectedArticle } = trpc.articles.byId.useQuery(
     { id: selectedArticleId ?? 0 },
     { enabled: selectedArticleId != null }
@@ -125,7 +134,10 @@ export default function App() {
       <main className="mx-auto w-full max-w-6xl px-6 py-6">
         {activeView === "home" ? (
           <div className="space-y-6">
-            <HomeDigest onSelectArticle={openArticle} />
+            <HomeDigest
+              onSelectArticle={openArticle}
+              referenceLinkBehavior={digestLinkBehavior}
+            />
             <HomeArticlesList onSelectArticle={openArticle} />
           </div>
         ) : activeView === "history" ? (
@@ -137,6 +149,7 @@ export default function App() {
             onSelectArticle={(id) =>
               openArticle(id, { view: "history-detail", digestId: historyDigestId })
             }
+            referenceLinkBehavior={digestLinkBehavior}
           />
         ) : activeView === "history-detail" ? (
           <HistoryPage onOpenDigest={openHistoryDetail} />
@@ -158,6 +171,7 @@ export default function App() {
                   ? "Back to History"
                   : "Back to Digest"
             }
+            externalLinkBehavior={externalLinkBehavior}
           />
         )}
       </main>
