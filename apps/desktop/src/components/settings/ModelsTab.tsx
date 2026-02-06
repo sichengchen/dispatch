@@ -201,18 +201,25 @@ export function ModelsTab() {
                           if (!modelSearchQuery) return true;
                           const query = modelSearchQuery.toLowerCase();
                           const name = (m.name || m.id).toLowerCase();
-                          return name.includes(query);
+                          const ownedBy = (m.ownedBy || "").toLowerCase();
+                          return name.includes(query) || ownedBy.includes(query);
                         })
                         .map((m: DiscoveredModel) => (
                           <SelectItem key={m.id} value={m.id}>
-                            {m.name || m.id}
+                            <span className="flex items-center gap-2">
+                              {m.name || m.id}
+                              {m.ownedBy && (
+                                <span className="text-xs text-slate-400">({m.ownedBy})</span>
+                              )}
+                            </span>
                           </SelectItem>
                         ))}
                       {discoveredModels.filter((m: DiscoveredModel) => {
                         if (!modelSearchQuery) return true;
                         const query = modelSearchQuery.toLowerCase();
                         const name = (m.name || m.id).toLowerCase();
-                        return name.includes(query);
+                        const ownedBy = (m.ownedBy || "").toLowerCase();
+                        return name.includes(query) || ownedBy.includes(query);
                       }).length === 0 && modelSearchQuery && (
                         <div className="p-2 text-center text-sm text-slate-500">
                           No models found
@@ -368,6 +375,14 @@ function ModelCard({
     label: model.label || "",
     capabilities: model.capabilities || ["chat"]
   });
+  const [modelSearchQuery, setModelSearchQuery] = useState("");
+  const [useCustomModel, setUseCustomModel] = useState(false);
+
+  // Fetch discovered models for the selected provider when editing
+  const { data: discoveredModels = [], isFetching: isDiscovering } = trpc.settings.discoverModels.useQuery(
+    { providerId: editData.providerId, forceRefresh: false },
+    { enabled: !!editData.providerId && isEditing }
+  );
 
   const handleUpdate = () => {
     if (!editData.providerId || !editData.model) return;
@@ -415,12 +430,79 @@ function ModelCard({
 
           <div className="space-y-1">
             <Label>Model ID</Label>
-            <Input
-              value={editData.model}
-              onChange={(e) =>
-                setEditData((prev) => ({ ...prev, model: e.target.value }))
-              }
-            />
+            {!useCustomModel && discoveredModels && discoveredModels.length > 0 ? (
+              <Select
+                value={editData.model}
+                onValueChange={(value) => {
+                  if (value === "__custom__") {
+                    setUseCustomModel(true);
+                    setEditData((prev) => ({ ...prev, model: "" }));
+                    setModelSearchQuery("");
+                  } else {
+                    setEditData((prev) => ({ ...prev, model: value }));
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={isDiscovering ? "Loading models..." : "Select model"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <div className="sticky top-0 bg-white p-2 border-b">
+                    <Input
+                      placeholder="Search models..."
+                      value={modelSearchQuery}
+                      onChange={(e) => setModelSearchQuery(e.target.value)}
+                      className="h-8"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div className="max-h-[300px] overflow-y-auto">
+                    {discoveredModels
+                      .filter((m: DiscoveredModel) => {
+                        if (!modelSearchQuery) return true;
+                        const query = modelSearchQuery.toLowerCase();
+                        const name = (m.name || m.id).toLowerCase();
+                        const ownedBy = (m.ownedBy || "").toLowerCase();
+                        return name.includes(query) || ownedBy.includes(query);
+                      })
+                      .map((m: DiscoveredModel) => (
+                        <SelectItem key={m.id} value={m.id}>
+                          <span className="flex items-center gap-2">
+                            {m.name || m.id}
+                            {m.ownedBy && (
+                              <span className="text-xs text-slate-400">({m.ownedBy})</span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    {discoveredModels.filter((m: DiscoveredModel) => {
+                      if (!modelSearchQuery) return true;
+                      const query = modelSearchQuery.toLowerCase();
+                      const name = (m.name || m.id).toLowerCase();
+                      const ownedBy = (m.ownedBy || "").toLowerCase();
+                      return name.includes(query) || ownedBy.includes(query);
+                    }).length === 0 && modelSearchQuery && (
+                      <div className="p-2 text-center text-sm text-slate-500">
+                        No models found
+                      </div>
+                    )}
+                    <SelectItem value="__custom__">
+                      <span className="italic">Enter custom model...</span>
+                    </SelectItem>
+                  </div>
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                placeholder={isDiscovering ? "Loading..." : "model-name"}
+                value={editData.model}
+                onChange={(e) =>
+                  setEditData((prev) => ({ ...prev, model: e.target.value }))
+                }
+                disabled={isDiscovering}
+              />
+            )}
           </div>
 
           <div className="space-y-1">

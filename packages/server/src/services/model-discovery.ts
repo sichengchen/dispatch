@@ -166,7 +166,8 @@ async function fetchOpenAIModels(provider: Provider): Promise<DiscoveredModel[]>
       return {
         id: modelId,
         name: model.name || modelId,
-        capabilities
+        capabilities,
+        ownedBy: model.owned_by
       };
     });
   } catch (error) {

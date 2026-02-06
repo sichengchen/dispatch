@@ -31,6 +31,7 @@ export type DiscoveredModel = {
   id: string;
   name: string;
   capabilities: Array<"chat" | "embedding">;
+  ownedBy?: string;
 };
 
 export type ModelCatalogEntry = {

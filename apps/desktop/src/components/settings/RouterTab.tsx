@@ -1,4 +1,3 @@
-import { Label } from "../ui/label";
 import {
   Select,
   SelectContent,
