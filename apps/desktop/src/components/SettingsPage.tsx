@@ -20,6 +20,7 @@ import {
 } from "./settings/types";
 
 type InitialState = {
+  appTitle: string;
   gradingWeights: GradingWeights;
   interestScores: ScoreRow[];
   sourceScores: ScoreRow[];
@@ -83,6 +84,7 @@ export function SettingsPage() {
     digest: "",
     skill: ""
   });
+  const [appTitle, setAppTitle] = useState("");
   const [digestPreferredLanguage, setDigestPreferredLanguage] = useState("English");
   const [skillGeneratorMaxSteps, setSkillGeneratorMaxSteps] = useState(100);
   const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
@@ -99,6 +101,7 @@ export function SettingsPage() {
     const cfg = settingsQuery.data;
     const llm = cfg.models;
 
+    setAppTitle(cfg.ui?.appTitle ?? "");
     setDigestReferenceLinkBehavior(cfg.ui?.digestReferenceLinkBehavior ?? "internal");
     setExternalLinkBehavior(cfg.ui?.externalLinkBehavior ?? "internal");
     const nextWeights = cfg.grading?.weights;
@@ -174,6 +177,7 @@ export function SettingsPage() {
 
     // Store initial state for change detection
     initialStateRef.current = {
+      appTitle: cfg.ui?.appTitle ?? "",
       gradingWeights: {
         importancy: nextWeights?.importancy ?? DEFAULT_GRADING_WEIGHTS.importancy,
         quality: nextWeights?.quality ?? DEFAULT_GRADING_WEIGHTS.quality,
@@ -195,6 +199,9 @@ export function SettingsPage() {
   const hasChanges = useMemo(() => {
     const initial = initialStateRef.current;
     if (!initial) return false;
+
+    // Compare app title
+    if (appTitle !== initial.appTitle) return true;
 
     // Compare grading weights
     if (
@@ -231,6 +238,7 @@ export function SettingsPage() {
 
     return false;
   }, [
+    appTitle,
     gradingWeights,
     interestScores,
     sourceScores,
@@ -290,6 +298,7 @@ export function SettingsPage() {
         catalog: existingCatalog
       },
       ui: {
+        appTitle: appTitle || undefined,
         digestReferenceLinkBehavior,
         externalLinkBehavior
       } as UiConfig,
@@ -324,6 +333,8 @@ export function SettingsPage() {
 
         <TabsContent value="general">
           <GeneralTab
+            appTitle={appTitle}
+            setAppTitle={setAppTitle}
             gradingWeights={gradingWeights}
             setGradingWeights={setGradingWeights}
             interestScores={interestScores}

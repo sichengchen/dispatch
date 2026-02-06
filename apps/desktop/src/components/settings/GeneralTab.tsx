@@ -31,6 +31,8 @@ import {
 } from "./types";
 
 type GeneralTabProps = {
+  appTitle: string;
+  setAppTitle: (value: string) => void;
   gradingWeights: GradingWeights;
   setGradingWeights: React.Dispatch<React.SetStateAction<GradingWeights>>;
   interestScores: ScoreRow[];
@@ -59,6 +61,8 @@ const WEIGHT_ITEMS = [
 ] as const;
 
 export function GeneralTab({
+  appTitle,
+  setAppTitle,
   gradingWeights,
   setGradingWeights,
   interestScores,
@@ -108,6 +112,25 @@ export function GeneralTab({
 
   return (
     <div className="mt-4 space-y-4">
+      <div className="rounded-lg border border-slate-200 bg-white p-3">
+        <div className="text-sm font-semibold text-slate-900">Appearance</div>
+        <div className="mt-1 text-xs text-slate-500">
+          Customize how your news reader looks.
+        </div>
+        <div className="mt-3 space-y-1">
+          <Label htmlFor="app-title">App Title</Label>
+          <Input
+            id="app-title"
+            placeholder="Dispatch"
+            value={appTitle}
+            onChange={(e) => setAppTitle(e.target.value)}
+          />
+          <div className="text-[11px] text-slate-500">
+            The name displayed in the header. Leave empty for "Dispatch".
+          </div>
+        </div>
+      </div>
+
       <div className="rounded-lg border border-slate-200 bg-white p-3">
         <div className="text-sm font-semibold text-slate-900">Reader</div>
         <div className="mt-1 text-xs text-slate-500">

@@ -30,6 +30,7 @@ export default function App() {
     select: (data) => data.ui
   });
 
+  const appTitle = uiSettings?.appTitle || "Dispatch";
   const digestLinkBehavior = uiSettings?.digestReferenceLinkBehavior ?? "internal";
   const externalLinkBehavior = uiSettings?.externalLinkBehavior ?? "internal";
 
@@ -87,7 +88,7 @@ export default function App() {
             className="text-left"
             aria-label="Go to homepage"
           >
-            <h1 className="text-2xl font-semibold text-slate-900">Dispatch</h1>
+            <h1 className="text-2xl font-semibold text-slate-900">{appTitle}</h1>
             <p className="text-sm text-slate-500">Your newspaper at home</p>
           </button>
           <Tabs

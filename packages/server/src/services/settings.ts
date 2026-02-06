@@ -33,6 +33,7 @@ const modelsConfigSchema: z.ZodType<ModelsConfig> = z.object({
 });
 
 const uiConfigSchema = z.object({
+  appTitle: z.string().min(1).optional(),
   digestReferenceLinkBehavior: z.enum(["internal", "external"]).optional(),
   externalLinkBehavior: z.enum(["internal", "external"]).optional()
 });
@@ -97,6 +98,7 @@ const settingsSchema = z.object({
 });
 
 export type UiConfig = {
+  appTitle?: string;
   digestReferenceLinkBehavior?: "internal" | "external";
   externalLinkBehavior?: "internal" | "external";
 };
