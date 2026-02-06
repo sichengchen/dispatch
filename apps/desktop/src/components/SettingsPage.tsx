@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { UiConfig } from "@dispatch/api";
 import { trpc } from "../lib/trpc";
@@ -18,6 +18,19 @@ import {
   DEFAULT_GRADING_WEIGHTS,
   generateId
 } from "./settings/types";
+
+type InitialState = {
+  gradingWeights: GradingWeights;
+  interestScores: ScoreRow[];
+  sourceScores: ScoreRow[];
+  routing: RoutingState;
+  digestPreferredLanguage: string;
+  skillGeneratorMaxSteps: number;
+  extractionAgentMaxSteps: number;
+  chatAgentMaxSteps: number;
+  digestReferenceLinkBehavior: "internal" | "external";
+  externalLinkBehavior: "internal" | "external";
+};
 
 type Tab = "general" | "providers" | "models" | "router";
 
@@ -79,6 +92,7 @@ export function SettingsPage() {
   const [externalLinkBehavior, setExternalLinkBehavior] =
     useState<"internal" | "external">("internal");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const initialStateRef = useRef<InitialState | null>(null);
 
   useEffect(() => {
     if (!settingsQuery.data) return;
@@ -157,11 +171,81 @@ export function SettingsPage() {
     setCatalog(nextCatalog);
     setRouting(nextRouting);
     setErrorMessage(null);
+
+    // Store initial state for change detection
+    initialStateRef.current = {
+      gradingWeights: {
+        importancy: nextWeights?.importancy ?? DEFAULT_GRADING_WEIGHTS.importancy,
+        quality: nextWeights?.quality ?? DEFAULT_GRADING_WEIGHTS.quality,
+        interest: nextWeights?.interest ?? DEFAULT_GRADING_WEIGHTS.interest,
+        source: nextWeights?.source ?? DEFAULT_GRADING_WEIGHTS.source
+      },
+      interestScores: buildScoreRows(cfg.grading?.interestByTag),
+      sourceScores: buildScoreRows(cfg.grading?.sourceWeights),
+      routing: nextRouting,
+      digestPreferredLanguage: cfg.digest?.preferredLanguage ?? "English",
+      skillGeneratorMaxSteps: cfg.agent?.skillGeneratorMaxSteps ?? 40,
+      extractionAgentMaxSteps: cfg.agent?.extractionAgentMaxSteps ?? 20,
+      chatAgentMaxSteps: cfg.agent?.chatAgentMaxSteps ?? 10,
+      digestReferenceLinkBehavior: cfg.ui?.digestReferenceLinkBehavior ?? "internal",
+      externalLinkBehavior: cfg.ui?.externalLinkBehavior ?? "internal"
+    };
   }, [settingsQuery.data]);
+
+  const hasChanges = useMemo(() => {
+    const initial = initialStateRef.current;
+    if (!initial) return false;
+
+    // Compare grading weights
+    if (
+      gradingWeights.importancy !== initial.gradingWeights.importancy ||
+      gradingWeights.quality !== initial.gradingWeights.quality ||
+      gradingWeights.interest !== initial.gradingWeights.interest ||
+      gradingWeights.source !== initial.gradingWeights.source
+    ) {
+      return true;
+    }
+
+    // Compare interest scores (by key and score, ignoring generated ids)
+    const currentInterest = interestScores.map((r) => `${r.key}:${r.score}`).sort().join(",");
+    const initialInterest = initial.interestScores.map((r) => `${r.key}:${r.score}`).sort().join(",");
+    if (currentInterest !== initialInterest) return true;
+
+    // Compare source scores
+    const currentSource = sourceScores.map((r) => `${r.key}:${r.score}`).sort().join(",");
+    const initialSource = initial.sourceScores.map((r) => `${r.key}:${r.score}`).sort().join(",");
+    if (currentSource !== initialSource) return true;
+
+    // Compare routing
+    for (const task of TASKS) {
+      if (routing[task.id] !== initial.routing[task.id]) return true;
+    }
+
+    // Compare simple values
+    if (digestPreferredLanguage !== initial.digestPreferredLanguage) return true;
+    if (skillGeneratorMaxSteps !== initial.skillGeneratorMaxSteps) return true;
+    if (extractionAgentMaxSteps !== initial.extractionAgentMaxSteps) return true;
+    if (chatAgentMaxSteps !== initial.chatAgentMaxSteps) return true;
+    if (digestReferenceLinkBehavior !== initial.digestReferenceLinkBehavior) return true;
+    if (externalLinkBehavior !== initial.externalLinkBehavior) return true;
+
+    return false;
+  }, [
+    gradingWeights,
+    interestScores,
+    sourceScores,
+    routing,
+    digestPreferredLanguage,
+    skillGeneratorMaxSteps,
+    extractionAgentMaxSteps,
+    chatAgentMaxSteps,
+    digestReferenceLinkBehavior,
+    externalLinkBehavior
+  ]);
 
   const missingModelName = catalog.some((entry) => !entry.model.trim());
   const hasCatalog = catalog.length > 0;
-  const saveDisabled = updateSettings.isPending || missingModelName || !hasCatalog;
+  const saveDisabled = updateSettings.isPending || missingModelName || !hasCatalog || !hasChanges;
 
   const handleSave = () => {
     const buildScoreMap = (rows: ScoreRow[]) => {
@@ -230,15 +314,6 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-xl font-semibold text-slate-900">Settings</h2>
-          <p className="text-sm text-slate-500">
-            Configure sources, models, and digest preferences.
-          </p>
-        </div>
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange} className="mt-2">
         <TabsList>
           <TabsTrigger value="general">General</TabsTrigger>
@@ -290,13 +365,15 @@ export function SettingsPage() {
       )}
 
       <div className="flex items-center justify-end gap-2">
-        <Button
-          variant="outline"
-          onClick={() => settingsQuery.refetch()}
-          type="button"
-        >
-          Discard Changes
-        </Button>
+        {hasChanges && (
+          <Button
+            variant="outline"
+            onClick={() => settingsQuery.refetch()}
+            type="button"
+          >
+            Discard Changes
+          </Button>
+        )}
         <Button onClick={handleSave} disabled={saveDisabled} type="button">
           {updateSettings.isPending ? "Saving…" : "Save"}
         </Button>
