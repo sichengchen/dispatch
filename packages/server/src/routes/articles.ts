@@ -194,6 +194,7 @@ export const articlesRouter = t.router({
     )
     .query(({ ctx, input }) => {
       const uniqueIds = Array.from(new Set(input.ids));
+      const gradingConfig = getGradingConfig();
       const rows = ctx.db
         .select({
           id: articles.id,
@@ -202,9 +203,14 @@ export const articlesRouter = t.router({
           url: articles.url,
           summary: articles.summary,
           summaryLong: articles.summaryLong,
+          tags: articles.tags,
+          grade: articles.grade,
+          importancy: articles.importancy,
+          quality: articles.quality,
           publishedAt: articles.publishedAt,
           fetchedAt: articles.fetchedAt,
-          sourceName: sources.name
+          sourceName: sources.name,
+          sourceUrl: sources.url
         })
         .from(articles)
         .leftJoin(sources, eq(articles.sourceId, sources.id))
@@ -212,11 +218,17 @@ export const articlesRouter = t.router({
         .all();
 
       const order = new Map(uniqueIds.map((id, index) => [id, index]));
-      return rows.sort((a, b) => {
-        const left = order.get(a.id) ?? 0;
-        const right = order.get(b.id) ?? 0;
-        return left - right;
-      });
+      return rows
+        .map((row) => {
+          const computed = resolveComputedGrade(row, gradingConfig);
+          const { importancy, quality, sourceUrl, ...rest } = row;
+          return { ...rest, grade: computed };
+        })
+        .sort((a, b) => {
+          const left = order.get(a.id) ?? 0;
+          const right = order.get(b.id) ?? 0;
+          return left - right;
+        });
     }),
   reprocess: t.procedure
     .input(z.object({ id: z.number().int().positive() }))

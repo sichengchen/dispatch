@@ -4,7 +4,6 @@ import { useUiStore } from "./store/ui";
 import { Toaster } from "sonner";
 import { SettingsPage } from "./components/SettingsPage";
 import { HomeDigest } from "./components/HomeDigest";
-import { HomeArticlesList } from "./components/HomeArticlesList";
 import { ArticleViewer } from "./components/ArticleViewer";
 import { DashboardPage } from "./components/DashboardPage";
 import { HistoryPage } from "./components/HistoryPage";
@@ -112,13 +111,10 @@ export default function App() {
       </header>
       <main className="mx-auto w-full max-w-6xl px-6 py-6">
         {activeView === "home" ? (
-          <div className="space-y-6">
-            <HomeDigest
-              onSelectArticle={openArticle}
-              referenceLinkBehavior={digestLinkBehavior}
-            />
-            <HomeArticlesList onSelectArticle={openArticle} />
-          </div>
+          <HomeDigest
+            onSelectArticle={openArticle}
+            referenceLinkBehavior={digestLinkBehavior}
+          />
         ) : activeView === "history" ? (
           <HistoryPage onOpenDigest={openHistoryDetail} />
         ) : activeView === "history-detail" && historyDigestId != null ? (
