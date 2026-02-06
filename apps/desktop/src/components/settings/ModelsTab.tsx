@@ -251,20 +251,15 @@ export function ModelsTab() {
               <Label>Capabilities</Label>
               <Select
                 value={
-                  addFormData.capabilities.includes("chat") &&
                   addFormData.capabilities.includes("embedding")
-                    ? "both"
-                    : addFormData.capabilities.includes("embedding")
-                      ? "embedding"
-                      : "chat"
+                    ? "embedding"
+                    : "chat"
                 }
                 onValueChange={(value) => {
                   const nextCapabilities =
-                    value === "both"
-                      ? (["chat", "embedding"] as const)
-                      : value === "embedding"
-                        ? (["embedding"] as const)
-                        : (["chat"] as const);
+                    value === "embedding"
+                      ? (["embedding"] as const)
+                      : (["chat"] as const);
                   setAddFormData((prev) => ({ ...prev, capabilities: [...nextCapabilities] }));
                 }}
               >
@@ -274,7 +269,6 @@ export function ModelsTab() {
                 <SelectContent>
                   <SelectItem value="chat">Chat</SelectItem>
                   <SelectItem value="embedding">Embeddings</SelectItem>
-                  <SelectItem value="both">Both</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -443,20 +437,15 @@ function ModelCard({
             <Label>Capabilities</Label>
             <Select
               value={
-                editData.capabilities.includes("chat") &&
                 editData.capabilities.includes("embedding")
-                  ? "both"
-                  : editData.capabilities.includes("embedding")
-                    ? "embedding"
-                    : "chat"
+                  ? "embedding"
+                  : "chat"
               }
               onValueChange={(value) => {
                 const nextCapabilities =
-                  value === "both"
-                    ? (["chat", "embedding"] as const)
-                    : value === "embedding"
-                      ? (["embedding"] as const)
-                      : (["chat"] as const);
+                  value === "embedding"
+                    ? (["embedding"] as const)
+                    : (["chat"] as const);
                 setEditData((prev) => ({ ...prev, capabilities: [...nextCapabilities] }));
               }}
             >
@@ -466,7 +455,6 @@ function ModelCard({
               <SelectContent>
                 <SelectItem value="chat">Chat</SelectItem>
                 <SelectItem value="embedding">Embeddings</SelectItem>
-                <SelectItem value="both">Both</SelectItem>
               </SelectContent>
             </Select>
           </div>
