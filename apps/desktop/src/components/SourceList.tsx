@@ -1,5 +1,14 @@
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import {
+  MoreHorizontal,
+  RefreshCw,
+  RotateCcw,
+  Trash2,
+  Wand2,
+  FileCode,
+  X
+} from "lucide-react";
 import { trpc } from "../lib/trpc";
 import { useUiStore } from "../store/ui";
 import { Button } from "./ui/button";
@@ -13,7 +22,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger
+  AlertDialogTrigger,
 } from "./ui/alert-dialog";
 import {
   DropdownMenu,
@@ -65,6 +74,7 @@ export function SourceList() {
     }
   });
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [deleteDialogSourceId, setDeleteDialogSourceId] = useState<number | null>(null);
   const deleteSource = trpc.sources.delete.useMutation({
     onMutate: (input) => {
       setDeletingId(input.id);
@@ -149,62 +159,66 @@ export function SourceList() {
   return (
     <div className="space-y-1">
       {selectedCount > 0 && (
-        <div className="mb-2 rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-xs text-slate-600">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              {selectedCount} source{selectedCount === 1 ? "" : "s"} selected
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-7 px-2 text-xs"
-                type="button"
-                onClick={() => setSelectedIds(new Set())}
-              >
-                Clear
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    type="button"
-                    disabled={deleteMany.isPending}
-                  >
-                    {deleteMany.isPending ? "Deleting…" : "Delete Selected"}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete selected sources?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This will remove {selectedCount} source
-                      {selectedCount === 1 ? "" : "s"} and their articles. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel asChild>
-                      <Button variant="ghost" type="button">
-                        Cancel
-                      </Button>
-                    </AlertDialogCancel>
-                    <AlertDialogAction asChild>
-                      <Button
-                        variant="default"
-                        className="bg-rose-600 hover:bg-rose-700"
-                        type="button"
-                        onClick={() =>
-                          deleteMany.mutate({ ids: Array.from(selectedIds) })
-                        }
-                      >
-                        Delete
-                      </Button>
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+        <div className="mb-2 flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          <span>
+            {selectedCount} source{selectedCount === 1 ? "" : "s"} selected
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-8 w-8 p-0"
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              title="Clear selection"
+            >
+              <X className="h-4 w-4" />
+              <span className="sr-only">Clear selection</span>
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 w-8 p-0 text-rose-600 hover:bg-rose-50 hover:text-rose-600"
+                  type="button"
+                  disabled={deleteMany.isPending}
+                  title="Delete selected"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  <span className="sr-only">Delete selected</span>
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete selected sources?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will remove {selectedCount} source
+                    {selectedCount === 1 ? "" : "s"} and their articles. This
+                    action cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel asChild>
+                    <Button variant="ghost" type="button">
+                      Cancel
+                    </Button>
+                  </AlertDialogCancel>
+                  <AlertDialogAction asChild>
+                    <Button
+                      variant="default"
+                      className="bg-rose-600 hover:bg-rose-700"
+                      type="button"
+                      onClick={() =>
+                        deleteMany.mutate({ ids: Array.from(selectedIds) })
+                      }
+                    >
+                      Delete
+                    </Button>
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       )}
@@ -300,142 +314,109 @@ export function SourceList() {
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {source.healthStatus !== "healthy" ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-6 px-2 text-xs text-blue-600 hover:bg-blue-50"
+                    className="h-7 w-7 p-0"
                     type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      retrySource.mutate({ id: source.id });
-                    }}
-                    disabled={isRetrying || isDeleting}
+                    onClick={(event) => event.stopPropagation()}
                   >
-                    {isRetrying ? "Retrying…" : "Retry"}
+                    <MoreHorizontal className="h-4 w-4" />
+                    <span className="sr-only">Actions</span>
                   </Button>
-                ) : (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs"
-                    type="button"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      refreshSource.mutate({ id: source.id });
-                    }}
-                    disabled={isRefreshing || isDeleting}
-                  >
-                    {isRefreshing ? "Refreshing…" : "Refresh"}
-                  </Button>
-                )}
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 px-2 text-xs text-rose-600 hover:bg-rose-50"
-                      type="button"
-                      onClick={(event) => event.stopPropagation()}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  {source.healthStatus !== "healthy" ? (
+                    <DropdownMenuItem
+                      onClick={() => retrySource.mutate({ id: source.id })}
+                      disabled={isRetrying || isDeleting}
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      {isRetrying ? "Retrying…" : "Retry"}
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem
+                      onClick={() => refreshSource.mutate({ id: source.id })}
                       disabled={isRefreshing || isDeleting}
                     >
-                      {isDeleting ? "Deleting…" : "Delete"}
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete source?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        This will remove “{source.name}” and its articles. This action cannot be undone.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel asChild>
-                        <Button variant="ghost" type="button">
-                          Cancel
-                        </Button>
-                      </AlertDialogCancel>
-                      <AlertDialogAction asChild>
-                        <Button
-                          variant="default"
-                          className="bg-rose-600 hover:bg-rose-700"
-                          type="button"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            deleteSource.mutate({ id: source.id });
-                          }}
-                        >
-                          Delete
-                        </Button>
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                {/* Skill management dropdown for web sources */}
-                {source.type === "web" && (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 px-2 text-xs hover:bg-slate-100"
-                        type="button"
-                        onClick={(event) => event.stopPropagation()}
-                        disabled={regeneratingId === source.id}
-                        title="Skill actions"
-                      >
-                        {regeneratingId === source.id ? (
-                          <span className="flex items-center gap-1">
-                            <span className="animate-spin">⚙</span>
-                            <span className="text-xs">...</span>
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <span>⚙</span>
-                            <span className="text-xs">Skill</span>
-                          </span>
-                        )}
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      {isRefreshing ? "Refreshing…" : "Refresh"}
+                    </DropdownMenuItem>
+                  )}
+                  {source.type === "web" && (
+                    <>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          regenerateSkill.mutate({ id: source.id });
-                        }}
+                        onClick={() => regenerateSkill.mutate({ id: source.id })}
                         disabled={regeneratingId === source.id}
                       >
-                        {regeneratingId === source.id ? (
-                          <span className="flex items-center gap-2">
-                            <span className="animate-spin">⚙</span>
-                            Regenerating...
-                          </span>
-                        ) : (
-                          "Regenerate Skill"
-                        )}
+                        <Wand2 className="mr-2 h-4 w-4" />
+                        {regeneratingId === source.id ? "Regenerating…" : "Regenerate Skill"}
                       </DropdownMenuItem>
                       {source.hasSkill && (
-                        <>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openSkillFile(source.id);
-                            }}
-                          >
-                            Open Skill File
-                          </DropdownMenuItem>
-                        </>
+                        <DropdownMenuItem onClick={() => openSkillFile(source.id)}>
+                          <FileCode className="mr-2 h-4 w-4" />
+                          Open Skill File
+                        </DropdownMenuItem>
                       )}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )}
-              </div>
+                    </>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    className="text-rose-600 focus:text-rose-600"
+                    onClick={() => setDeleteDialogSourceId(source.id)}
+                    disabled={isRefreshing || isDeleting}
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isDeleting ? "Deleting…" : "Delete"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         );
       })}
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog
+        open={deleteDialogSourceId !== null}
+        onOpenChange={(open) => !open && setDeleteDialogSourceId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete source?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will remove "
+              {sources.find((s) => s.id === deleteDialogSourceId)?.name}" and
+              its articles. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel asChild>
+              <Button variant="ghost" type="button">
+                Cancel
+              </Button>
+            </AlertDialogCancel>
+            <AlertDialogAction asChild>
+              <Button
+                variant="default"
+                className="bg-rose-600 hover:bg-rose-700"
+                type="button"
+                onClick={() => {
+                  if (deleteDialogSourceId !== null) {
+                    deleteSource.mutate({ id: deleteDialogSourceId });
+                    setDeleteDialogSourceId(null);
+                  }
+                }}
+              >
+                Delete
+              </Button>
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

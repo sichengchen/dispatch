@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { Button } from "../ui/button";
 import { ChatDialog } from "./ChatDialog";
 
@@ -12,7 +13,8 @@ export function AddSourceChat() {
   return (
     <>
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-        + Add
+        <Plus className="mr-1 h-4 w-4" />
+        Add
       </Button>
       <ChatDialog
         open={open}
