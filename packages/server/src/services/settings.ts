@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
-import type { ModelsConfig, ModelCatalogEntry } from "@dispatch/lib";
+import type { ModelsConfig, ModelCatalogEntry, Provider } from "@dispatch/lib";
 import { getDefaultModelsConfig } from "@dispatch/lib";
 
 const assignmentSchema = z.object({
@@ -9,18 +9,22 @@ const assignmentSchema = z.object({
   modelId: z.string().min(1)
 });
 
+const providerSchema: z.ZodType<Provider> = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  type: z.enum(["anthropic", "openai-compatible"]),
+  credentials: z.object({
+    apiKey: z.string().min(1),
+    baseUrl: z.string().url().optional()
+  })
+});
+
 const catalogSchema: z.ZodType<ModelCatalogEntry> = z.object({
   id: z.string().min(1),
-  providerType: z.enum(["anthropic", "openai", "mock"]),
+  providerId: z.string().optional(),
   model: z.string().min(1),
-  label: z.string().min(1).optional(),
-  capabilities: z.array(z.enum(["chat", "embedding"])).optional(),
-  providerConfig: z
-    .object({
-      apiKey: z.string().min(1).optional(),
-      baseUrl: z.string().url().optional()
-    })
-    .optional()
+  label: z.string().optional(),
+  capabilities: z.array(z.enum(["chat", "embedding"])).optional()
 });
 
 const modelsConfigSchema: z.ZodType<ModelsConfig> = z.object({
@@ -80,6 +84,7 @@ const agentConfigSchema = z.object({
 });
 
 const settingsSchema = z.object({
+  providers: z.array(providerSchema).optional(),
   models: modelsConfigSchema,
   ui: uiConfigSchema.optional(),
   grading: gradingConfigSchema.optional(),
@@ -177,6 +182,8 @@ export function getDataPaths(): { userDataPath: string; settingsPath: string } {
   return { userDataPath, settingsPath };
 }
 
+// Migration code removed - users should reconfigure providers/models with new UI
+
 export function loadSettings(): Settings {
   const filePath = getSettingsPath();
   if (!fs.existsSync(filePath)) {
@@ -194,7 +201,9 @@ export function loadSettings(): Settings {
     console.warn("Failed to parse settings file, using defaults.", err);
     return { models: getDefaultModelsConfig() };
   }
+
   const merged = {
+    providers: parsed.providers ?? [],
     models: parsed.models ?? getDefaultModelsConfig(),
     ui: parsed.ui,
     grading: parsed.grading ?? getDefaultGradingConfig(),
@@ -205,6 +214,7 @@ export function loadSettings(): Settings {
   };
 
   return settingsSchema.parse({
+    providers: merged.providers,
     models: merged.models,
     ui: merged.ui,
     grading: merged.grading,
@@ -237,6 +247,10 @@ export function updateModelsConfig(next: ModelsConfig): ModelsConfig {
 
 export function getModelsConfig(): ModelsConfig {
   return loadSettings().models;
+}
+
+export function getProviders(): Provider[] {
+  return loadSettings().providers ?? [];
 }
 
 export function getUiConfig(): UiConfig {

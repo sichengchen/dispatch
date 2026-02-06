@@ -10,6 +10,7 @@ import {
   getSkillPath,
   skillExists,
 } from "../services/skill-generator";
+import { startTaskRun, finishTaskRun } from "../services/task-log";
 
 export const sourcesRouter = t.router({
   list: t.procedure.query(({ ctx }) => {
@@ -176,20 +177,39 @@ export const sourcesRouter = t.router({
         throw new TRPCError({ code: "NOT_FOUND", message: "Source not found" });
       }
 
-      const result = await regenerateSkill(source.id);
-      
-      if (!result.success) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: result.error ?? "Failed to regenerate skill",
-        });
-      }
+      const runId = startTaskRun("skill", `Regenerate Skill: ${source.name}`, {
+        sourceId: source.id,
+        sourceName: source.name
+      });
 
-      return {
-        ok: true,
-        skillPath: result.skillPath,
-        validationResult: result.validationResult,
-      };
+      try {
+        const result = await regenerateSkill(source.id);
+
+        if (!result.success) {
+          finishTaskRun(runId, "error", {
+            error: result.error ?? "Failed to regenerate skill"
+          });
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: result.error ?? "Failed to regenerate skill",
+          });
+        }
+
+        finishTaskRun(runId, "success", {
+          skillPath: result.skillPath
+        });
+
+        return {
+          ok: true,
+          skillPath: result.skillPath,
+          validationResult: result.validationResult,
+        };
+      } catch (err) {
+        finishTaskRun(runId, "error", {
+          error: err instanceof Error ? err.message : String(err)
+        });
+        throw err;
+      }
     }),
   openSkillFile: t.procedure
     .input(z.object({ id: z.number().int().positive() }))

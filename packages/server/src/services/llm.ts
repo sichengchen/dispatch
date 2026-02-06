@@ -14,6 +14,7 @@ import {
 import {
   getGradingConfig,
   getModelsConfig,
+  getProviders,
   type GradingConfig
 } from "./settings";
 import {
@@ -229,39 +230,25 @@ function getCatalogEntry(config: ModelsConfig, modelId: string) {
   return config.catalog?.find((entry) => entry.id === modelId);
 }
 
-function resolveOpenAiApiKey(config: ModelsConfig, modelConfig: ModelConfig) {
-  if (modelConfig.providerType !== "openai") {
-    return null;
-  }
-  const entry = getCatalogEntry(config, modelConfig.modelId);
-  const entryKey = entry?.providerConfig?.apiKey?.trim();
-  return entryKey || null;
-}
-
-function resolveOpenAiBaseUrl(config: ModelsConfig, modelConfig: ModelConfig) {
-  if (modelConfig.providerType !== "openai") {
-    return null;
-  }
-  const entry = getCatalogEntry(config, modelConfig.modelId);
-  const entryBaseUrl = entry?.providerConfig?.baseUrl?.trim();
-  return entryBaseUrl || null;
-}
-
 function resolveProviderOverrides(
   config: ModelsConfig,
-  modelConfig: ModelConfig
+  modelConfig: ModelConfig,
+  providers: import("@dispatch/lib").Provider[]
 ): ProviderKeyMap | undefined {
   const entry = getCatalogEntry(config, modelConfig.modelId);
-  if (!entry?.providerConfig) return undefined;
+  if (!entry?.providerId) return undefined;
+
+  const provider = providers.find(p => p.id === entry.providerId);
+  if (!provider) return undefined;
 
   if (modelConfig.providerType === "anthropic") {
-    const apiKey = entry.providerConfig.apiKey?.trim();
+    const apiKey = provider.credentials.apiKey?.trim();
     return apiKey ? { anthropic: apiKey } : undefined;
   }
 
   if (modelConfig.providerType === "openai") {
-    const apiKey = entry.providerConfig.apiKey?.trim();
-    const baseUrl = entry.providerConfig.baseUrl?.trim();
+    const apiKey = provider.credentials.apiKey?.trim();
+    const baseUrl = provider.credentials.baseUrl?.trim();
     if (!apiKey || !baseUrl) return undefined;
     return { openai: { apiKey, baseUrl } };
   }
@@ -275,9 +262,10 @@ export async function callLlm(
   configOverride?: ModelsConfig
 ): Promise<string> {
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, task);
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, task, providers);
   const entry = getCatalogEntry(config, modelConfig.modelId);
-  const providerOverrides = resolveProviderOverrides(config, modelConfig);
+  const providerOverrides = resolveProviderOverrides(config, modelConfig, providers);
 
   if (modelConfig.providerType === "mock") {
     return `Mock ${task} response`;
@@ -287,11 +275,14 @@ export async function callLlm(
     throw new Error(`Model not found in catalog: ${modelConfig.modelId}`);
   }
 
+  // Get provider credentials
+  const modelProvider = entry.providerId ? providers.find(p => p.id === entry.providerId) : undefined;
+
   if (modelConfig.providerType === "openai") {
     const chatEndpoint = process.env.DISPATCH_LLM_CHAT_ENDPOINT;
-    const baseUrl = resolveOpenAiBaseUrl(config, modelConfig);
+    const baseUrl = modelProvider?.credentials.baseUrl;
     if (chatEndpoint && !baseUrl) {
-      const apiKey = resolveOpenAiApiKey(config, modelConfig);
+      const apiKey = modelProvider?.credentials.apiKey;
       const response = await fetch(chatEndpoint, {
         method: "POST",
         headers: {
@@ -371,7 +362,8 @@ export async function summarizeArticle(
   }
 
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "summarize");
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "summarize", providers);
 
   if (modelConfig.providerType === "mock") {
     const short = trimmed.split("\n")[0].slice(0, 140);
@@ -399,7 +391,8 @@ export async function classifyArticle(
   if (!trimmed) return [];
 
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "classify");
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "classify", providers);
 
   if (modelConfig.providerType === "mock") {
     return ["technology", "general"];
@@ -457,7 +450,8 @@ export async function gradeArticle(
   const gradingConfig = gradingOverride ?? getGradingConfig();
 
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "grade");
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "grade", providers);
 
   let base = {
     importancy: 5,
@@ -521,7 +515,8 @@ export async function summarizeArticleFull(
   }
 
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "summarize");
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "summarize", providers);
 
   if (modelConfig.providerType === "mock") {
     const short = trimmed.split("\n")[0].slice(0, 100);

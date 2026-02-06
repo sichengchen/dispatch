@@ -10,6 +10,7 @@
     "test": "pnpm run build"
   },
   "dependencies": {
+    "@dispatch/lib": "workspace:*",
     "@dispatch/server": "workspace:*"
   }
 }

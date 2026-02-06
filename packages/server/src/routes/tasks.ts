@@ -125,6 +125,7 @@ export const tasksRouter = t.router({
       },
       ingestionRuns: listTaskRuns({ kind: "fetch-source", limit: 5 }),
       pipelineRuns: listTaskRuns({ kind: "pipeline-article", limit: 5 }),
+      skillRuns: listTaskRuns({ kind: "skill", limit: 5 }),
       recentRuns: listTaskRuns({ limit: 8 }),
       scheduledTasks: [
         {

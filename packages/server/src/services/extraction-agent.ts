@@ -11,7 +11,7 @@ import { generateText, stepCountIs, tool, zodSchema } from "ai";
 import { z } from "zod";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { getModelsConfig, getAgentConfig } from "./settings";
+import { getModelsConfig, getProviders, getAgentConfig } from "./settings";
 import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/lib";
 import { getSkillPath, skillExists } from "./skill-generator";
 import { processArticle } from "./llm";
@@ -364,17 +364,22 @@ export async function extractArticles(
   
   // Get model config
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "skill");
-  
-  // Find provider config from catalog
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "skill", providers);
+
+  // Find provider from catalog entry
   const catalogEntry = config.catalog?.find(e => e.id === modelConfig.modelId);
-  const providerConfig = catalogEntry?.providerConfig;
-  
+  const provider = catalogEntry?.providerId ? providers.find(p => p.id === catalogEntry.providerId) : undefined;
+
+  if (!provider) {
+    throw new Error(`No provider found for model ${modelConfig.modelId}`);
+  }
+
   const providerMap = createProviderMap({
-    anthropic: providerConfig?.apiKey,
-    openai: providerConfig ? {
-      apiKey: providerConfig.apiKey ?? "",
-      baseUrl: providerConfig.baseUrl ?? ""
+    anthropic: provider.type === "anthropic" ? provider.credentials.apiKey : undefined,
+    openai: provider.type === "openai-compatible" ? {
+      apiKey: provider.credentials.apiKey,
+      baseUrl: provider.credentials.baseUrl ?? ""
     } : undefined
   });
   

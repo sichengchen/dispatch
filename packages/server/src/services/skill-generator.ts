@@ -9,7 +9,7 @@ import { db, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { callLlm } from "./llm";
 import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/lib";
-import { getModelsConfig, getDataPaths, getAgentConfig } from "./settings";
+import { getModelsConfig, getProviders, getDataPaths, getAgentConfig } from "./settings";
 
 // ---------------------------------------------------------------------------
 // Skill schema and types
@@ -517,17 +517,22 @@ async function discoverSkillWithAgent(
   console.log(`[skill-generator] Starting agentic skill discovery for ${sourceName}`);
 
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "skill");
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "skill", providers);
 
-  // Find provider config from catalog
+  // Find provider from catalog entry
   const catalogEntry = config.catalog?.find(e => e.id === modelConfig.modelId);
-  const providerConfig = catalogEntry?.providerConfig;
+  const provider = catalogEntry?.providerId ? providers.find(p => p.id === catalogEntry.providerId) : undefined;
+
+  if (!provider) {
+    throw new Error(`No provider found for model ${modelConfig.modelId}`);
+  }
 
   const providerMap = createProviderMap({
-    anthropic: providerConfig?.apiKey,
-    openai: providerConfig ? {
-      apiKey: providerConfig.apiKey ?? "",
-      baseUrl: providerConfig.baseUrl ?? ""
+    anthropic: provider.type === "anthropic" ? provider.credentials.apiKey : undefined,
+    openai: provider.type === "openai-compatible" ? {
+      apiKey: provider.credentials.apiKey,
+      baseUrl: provider.credentials.baseUrl ?? ""
     } : undefined
   });
 

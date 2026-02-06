@@ -5,7 +5,7 @@ import type { Connection, Table } from "@lancedb/lancedb";
 import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { getModelConfig, type ModelsConfig } from "@dispatch/lib";
-import { getModelsConfig } from "./settings";
+import { getModelsConfig, getProviders } from "./settings";
 
 const TABLE_NAME = "articles_vectors";
 const DEFAULT_MAX_CHARS = 6000;
@@ -51,14 +51,9 @@ function shouldUseMockEmbedding(configOverride?: ModelsConfig): boolean {
   if (process.env.DISPATCH_VECTOR_EMBEDDING_MODE === "mock") return true;
   if (process.env.DISPATCH_DISABLE_LLM === "1") return true;
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "embed");
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "embed", providers);
   if (modelConfig.providerType === "mock") return true;
-  if (configOverride?.assignment?.length) {
-    return configOverride.assignment.every((assignment) => {
-      const entry = configOverride.catalog?.find((item) => item.id === assignment.modelId);
-      return entry?.providerType === "mock";
-    });
-  }
   return false;
 }
 
@@ -106,7 +101,8 @@ function truncateForEmbedding(text: string): string {
 
 function resolveEmbeddingConfig(configOverride?: ModelsConfig) {
   const config = configOverride ?? getModelsConfig();
-  const modelConfig = getModelConfig(config, "embed");
+  const providers = getProviders();
+  const modelConfig = getModelConfig(config, "embed", providers);
 
   if (modelConfig.providerType === "mock") {
     return { mode: "mock" as const };
@@ -122,10 +118,11 @@ function resolveEmbeddingConfig(configOverride?: ModelsConfig) {
       "Selected embeddings model is not marked for embeddings. Update the model capabilities in Settings."
     );
   }
-  const apiKey =
-    entry?.providerConfig?.apiKey?.trim();
-  const baseUrl =
-    entry?.providerConfig?.baseUrl?.trim();
+  const provider = entry?.providerId
+    ? providers.find(p => p.id === entry.providerId)
+    : undefined;
+  const apiKey = provider?.credentials?.apiKey?.trim();
+  const baseUrl = provider?.credentials?.baseUrl?.trim();
   const normalizedBaseUrl = baseUrl?.replace(/\/$/, "");
   const inferredEndpoint = normalizedBaseUrl ? `${normalizedBaseUrl}/embeddings` : undefined;
   const endpoint =

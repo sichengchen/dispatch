@@ -1,18 +1,19 @@
+import type { Provider, DiscoveredModel } from "@dispatch/api";
+
 export type Task = "summarize" | "classify" | "grade" | "embed" | "digest" | "skill";
 
 export type ProviderType = "anthropic" | "openai" | "mock";
 
 export type CatalogEntry = {
   id: string;
-  providerType: ProviderType;
+  providerId?: string;
   model: string;
   label: string;
   capabilities: Array<"chat" | "embedding">;
-  providerConfig: {
-    apiKey: string;
-    baseUrl: string;
-  };
 };
+
+// Re-export Provider and DiscoveredModel for convenience
+export type { Provider, DiscoveredModel };
 
 export type RoutingState = Record<Task, string>;
 
@@ -71,17 +72,5 @@ export function formatWeight(value: number) {
 }
 
 export function buildDefaultCatalog(): CatalogEntry[] {
-  return [
-    {
-      id: createFallbackId("anthropic", DEFAULT_MODEL),
-      providerType: "anthropic",
-      model: DEFAULT_MODEL,
-      label: "Claude 3.5 Sonnet",
-      capabilities: ["chat"],
-      providerConfig: {
-        apiKey: "",
-        baseUrl: ""
-      }
-    }
-  ];
+  return [];
 }

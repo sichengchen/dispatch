@@ -22,7 +22,6 @@ export function RouterTab({ catalog, routing, setRouting }: RouterTabProps) {
       {TASKS.map((task) => {
         const selectedId = routing[task.id];
         const options = catalog.filter((entry) => {
-          if (entry.providerType === "mock") return true;
           if (task.id === "embed") return entry.capabilities.includes("embedding");
           return entry.capabilities.includes("chat") || entry.capabilities.length === 0;
         });
@@ -52,7 +51,7 @@ export function RouterTab({ catalog, routing, setRouting }: RouterTabProps) {
                 <SelectContent>
                   {options.map((entry) => (
                     <SelectItem key={entry.id} value={entry.id}>
-                      {entry.label?.trim() || entry.model} ({entry.providerType})
+                      {entry.label?.trim() || entry.model}
                     </SelectItem>
                   ))}
                 </SelectContent>

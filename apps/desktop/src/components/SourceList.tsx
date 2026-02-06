@@ -103,13 +103,14 @@ export function SourceList() {
   const regenerateSkill = trpc.sources.regenerateSkill.useMutation({
     onMutate: (input) => {
       setRegeneratingId(input.id);
+      toast.loading("Regenerating skill...", { id: `regenerate-${input.id}` });
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       utils.sources.list.invalidate();
-      toast.success("Skill regenerated");
+      toast.success("Skill regenerated successfully", { id: `regenerate-${variables.id}` });
     },
-    onError: (err) => {
-      toast.error(err.message || "Skill regeneration failed");
+    onError: (err, variables) => {
+      toast.error(err.message || "Skill regeneration failed", { id: `regenerate-${variables.id}` });
     },
     onSettled: () => {
       setRegeneratingId(null);
@@ -368,12 +369,23 @@ export function SourceList() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-6 px-2 text-xs"
+                        className="h-6 px-2 text-xs hover:bg-slate-100"
                         type="button"
                         onClick={(event) => event.stopPropagation()}
                         disabled={regeneratingId === source.id}
+                        title="Skill actions"
                       >
-                        {regeneratingId === source.id ? "..." : "⚙"}
+                        {regeneratingId === source.id ? (
+                          <span className="flex items-center gap-1">
+                            <span className="animate-spin">⚙</span>
+                            <span className="text-xs">...</span>
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <span>⚙</span>
+                            <span className="text-xs">Skill</span>
+                          </span>
+                        )}
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -384,7 +396,14 @@ export function SourceList() {
                         }}
                         disabled={regeneratingId === source.id}
                       >
-                        {regeneratingId === source.id ? "Regenerating..." : "Regenerate Skill"}
+                        {regeneratingId === source.id ? (
+                          <span className="flex items-center gap-2">
+                            <span className="animate-spin">⚙</span>
+                            Regenerating...
+                          </span>
+                        ) : (
+                          "Regenerate Skill"
+                        )}
                       </DropdownMenuItem>
                       {source.hasSkill && (
                         <>

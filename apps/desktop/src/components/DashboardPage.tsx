@@ -162,8 +162,10 @@ export function DashboardPage() {
   // Check if there are any running tasks
   const ingestionRuns = (dashboard?.ingestionRuns ?? []) as TaskRun[];
   const pipelineRuns = (dashboard?.pipelineRuns ?? []) as TaskRun[];
+  const skillRuns = (dashboard?.skillRuns ?? []) as TaskRun[];
   const hasRunningTasks = ingestionRuns.some(r => r.status === "running") ||
-    pipelineRuns.some(r => r.status === "running");
+    pipelineRuns.some(r => r.status === "running") ||
+    skillRuns.some(r => r.status === "running");
 
   // Auto-adjust polling speed based on activity
   useEffect(() => {
@@ -432,7 +434,8 @@ export function DashboardPage() {
           {(() => {
             const runningFetches = ingestionRuns.filter((r) => r.status === "running");
             const runningPipeline = pipelineRuns.filter((r) => r.status === "running");
-            const hasActivity = runningFetches.length > 0 || runningPipeline.length > 0 ||
+            const runningSkills = skillRuns.filter((r) => r.status === "running");
+            const hasActivity = runningFetches.length > 0 || runningPipeline.length > 0 || runningSkills.length > 0 ||
               runFetch.isPending || runPipeline.isPending || generateDigest.isPending;
 
             const pipelineStages = ["classify", "grade", "summarize", "vectorize"];
@@ -596,6 +599,62 @@ export function DashboardPage() {
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  );
+                })}
+                {runningSkills.map((run) => {
+                  const meta = run.meta ?? {};
+                  const sourceName = meta.sourceName ? String(meta.sourceName) : run.label;
+                  return (
+                    <div
+                      key={run.id}
+                      className="rounded-lg border border-purple-200 bg-purple-50 px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 w-2 animate-pulse rounded-full bg-purple-500" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-slate-900">Skill Regeneration</span>
+                            <Badge variant="outline" className="text-xs border-purple-300 text-purple-700">
+                              {getElapsed(run.startedAt)}
+                            </Badge>
+                          </div>
+                          <div className="text-sm text-slate-700 truncate">{sourceName}</div>
+                        </div>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-purple-700 hover:text-purple-900 hover:bg-purple-100"
+                              disabled={stopTask.isPending}
+                            >
+                              Stop
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Stop this task?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                This will cancel the skill regeneration. You can restart it later from the source list.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel asChild>
+                                <Button variant="ghost">Cancel</Button>
+                              </AlertDialogCancel>
+                              <AlertDialogAction asChild>
+                                <Button
+                                  variant="default"
+                                  onClick={() => stopTask.mutate({ runId: run.id })}
+                                >
+                                  Stop Task
+                                </Button>
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       </div>
                     </div>
                   );

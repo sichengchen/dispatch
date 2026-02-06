@@ -5,20 +5,18 @@ import { Button } from "./ui/button";
 import { GeneralTab } from "./settings/GeneralTab";
 import { ModelsTab } from "./settings/ModelsTab";
 import { RouterTab } from "./settings/RouterTab";
+import { ProvidersSection } from "./settings/ProvidersSection";
 import {
   type CatalogEntry,
   type GradingWeights,
-  type ProviderType,
   type RoutingState,
   type ScoreRow,
   TASKS,
   DEFAULT_GRADING_WEIGHTS,
-  buildDefaultCatalog,
-  createFallbackId,
   generateId
 } from "./settings/types";
 
-type Tab = "general" | "models" | "router";
+type Tab = "general" | "providers" | "models" | "router";
 
 function clampNumber(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) return min;
@@ -40,7 +38,10 @@ function resolveCatalogEntry(entries: CatalogEntry[], modelId: string) {
 
 export function SettingsPage() {
   const [activeTab, setActiveTab] = useState<Tab>("general");
-  const settingsQuery = trpc.settings.get.useQuery();
+  const settingsQuery = trpc.settings.get.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    refetchOnMount: false
+  });
   const updateSettings = trpc.settings.update.useMutation({
     onSuccess: () => {
       settingsQuery.refetch();
@@ -57,15 +58,15 @@ export function SettingsPage() {
   );
   const [interestScores, setInterestScores] = useState<ScoreRow[]>([]);
   const [sourceScores, setSourceScores] = useState<ScoreRow[]>([]);
-  const [catalog, setCatalog] = useState<CatalogEntry[]>(buildDefaultCatalog());
-  const [routing, setRouting] = useState<RoutingState>(() => ({
-    summarize: createFallbackId("anthropic", "claude-3-5-sonnet-20240620"),
-    classify: createFallbackId("anthropic", "claude-3-5-sonnet-20240620"),
-    grade: createFallbackId("anthropic", "claude-3-5-sonnet-20240620"),
-    embed: createFallbackId("mock", "mock"),
-    digest: createFallbackId("anthropic", "claude-3-5-sonnet-20240620"),
-    skill: createFallbackId("anthropic", "claude-3-5-sonnet-20240620")
-  }));
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [routing, setRouting] = useState<RoutingState>({
+    summarize: "",
+    classify: "",
+    grade: "",
+    embed: "",
+    digest: "",
+    skill: ""
+  });
   const [digestPreferredLanguage, setDigestPreferredLanguage] = useState("English");
   const [skillGeneratorMaxSteps, setSkillGeneratorMaxSteps] = useState(100);
   const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
@@ -94,18 +95,10 @@ export function SettingsPage() {
       llm.catalog && llm.catalog.length > 0
         ? llm.catalog.map((entry) => ({
             id: entry.id,
-            providerType: entry.providerType as ProviderType,
+            providerId: entry.providerId,
             model: entry.model,
             label: entry.label ?? "",
-            capabilities:
-              entry.capabilities ??
-              (entry.providerType === "mock"
-                ? ["chat", "embedding"]
-                : ["chat"]),
-            providerConfig: {
-              apiKey: entry.providerConfig?.apiKey ?? "",
-              baseUrl: entry.providerConfig?.baseUrl ?? ""
-            }
+            capabilities: entry.capabilities ?? ["chat"]
           }))
         : [];
 
@@ -125,11 +118,9 @@ export function SettingsPage() {
         if (!entry) {
           entry = {
             id: assignment.modelId,
-            providerType: "mock",
             model: "unknown",
             label: "Missing model",
-            capabilities: ["chat"],
-            providerConfig: { apiKey: "", baseUrl: "" }
+            capabilities: ["chat"]
           };
           nextCatalog.push(entry);
         }
@@ -137,37 +128,16 @@ export function SettingsPage() {
       }
     }
 
-    if (nextCatalog.length === 0) {
-      nextCatalog.push(...buildDefaultCatalog());
-    }
-
-    const supportsTask = (entry: CatalogEntry, task: string) => {
-      if (entry.providerType === "mock") return true;
-      const capabilities = entry.capabilities ?? [];
-      if (task === "embed") return capabilities.includes("embedding");
-      return capabilities.includes("chat") || capabilities.length === 0;
-    };
-
-    const getEmbeddingFallback = () => {
-      const compatible = nextCatalog.find((entry) => supportsTask(entry, "embed"));
-      if (compatible) return compatible;
-      const mockEntry: CatalogEntry = {
-        id: createFallbackId("mock", "mock"),
-        providerType: "mock",
-        model: "mock",
-        label: "Mock Embedding",
-        capabilities: ["chat", "embedding"],
-        providerConfig: { apiKey: "", baseUrl: "" }
+    // Only auto-assign routing if there are models in the catalog
+    if (nextCatalog.length > 0) {
+      const supportsTask = (entry: CatalogEntry, task: string) => {
+        const capabilities = entry.capabilities ?? [];
+        if (task === "embed") return capabilities.includes("embedding");
+        return capabilities.includes("chat") || capabilities.length === 0;
       };
-      nextCatalog.push(mockEntry);
-      return mockEntry;
-    };
 
-    for (const task of TASKS) {
-      if (!nextRouting[task.id]) {
-        if (task.id === "embed") {
-          nextRouting[task.id] = getEmbeddingFallback().id;
-        } else {
+      for (const task of TASKS) {
+        if (!nextRouting[task.id]) {
           const fallback = nextCatalog.find((entry) => supportsTask(entry, task.id));
           nextRouting[task.id] = (fallback ?? nextCatalog[0]).id;
         }
@@ -205,78 +175,25 @@ export function SettingsPage() {
     const interestByTag = buildScoreMap(interestScores);
     const sourceWeightsMap = buildScoreMap(sourceScores);
 
-    const resolvedCatalog = (catalog.length ? catalog : buildDefaultCatalog()).map(
-      (entry) => {
-        const label = entry.label.trim();
-        const apiKey = entry.providerConfig.apiKey.trim();
-        const baseUrl = entry.providerConfig.baseUrl.trim();
-        const capabilities: Array<"chat" | "embedding"> = entry.capabilities.length
-          ? entry.capabilities
-          : ["chat"];
-        const providerConfig =
-          entry.providerType === "anthropic"
-            ? apiKey
-              ? { apiKey }
-              : undefined
-            : entry.providerType === "openai"
-              ? apiKey || baseUrl
-                ? {
-                    ...(apiKey ? { apiKey } : {}),
-                    ...(baseUrl ? { baseUrl } : {})
-                  }
-                : undefined
-              : undefined;
-        return {
-          id: entry.id,
-          providerType: entry.providerType,
-          model: entry.model.trim(),
-          label: label || undefined,
-          capabilities,
-          providerConfig
-        };
-      }
-    );
-
-    const ensureEmbeddingEntry = () => {
-      const compatible = resolvedCatalog.find(
-        (entry) =>
-          entry.providerType === "mock" || entry.capabilities?.includes("embedding")
-      );
-      if (compatible) return compatible;
-      const mockEntry: CatalogEntry = {
-        id: createFallbackId("mock", "mock"),
-        providerType: "mock",
-        model: "mock",
-        label: "Mock Embedding",
-        capabilities: ["chat", "embedding"],
-        providerConfig: { apiKey: "", baseUrl: "" }
-      };
-      resolvedCatalog.push(mockEntry);
-      return mockEntry;
-    };
-
-    const resolvedModels = TASKS.map((task) => {
-      let entry =
-        resolvedCatalog.find((item) => item.id === routing[task.id]) ??
-        resolvedCatalog[0];
-      if (task.id === "embed") {
-        const isCompatible =
-          entry?.providerType === "mock" || entry?.capabilities?.includes("embedding");
-        if (!isCompatible) {
-          entry = ensureEmbeddingEntry();
-        }
-      }
+    // Only create assignments for tasks with valid model routing
+    const resolvedModels = TASKS.filter((task) => {
+      const routedModelId = routing[task.id];
+      return routedModelId && catalog.find((item) => item.id === routedModelId);
+    }).map((task) => {
       return {
         task: task.id,
-        modelId: entry.id
+        modelId: routing[task.id]
       };
     });
 
     const existingDigest = settingsQuery.data?.digest;
+    const existingProviders = settingsQuery.data?.providers ?? [];
+    const existingCatalog = settingsQuery.data?.models.catalog ?? [];
     updateSettings.mutate({
+      providers: existingProviders,
       models: {
         assignment: resolvedModels,
-        catalog: resolvedCatalog
+        catalog: existingCatalog
       },
       ui: {
         verbose: verboseMode
@@ -321,6 +238,14 @@ export function SettingsPage() {
         </Button>
         <Button
           size="sm"
+          variant={activeTab === "providers" ? "default" : "outline"}
+          onClick={() => setActiveTab("providers")}
+          type="button"
+        >
+          Providers
+        </Button>
+        <Button
+          size="sm"
           variant={activeTab === "models" ? "default" : "outline"}
           onClick={() => setActiveTab("models")}
           type="button"
@@ -356,9 +281,9 @@ export function SettingsPage() {
         />
       )}
 
-      {activeTab === "models" && (
-        <ModelsTab catalog={catalog} setCatalog={setCatalog} setRouting={setRouting} />
-      )}
+      {activeTab === "providers" && <ProvidersSection />}
+
+      {activeTab === "models" && <ModelsTab />}
 
       {activeTab === "router" && (
         <RouterTab catalog={catalog} routing={routing} setRouting={setRouting} />
@@ -373,10 +298,10 @@ export function SettingsPage() {
       <div className="flex items-center justify-end gap-2">
         <Button
           variant="outline"
-          onClick={() => setActiveTab("general")}
+          onClick={() => settingsQuery.refetch()}
           type="button"
         >
-          Reset View
+          Discard Changes
         </Button>
         <Button onClick={handleSave} disabled={saveDisabled} type="button">
           {updateSettings.isPending ? "Saving…" : "Save"}

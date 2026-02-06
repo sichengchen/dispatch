@@ -15,13 +15,30 @@ export type ModelProviderConfig = {
   baseUrl?: string;
 };
 
+// Provider type for provider-based model management
+export type Provider = {
+  id: string;
+  name: string;
+  type: "anthropic" | "openai-compatible";
+  credentials: {
+    apiKey: string;
+    baseUrl?: string;
+  };
+};
+
+// Discovered model from provider API
+export type DiscoveredModel = {
+  id: string;
+  name: string;
+  capabilities: Array<"chat" | "embedding">;
+};
+
 export type ModelCatalogEntry = {
   id: string;
-  providerType: ProviderType;
+  providerId?: string;
   model: string;
   label?: string;
   capabilities?: Array<"chat" | "embedding">;
-  providerConfig?: ModelProviderConfig;
 };
 
 export type ModelAssignment = {
@@ -42,73 +59,44 @@ export type ModelsConfig = {
 };
 
 export function getDefaultModelsConfig(): ModelsConfig {
-  const defaultModel = "claude-3-5-sonnet-20240620";
   return {
-    assignment: [
-      {
-        task: "summarize",
-        modelId: `anthropic:${defaultModel}`
-      },
-      {
-        task: "embed",
-        modelId: "mock:mock"
-      }
-    ],
-    catalog: [
-      {
-        id: `anthropic:${defaultModel}`,
-        providerType: "anthropic",
-        model: defaultModel,
-        label: "Claude 3.5 Sonnet",
-        capabilities: ["chat"]
-      },
-      {
-        id: "mock:mock",
-        providerType: "mock",
-        model: "mock",
-        label: "Mock",
-        capabilities: ["chat", "embedding"]
-      }
-    ]
+    assignment: [],
+    catalog: []
   };
 }
 
-export function getModelConfig(config: ModelsConfig, task: LlmTask): ModelConfig {
+export function getModelConfig(
+  config: ModelsConfig,
+  task: LlmTask,
+  providers?: Provider[]
+): ModelConfig {
   const assignment = config.assignment.find((item) => item.task === task);
   const fromCatalog = assignment
     ? config.catalog?.find((entry) => entry.id === assignment.modelId)
     : undefined;
 
   if (assignment && fromCatalog) {
+    // Derive providerType from the provider
+    let providerType: ProviderType = "mock";
+    if (fromCatalog.providerId && providers) {
+      const provider = providers.find((p) => p.id === fromCatalog.providerId);
+      if (provider) {
+        providerType = provider.type === "anthropic" ? "anthropic" : "openai";
+      }
+    }
+
     return {
       task,
       modelId: fromCatalog.id,
-      providerType: fromCatalog.providerType,
+      providerType,
       model: fromCatalog.model
     };
   }
 
-  const fallback = getDefaultModelsConfig();
-  const fallbackAssignment = fallback.assignment.find((item) => item.task === task);
-  const fallbackEntry = fallbackAssignment
-    ? fallback.catalog?.find((entry) => entry.id === fallbackAssignment.modelId)
-    : undefined;
-
-  if (fallbackAssignment && fallbackEntry) {
-    return {
-      task,
-      modelId: fallbackEntry.id,
-      providerType: fallbackEntry.providerType,
-      model: fallbackEntry.model
-    };
-  }
-
-  return {
-    task,
-    modelId: "mock:mock",
-    providerType: "mock",
-    model: "mock"
-  };
+  // No model configured for this task - throw error with helpful message
+  throw new Error(
+    `No model configured for task "${task}". Please configure a model in Settings > Models > Router.`
+  );
 }
 
 export function createProviderMap(
