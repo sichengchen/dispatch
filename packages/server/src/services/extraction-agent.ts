@@ -13,6 +13,7 @@ import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/
 import { getSkillPath, skillExists } from "./skill-generator";
 import { processArticle } from "./llm";
 import fs from "node:fs";
+import { decodeHtmlEntities } from "../utils/html";
 import {
   createToolContext,
   createExtractionToolSet,
@@ -75,11 +76,17 @@ function createExtractionAgentTools(
             options.stats.skipped += 1;
             continue;
           }
+
+          // Decode HTML entities in title and content
+          const decodedTitle = decodeHtmlEntities(article.title);
+          const decodedContent = decodeHtmlEntities(article.content);
+          const decodedExcerpt = article.excerpt ? decodeHtmlEntities(article.excerpt) : undefined;
+
           extractedArticles.push({
             url: article.url,
-            title: article.title,
-            content: article.content,
-            excerpt: article.excerpt,
+            title: decodedTitle,
+            content: decodedContent,
+            excerpt: decodedExcerpt,
             publishedDate: article.publishedDate ? new Date(article.publishedDate) : null,
             author: article.author
           });
@@ -99,9 +106,9 @@ function createExtractionAgentTools(
               .values({
                 sourceId: options.sourceId,
                 url: article.url,
-                title: article.title,
-                cleanContent: article.content,
-                summary: article.excerpt ?? null,
+                title: decodedTitle,
+                cleanContent: decodedContent,
+                summary: decodedExcerpt ?? null,
                 publishedAt: article.publishedDate ? new Date(article.publishedDate) : null,
                 fetchedAt: new Date()
               })

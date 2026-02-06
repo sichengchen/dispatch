@@ -7,6 +7,7 @@ import { recordScrapeSuccess, recordScrapeFailure } from "./source-health";
 import { finishTaskRun, startTaskRun } from "./task-log";
 import { getSkillPath, skillExists } from "./skill-generator";
 import { extractArticles } from "./extraction-agent";
+import { decodeHtmlEntities } from "../utils/html";
 
 const parser = new Parser();
 
@@ -102,13 +103,17 @@ export async function scrapeRSS(sourceId: number): Promise<ScrapeResult> {
         continue;
       }
 
-      const content =
+      const rawContent =
         (item as { [key: string]: any })["content:encoded"] ??
         item.content ??
         item.contentSnippet ??
         item.summary ??
         item.title ??
         "";
+
+      // Decode HTML entities in title and content
+      const title = decodeHtmlEntities(item.title ?? "(untitled)");
+      const content = decodeHtmlEntities(rawContent);
 
       const publishedAt =
         parseDate(item.isoDate) ?? parseDate(item.pubDate) ?? null;
@@ -117,7 +122,7 @@ export async function scrapeRSS(sourceId: number): Promise<ScrapeResult> {
         .insert(articles)
         .values({
           sourceId: source.id as number,
-          title: item.title ?? "(untitled)",
+          title,
           url,
           rawHtml: item.content ?? null,
           cleanContent: content || null,
