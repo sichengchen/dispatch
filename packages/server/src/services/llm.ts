@@ -595,11 +595,14 @@ export async function processArticle(
 
   // 1. Classify
   let tags: string[] = [];
+  const errors: string[] = [];
   try {
     updateTaskRun(runId, { meta: { step: "classify" } });
     tags = await classifyArticle(content, configOverride);
   } catch (err) {
     pipelineHadError = true;
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`classify: ${msg}`);
     console.error(`[pipeline] classify failed for article ${articleId}`, err);
   }
 
@@ -619,6 +622,8 @@ export async function processArticle(
     );
   } catch (err) {
     pipelineHadError = true;
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`grade: ${msg}`);
     console.error(`[pipeline] grade failed for article ${articleId}`, err);
   }
 
@@ -634,6 +639,8 @@ export async function processArticle(
     keyPoints = full.keyPoints;
   } catch (err) {
     pipelineHadError = true;
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`summarize: ${msg}`);
     console.error(`[pipeline] summarize failed for article ${articleId}`, err);
   }
 
@@ -678,11 +685,14 @@ export async function processArticle(
     );
   } catch (err) {
     pipelineHadError = true;
+    const msg = err instanceof Error ? err.message : String(err);
+    errors.push(`vectorize: ${msg}`);
     console.error(`[pipeline] vectorization failed for article ${articleId}`, err);
   }
 
   finishTaskRun(runId, pipelineHadError ? "warning" : "success", {
     articleId,
-    title: article.title
+    title: article.title,
+    ...(errors.length > 0 ? { errors } : {})
   });
 }

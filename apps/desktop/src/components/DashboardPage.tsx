@@ -110,6 +110,8 @@ function getRunDetails(run: TaskRun): string {
     return `Inserted ${inserted} · Failed ${failed}`;
   }
   if (run.kind === "pipeline-article") {
+    const errors = Array.isArray(meta.errors) ? meta.errors as string[] : [];
+    if (errors.length > 0) return errors.join("; ");
     const step = meta.step ? String(meta.step) : "—";
     return `Stage: ${step}`;
   }
