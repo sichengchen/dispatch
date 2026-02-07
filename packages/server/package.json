@@ -25,6 +25,7 @@
     "ai": "^6.0.69",
     "cheerio": "^1.2.0",
     "drizzle-orm": "^0.45.1",
+    "grammy": "^1.39.3",
     "hono": "^4.11.7",
     "jsdom": "^28.0.0",
     "node-schedule": "^2.1.1",

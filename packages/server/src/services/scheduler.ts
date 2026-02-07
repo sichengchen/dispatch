@@ -5,6 +5,7 @@ import { enqueueScrape } from "./scraper";
 import { getDigestConfig, getFetchScheduleConfig, getPipelineScheduleConfig } from "./settings";
 import { generateDigest } from "./digest";
 import { processArticle } from "./llm";
+import { notificationService } from "./notifications.js";
 
 const FETCH_PRESET_CRONS: Record<string, string> = {
   hourly: "0 * * * *",
@@ -140,11 +141,19 @@ export function startScheduler() {
     digestJob = schedule.scheduleJob(activeDigestCron, async () => {
       try {
         console.log("[scheduler] Generating digest...");
-        await generateDigest({
+        const digest = await generateDigest({
           topN: digestConfig.topN,
           hoursBack: digestConfig.hoursBack,
         });
         console.log("[scheduler] Digest generated successfully");
+
+        // Send digest notification if enabled
+        try {
+          await notificationService.sendDigestNotification(digest);
+        } catch (notificationError) {
+          // Log but don't fail the digest job
+          console.error("[scheduler] Failed to send digest notification:", notificationError);
+        }
       } catch (err) {
         console.error("[scheduler] Digest generation failed:", err);
       }

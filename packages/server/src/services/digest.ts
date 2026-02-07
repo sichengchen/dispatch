@@ -56,7 +56,7 @@ function parseTags(raw: string | null): string[] {
 export async function generateDigest(options?: {
   topN?: number;
   hoursBack?: number;
-}): Promise<{ id: number; content: string; articleIds: number[] }> {
+}): Promise<typeof digests.$inferSelect> {
   const config = getDigestConfig();
   const topN = options?.topN ?? config.topN ?? 10;
   const hoursBack = options?.hoursBack ?? config.hoursBack ?? 24;
@@ -96,13 +96,10 @@ export async function generateDigest(options?: {
     const result = db
       .insert(digests)
       .values({ generatedAt: new Date(), content, articleIds: "[]" })
-      .run();
+      .returning()
+      .get();
     finishTaskRun(runId, "warning", { articleCount: 0 });
-    return {
-      id: Number(result.lastInsertRowid),
-      content,
-      articleIds: [],
-    };
+    return result;
   }
 
   const articleIds = topArticles.map((a) => a.id);
@@ -178,18 +175,15 @@ ${topicsBlock}`;
         content,
         articleIds: JSON.stringify(articleIds),
       })
-      .run();
+      .returning()
+      .get();
 
     finishTaskRun(runId, "success", {
       articleCount: articleIds.length,
-      digestId: Number(result.lastInsertRowid)
+      digestId: result.id
     });
 
-    return {
-      id: Number(result.lastInsertRowid),
-      content,
-      articleIds,
-    };
+    return result;
   } catch (err) {
     finishTaskRun(runId, "error", {
       error: err instanceof Error ? err.message : String(err)

@@ -87,6 +87,21 @@ const agentConfigSchema = z.object({
   chatAgentMaxSteps: z.number().int().min(1).max(20).optional(),
 });
 
+const telegramConfigSchema = z.object({
+  botToken: z.string().optional(),
+  chatId: z.string().optional(),
+  sendDigests: z.boolean().optional(),
+  sendBreakingNews: z.boolean().optional(),
+  breakingNewsThreshold: z.number().min(0).max(100).optional(),
+});
+
+const notificationsConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  providers: z.object({
+    telegram: telegramConfigSchema.optional(),
+  }).optional(),
+});
+
 const settingsSchema = z.object({
   providers: z.array(providerSchema).optional(),
   models: modelsConfigSchema,
@@ -96,6 +111,7 @@ const settingsSchema = z.object({
   fetchSchedule: fetchScheduleConfigSchema.optional(),
   pipelineSchedule: pipelineScheduleConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
+  notifications: notificationsConfigSchema.optional(),
 });
 
 export type UiConfig = {
@@ -123,6 +139,10 @@ export type FetchScheduleConfig = z.infer<typeof fetchScheduleConfigSchema>;
 export type PipelineScheduleConfig = z.infer<typeof pipelineScheduleConfigSchema>;
 
 export type AgentConfig = z.infer<typeof agentConfigSchema>;
+
+export type TelegramConfig = z.infer<typeof telegramConfigSchema>;
+
+export type NotificationsConfig = z.infer<typeof notificationsConfigSchema>;
 
 export type Settings = z.infer<typeof settingsSchema>;
 
@@ -217,6 +237,7 @@ export function loadSettings(): Settings {
     fetchSchedule: parsed.fetchSchedule,
     pipelineSchedule: parsed.pipelineSchedule,
     agent: parsed.agent,
+    notifications: parsed.notifications ?? getDefaultNotificationsConfig(),
   };
 
   return settingsSchema.parse({
@@ -228,6 +249,7 @@ export function loadSettings(): Settings {
     fetchSchedule: merged.fetchSchedule,
     pipelineSchedule: merged.pipelineSchedule,
     agent: merged.agent,
+    notifications: merged.notifications,
   });
 }
 
@@ -248,6 +270,7 @@ export function updateModelsConfig(next: ModelsConfig): ModelsConfig {
     fetchSchedule: getFetchScheduleConfig(),
     pipelineSchedule: getPipelineScheduleConfig(),
     agent: getAgentConfig(),
+    notifications: getNotificationsConfig(),
   }).models;
 }
 
@@ -315,4 +338,23 @@ export function getDefaultAgentConfig(): AgentConfig {
 
 export function getAgentConfig(): AgentConfig {
   return loadSettings().agent ?? getDefaultAgentConfig();
+}
+
+export function getDefaultNotificationsConfig(): NotificationsConfig {
+  return {
+    enabled: false,
+    providers: {
+      telegram: {
+        botToken: "",
+        chatId: "",
+        sendDigests: true,
+        sendBreakingNews: true,
+        breakingNewsThreshold: 85,
+      },
+    },
+  };
+}
+
+export function getNotificationsConfig(): NotificationsConfig {
+  return loadSettings().notifications ?? getDefaultNotificationsConfig();
 }

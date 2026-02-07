@@ -11,6 +11,7 @@ import {
   getFetchScheduleConfig,
   getPipelineScheduleConfig,
   getAgentConfig,
+  getNotificationsConfig,
   saveSettings,
   loadSettings,
   getDefaultGradingConfig
@@ -90,6 +91,21 @@ const agentConfigSchema = z.object({
   chatAgentMaxSteps: z.number().int().min(1).max(20).optional(),
 });
 
+const telegramConfigSchema = z.object({
+  botToken: z.string().optional(),
+  chatId: z.string().optional(),
+  sendDigests: z.boolean().optional(),
+  sendBreakingNews: z.boolean().optional(),
+  breakingNewsThreshold: z.number().min(0).max(100).optional(),
+});
+
+const notificationsConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  providers: z.object({
+    telegram: telegramConfigSchema.optional(),
+  }).optional(),
+});
+
 const providerSchema = z.object({
   id: z.string().min(1),
   name: z.string().min(1),
@@ -128,6 +144,7 @@ const settingsSchema = z.object({
   fetchSchedule: fetchScheduleConfigSchema.optional(),
   pipelineSchedule: pipelineScheduleConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
+  notifications: notificationsConfigSchema.optional(),
 });
 
 export const settingsRouter = t.router({
@@ -142,6 +159,7 @@ export const settingsRouter = t.router({
       fetchSchedule: getFetchScheduleConfig(),
       pipelineSchedule: getPipelineScheduleConfig(),
       agent: getAgentConfig(),
+      notifications: getNotificationsConfig(),
     };
   }),
   update: t.procedure.input(settingsSchema).mutation(({ input }) => {

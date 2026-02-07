@@ -17,6 +17,7 @@ import {
   getProviders,
   type GradingConfig
 } from "./settings";
+import { notificationService } from "./notifications.js";
 import {
   computeFinalGrade,
   type GradeInputs
@@ -637,6 +638,7 @@ export async function processArticle(
   }
 
   // 4. Persist results
+  const processedAt = new Date();
   db.update(articles)
     .set({
       tags: JSON.stringify(tags),
@@ -646,10 +648,26 @@ export async function processArticle(
       summary,
       summaryLong,
       keyPoints: JSON.stringify(keyPoints),
-      processedAt: new Date()
+      processedAt
     })
     .where(eq(articles.id, articleId))
     .run();
+
+  // Check if breaking news alert should be sent
+  try {
+    const updatedArticle = {
+      ...article,
+      grade: grade.score,
+      summary,
+      processedAt
+    };
+    if (notificationService.shouldSendBreakingNewsAlert(updatedArticle)) {
+      await notificationService.sendBreakingNewsAlert(updatedArticle);
+    }
+  } catch (notificationError) {
+    // Log but don't fail the article processing
+    console.error(`[pipeline] Failed to send breaking news alert for article ${articleId}:`, notificationError);
+  }
 
   // 5. Vectorize for related-articles search
   try {

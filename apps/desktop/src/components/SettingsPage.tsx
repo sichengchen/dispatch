@@ -9,6 +9,7 @@ import { GeneralTab } from "./settings/GeneralTab";
 import { ModelsTab } from "./settings/ModelsTab";
 import { RouterTab } from "./settings/RouterTab";
 import { ProvidersSection } from "./settings/ProvidersSection";
+import { NotificationsTab } from "./settings/NotificationsTab";
 import {
   type CatalogEntry,
   type GradingWeights,
@@ -32,9 +33,15 @@ type InitialState = {
   chatAgentMaxSteps: number;
   digestReferenceLinkBehavior: "internal" | "external";
   externalLinkBehavior: "internal" | "external";
+  notificationsEnabled: boolean;
+  notificationsBotToken: string;
+  notificationsChatId: string;
+  notificationsSendDigests: boolean;
+  notificationsSendBreakingNews: boolean;
+  notificationsBreakingNewsThreshold: number;
 };
 
-type Tab = "general" | "providers" | "models" | "router";
+type Tab = "general" | "providers" | "models" | "router" | "notifications";
 
 function clampNumber(value: number, min: number, max: number) {
   if (!Number.isFinite(value)) return min;
@@ -95,6 +102,12 @@ export function SettingsPage() {
     useState<"internal" | "external">("internal");
   const [externalLinkBehavior, setExternalLinkBehavior] =
     useState<"internal" | "external">("internal");
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationsBotToken, setNotificationsBotToken] = useState("");
+  const [notificationsChatId, setNotificationsChatId] = useState("");
+  const [notificationsSendDigests, setNotificationsSendDigests] = useState(true);
+  const [notificationsSendBreakingNews, setNotificationsSendBreakingNews] = useState(true);
+  const [notificationsBreakingNewsThreshold, setNotificationsBreakingNewsThreshold] = useState(85);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const initialStateRef = useRef<InitialState | null>(null);
 
@@ -178,6 +191,15 @@ export function SettingsPage() {
     setRouting(nextRouting);
     setErrorMessage(null);
 
+    // Load notification settings
+    const notifCfg = cfg.notifications;
+    setNotificationsEnabled(notifCfg?.enabled ?? false);
+    setNotificationsBotToken(notifCfg?.providers?.telegram?.botToken ?? "");
+    setNotificationsChatId(notifCfg?.providers?.telegram?.chatId ?? "");
+    setNotificationsSendDigests(notifCfg?.providers?.telegram?.sendDigests ?? true);
+    setNotificationsSendBreakingNews(notifCfg?.providers?.telegram?.sendBreakingNews ?? true);
+    setNotificationsBreakingNewsThreshold(notifCfg?.providers?.telegram?.breakingNewsThreshold ?? 85);
+
     // Store initial state for change detection
     initialStateRef.current = {
       appTitle: cfg.ui?.appTitle ?? "",
@@ -196,7 +218,13 @@ export function SettingsPage() {
       extractionAgentMaxSteps: cfg.agent?.extractionAgentMaxSteps ?? 20,
       chatAgentMaxSteps: cfg.agent?.chatAgentMaxSteps ?? 10,
       digestReferenceLinkBehavior: cfg.ui?.digestReferenceLinkBehavior ?? "internal",
-      externalLinkBehavior: cfg.ui?.externalLinkBehavior ?? "internal"
+      externalLinkBehavior: cfg.ui?.externalLinkBehavior ?? "internal",
+      notificationsEnabled: notifCfg?.enabled ?? false,
+      notificationsBotToken: notifCfg?.providers?.telegram?.botToken ?? "",
+      notificationsChatId: notifCfg?.providers?.telegram?.chatId ?? "",
+      notificationsSendDigests: notifCfg?.providers?.telegram?.sendDigests ?? true,
+      notificationsSendBreakingNews: notifCfg?.providers?.telegram?.sendBreakingNews ?? true,
+      notificationsBreakingNewsThreshold: notifCfg?.providers?.telegram?.breakingNewsThreshold ?? 85
     };
   }, [settingsQuery.data]);
 
@@ -241,6 +269,14 @@ export function SettingsPage() {
     if (digestReferenceLinkBehavior !== initial.digestReferenceLinkBehavior) return true;
     if (externalLinkBehavior !== initial.externalLinkBehavior) return true;
 
+    // Compare notification settings
+    if (notificationsEnabled !== initial.notificationsEnabled) return true;
+    if (notificationsBotToken !== initial.notificationsBotToken) return true;
+    if (notificationsChatId !== initial.notificationsChatId) return true;
+    if (notificationsSendDigests !== initial.notificationsSendDigests) return true;
+    if (notificationsSendBreakingNews !== initial.notificationsSendBreakingNews) return true;
+    if (notificationsBreakingNewsThreshold !== initial.notificationsBreakingNewsThreshold) return true;
+
     return false;
   }, [
     appTitle,
@@ -254,14 +290,20 @@ export function SettingsPage() {
     extractionAgentMaxSteps,
     chatAgentMaxSteps,
     digestReferenceLinkBehavior,
-    externalLinkBehavior
+    externalLinkBehavior,
+    notificationsEnabled,
+    notificationsBotToken,
+    notificationsChatId,
+    notificationsSendDigests,
+    notificationsSendBreakingNews,
+    notificationsBreakingNewsThreshold
   ]);
 
   const missingModelName = catalog.some((entry) => !entry.model.trim());
   const hasCatalog = catalog.length > 0;
   const saveDisabled = updateSettings.isPending || missingModelName || !hasCatalog || !hasChanges;
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const buildScoreMap = (rows: ScoreRow[]) => {
       const map: Record<string, number> = {};
       for (const row of rows) {
@@ -297,7 +339,8 @@ export function SettingsPage() {
     const existingDigest = settingsQuery.data?.digest;
     const existingProviders = settingsQuery.data?.providers ?? [];
     const existingCatalog = settingsQuery.data?.models.catalog ?? [];
-    updateSettings.mutate({
+
+    await updateSettings.mutateAsync({
       providers: existingProviders,
       models: {
         assignment: resolvedModels,
@@ -324,6 +367,18 @@ export function SettingsPage() {
         skillGeneratorMaxSteps,
         extractionAgentMaxSteps,
         chatAgentMaxSteps
+      },
+      notifications: {
+        enabled: notificationsEnabled,
+        providers: {
+          telegram: {
+            botToken: notificationsBotToken.trim(),
+            chatId: notificationsChatId.trim(),
+            sendDigests: notificationsSendDigests,
+            sendBreakingNews: notificationsSendBreakingNews,
+            breakingNewsThreshold: notificationsBreakingNewsThreshold
+          }
+        }
       }
     });
   };
@@ -336,6 +391,7 @@ export function SettingsPage() {
           <TabsTrigger value="providers">Providers</TabsTrigger>
           <TabsTrigger value="models">Models</TabsTrigger>
           <TabsTrigger value="router">Router</TabsTrigger>
+          <TabsTrigger value="notifications">Notifications</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general">
@@ -375,6 +431,23 @@ export function SettingsPage() {
 
         <TabsContent value="router">
           <RouterTab catalog={catalog} routing={routing} setRouting={setRouting} />
+        </TabsContent>
+
+        <TabsContent value="notifications">
+          <NotificationsTab
+            enabled={notificationsEnabled}
+            setEnabled={setNotificationsEnabled}
+            botToken={notificationsBotToken}
+            setBotToken={setNotificationsBotToken}
+            chatId={notificationsChatId}
+            setChatId={setNotificationsChatId}
+            sendDigests={notificationsSendDigests}
+            setSendDigests={setNotificationsSendDigests}
+            sendBreakingNews={notificationsSendBreakingNews}
+            setSendBreakingNews={setNotificationsSendBreakingNews}
+            breakingNewsThreshold={notificationsBreakingNewsThreshold}
+            setBreakingNewsThreshold={setNotificationsBreakingNewsThreshold}
+          />
         </TabsContent>
       </Tabs>
 

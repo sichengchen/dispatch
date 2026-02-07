@@ -8,6 +8,7 @@ import { settingsRouter } from "./routes/settings";
 import { digestsRouter } from "./routes/digests";
 import { tasksRouter } from "./routes/tasks";
 import { agentsRouter, registerAgentChatEndpoint } from "./routes/agents";
+import { notificationsRouter } from "./routes/notifications.js";
 import { registerAddSourceAgent } from "./services/agents/add-source-agent";
 import { t } from "./trpc";
 
@@ -21,6 +22,7 @@ export const appRouter = t.router({
   digests: digestsRouter,
   tasks: tasksRouter,
   agents: agentsRouter,
+  notifications: notificationsRouter,
 });
 
 export type AppRouter = typeof appRouter;
