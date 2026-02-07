@@ -1,75 +1,93 @@
-# Dispatch
+# The Dispatch
 
-Local-first, AI-native news reader. Dispatch runs a local server alongside a desktop UI to collect sources, extract articles, and build daily digests. Your news agency at home.
+The Dispatch is a local-first, AI-native desktop news reader.
+It runs on your computer, pulls stories from your sources, notify you when there's a breaking news, and generates daily digests.
 
-## Highlights
+## Capabilities
 
-- AI-powered summary, key points, related articles, and importancy grading.
-- Scheduled digests with configurable time window.
-- Agent-powered scraping for both static HTML and SPA sites.
-- Extraction rules stored as agent skills.
-- Configurable models and assignments of models per type of tasks.
+- Agents that fetch articles from any website sources.
+- LLM generates summary, tags, grading, key points for each article.
+- Model/provider management (supports Anthropic and OpenAI-compatible providers). Per-task model routing.
+- Scheduled fetch, articles processing, and digest jobs with cron config.
+- IM notifications (supports Telegram).
 
-## Architecture
+## Monorepo layout
 
-- Desktop App: `apps/desktop` (Electron + React + Vite)
-- Server: `packages/server` (Hono + tRPC)
-- Database: `packages/db` (SQLite + Drizzle)
-- Shared AI client: `packages/lib`
-- API types: `packages/api`
+- `apps/desktop`: Electron + React + Vite UI
+- `packages/server`: Hono + tRPC server and background jobs
+- `packages/db`: SQLite + Drizzle schema/migrations
+- `packages/lib`: shared LLM/provider logic
+- `packages/api`: shared API types
 
-## Quickstart
+## Quick start
+
+1. Install dependencies:
 
 ```bash
 pnpm install
+```
+
+2. Create your local database schema:
+
+```bash
+pnpm --filter @dispatch/db migrate
+```
+
+3. (Optional) Seed sample data:
+
+```bash
+pnpm --filter @dispatch/db seed
+```
+
+4. (Optional) Copy env template:
+
+```bash
+cp sample.env .env
+```
+
+5. Start the workspace:
+
+```bash
 pnpm dev
 ```
 
-For a single package:
+`pnpm dev` runs the desktop app and local server via Turborepo.
+
+## Core commands
+
+### Development
 
 ```bash
+pnpm dev
 pnpm --filter @dispatch/server dev
 pnpm --filter @dispatch/desktop dev
 ```
 
-## Configuration
+### Build
 
-Dispatch loads configuration from a settings file and environment variables.
+```bash
+pnpm build
+```
 
-- Settings file: `dispatch.settings.json`
-- Database file: `dispatch.dev.db`
-- Vector store: `dispatch.vectors`
-
-## Database
+### Database
 
 ```bash
 pnpm --filter @dispatch/db migrate
+pnpm --filter @dispatch/db generate
 pnpm --filter @dispatch/db seed
+pnpm --filter @dispatch/db verify
 ```
 
-## Tests
+### Tests
 
 ```bash
 pnpm test
-```
-
-Package-specific tests:
-
-```bash
 pnpm --filter @dispatch/server test
+pnpm --filter @dispatch/server test:backend
+pnpm --filter @dispatch/server test:scraper
+pnpm --filter @dispatch/server test:scraper:advanced
+pnpm --filter @dispatch/server test:llm
+pnpm --filter @dispatch/server test:llm:live
 pnpm --filter @dispatch/desktop test
 pnpm --filter @dispatch/desktop test:e2e
 ```
-
-## Repo Layout
-
-- `apps/desktop`: desktop app and Electron shell
-- `packages/server`: API server and background jobs
-- `packages/db`: Drizzle schema and migrations
-- `packages/lib`: shared AI client and utilities
-- `packages/api`: shared API types
-
-## Notes
-
-- `pnpm dev` uses Turborepo to run the desktop app and local server together.
-- The server loads `.env` from the workspace root if present.
