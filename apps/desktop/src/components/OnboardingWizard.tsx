@@ -1,21 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { trpc } from "../lib/trpc";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
-import { Label } from "./ui/label";
+import { ProvidersSection } from "./settings/ProvidersSection";
+import { ModelsTab } from "./settings/ModelsTab";
+import { RouterTab } from "./settings/RouterTab";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+  type CatalogEntry,
+  type RoutingState,
+  TASKS,
+} from "./settings/types";
 
 type OnboardingWizardProps = {
   onComplete: () => void;
 };
 
-type Step = "welcome" | "provider" | "source";
+type Step = "welcome" | "providers" | "models" | "router" | "source";
+
+const STEPS: { key: Step; label: string }[] = [
+  { key: "welcome", label: "Welcome" },
+  { key: "providers", label: "Providers" },
+  { key: "models", label: "Models" },
+  { key: "router", label: "Tasks" },
+  { key: "source", label: "Source" },
+];
 
 export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [step, setStep] = useState<Step>("welcome");
@@ -25,36 +32,41 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       <div className="w-full max-w-lg rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
         <StepIndicator current={step} />
         {step === "welcome" && (
-          <WelcomeStep onNext={() => setStep("provider")} />
+          <WelcomeStep onNext={() => setStep("providers")} />
         )}
-        {step === "provider" && (
-          <ProviderStep
+        {step === "providers" && (
+          <ProvidersStep
+            onNext={() => setStep("models")}
+            onSkip={() => setStep("models")}
+          />
+        )}
+        {step === "models" && (
+          <ModelsStep
+            onNext={() => setStep("router")}
+            onSkip={() => setStep("router")}
+          />
+        )}
+        {step === "router" && (
+          <RouterStep
             onNext={() => setStep("source")}
             onSkip={() => setStep("source")}
           />
         )}
-        {step === "source" && (
-          <SourceStep onComplete={onComplete} onSkip={onComplete} />
-        )}
+        {step === "source" && <SourceStep onComplete={onComplete} />}
       </div>
     </div>
   );
 }
 
 function StepIndicator({ current }: { current: Step }) {
-  const steps: { key: Step; label: string }[] = [
-    { key: "welcome", label: "Welcome" },
-    { key: "provider", label: "Provider" },
-    { key: "source", label: "Source" },
-  ];
-  const currentIndex = steps.findIndex((s) => s.key === current);
+  const currentIndex = STEPS.findIndex((s) => s.key === current);
 
   return (
-    <div className="mb-8 flex items-center justify-center gap-2">
-      {steps.map((s, i) => (
-        <div key={s.key} className="flex items-center gap-2">
+    <div className="mb-8 flex items-center justify-center gap-3">
+      {STEPS.map((s, i) => (
+        <div key={s.key} className="flex items-center gap-3">
           <div
-            className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-medium ${
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-medium ${
               i <= currentIndex
                 ? "bg-slate-900 text-white"
                 : "bg-slate-200 text-slate-500"
@@ -62,15 +74,8 @@ function StepIndicator({ current }: { current: Step }) {
           >
             {i + 1}
           </div>
-          <span
-            className={`text-sm ${
-              i <= currentIndex ? "text-slate-900" : "text-slate-400"
-            }`}
-          >
-            {s.label}
-          </span>
-          {i < steps.length - 1 && (
-            <div className="mx-1 h-px w-8 bg-slate-200" />
+          {i < STEPS.length - 1 && (
+            <div className="h-px w-6 bg-slate-200" />
           )}
         </div>
       ))}
@@ -90,7 +95,7 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
         running on your machine.
       </p>
       <p className="mt-2 text-sm text-slate-500">
-        Let's get you set up in just a couple of steps.
+        Let's get you set up in a few quick steps.
       </p>
       <Button className="mt-6 w-full" onClick={onNext}>
         Get Started
@@ -99,219 +104,225 @@ function WelcomeStep({ onNext }: { onNext: () => void }) {
   );
 }
 
-function ProviderStep({
+function ProvidersStep({
   onNext,
   onSkip,
 }: {
   onNext: () => void;
   onSkip: () => void;
 }) {
-  const [providerType, setProviderType] = useState<
-    "anthropic" | "openai-compatible"
-  >("anthropic");
-  const [name, setName] = useState("Anthropic");
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
-  const [skipped, setSkipped] = useState(false);
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-slate-900">
+        Set Up Providers
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Dispatch uses LLMs to summarize articles, classify topics, and generate
+        digests. Add at least one AI provider to enable these features.
+      </p>
 
-  const addProvider = trpc.settings.addProvider.useMutation({
+      <ProvidersSection />
+
+      <div className="mt-6 flex gap-2">
+        <Button className="flex-1" onClick={onNext}>
+          Continue
+        </Button>
+        <Button variant="ghost" onClick={onSkip}>
+          Skip
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ModelsStep({
+  onNext,
+  onSkip,
+}: {
+  onNext: () => void;
+  onSkip: () => void;
+}) {
+  return (
+    <div>
+      <h2 className="text-lg font-semibold text-slate-900">
+        Add Models
+      </h2>
+      <p className="mt-1 text-sm text-slate-500">
+        Add models from your configured providers. These will be available for
+        task assignments in the next step.
+      </p>
+
+      <ModelsTab />
+
+      <div className="mt-6 flex gap-2">
+        <Button className="flex-1" onClick={onNext}>
+          Continue
+        </Button>
+        <Button variant="ghost" onClick={onSkip}>
+          Skip
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function RouterStep({
+  onNext,
+  onSkip,
+}: {
+  onNext: () => void;
+  onSkip: () => void;
+}) {
+  const settingsQuery = trpc.settings.get.useQuery();
+  const updateSettings = trpc.settings.update.useMutation({
     onSuccess: onNext,
   });
 
-  const handleSubmit = () => {
-    if (!apiKey) return;
-    addProvider.mutate({
-      name,
-      type: providerType,
-      credentials: {
-        apiKey,
-        ...(providerType === "openai-compatible" && baseUrl
-          ? { baseUrl }
-          : {}),
+  const [catalog, setCatalog] = useState<CatalogEntry[]>([]);
+  const [routing, setRouting] = useState<RoutingState>({
+    summarize: "",
+    classify: "",
+    grade: "",
+    embed: "",
+    digest: "",
+    skill: "",
+  });
+
+  useEffect(() => {
+    if (!settingsQuery.data) return;
+    const llm = settingsQuery.data.models;
+
+    const nextCatalog: CatalogEntry[] =
+      llm.catalog && llm.catalog.length > 0
+        ? llm.catalog.map((entry) => ({
+            id: entry.id,
+            providerId: entry.providerId,
+            model: entry.model,
+            label: entry.label ?? "",
+            capabilities: entry.capabilities ?? ["chat"],
+          }))
+        : [];
+
+    const nextRouting: RoutingState = {
+      summarize: "",
+      classify: "",
+      grade: "",
+      embed: "",
+      digest: "",
+      skill: "",
+    };
+
+    for (const task of TASKS) {
+      const assignment = llm.assignment.find((item) => item.task === task.id);
+      if (assignment) {
+        const entry = nextCatalog.find((e) => e.id === assignment.modelId);
+        if (entry) {
+          nextRouting[task.id] = entry.id;
+        }
+      }
+    }
+
+    // Auto-assign unassigned tasks to compatible models
+    if (nextCatalog.length > 0) {
+      for (const task of TASKS) {
+        if (!nextRouting[task.id]) {
+          const fallback = nextCatalog.find((entry) => {
+            const caps = entry.capabilities ?? [];
+            if (task.id === "embed") return caps.includes("embedding");
+            return caps.includes("chat") || caps.length === 0;
+          });
+          if (fallback) {
+            nextRouting[task.id] = fallback.id;
+          }
+        }
+      }
+    }
+
+    setCatalog(nextCatalog);
+    setRouting(nextRouting);
+  }, [settingsQuery.data]);
+
+  const handleSave = () => {
+    if (!settingsQuery.data) {
+      onNext();
+      return;
+    }
+
+    const resolvedModels = TASKS.filter((task) => {
+      const routedModelId = routing[task.id];
+      return routedModelId && catalog.find((item) => item.id === routedModelId);
+    }).map((task) => ({
+      task: task.id,
+      modelId: routing[task.id],
+    }));
+
+    const existing = settingsQuery.data;
+
+    updateSettings.mutate({
+      providers: existing.providers ?? [],
+      models: {
+        assignment: resolvedModels,
+        catalog: existing.models.catalog ?? [],
       },
+      grading: existing.grading,
+      digest: existing.digest,
+      agent: existing.agent,
     });
   };
 
   return (
     <div>
       <h2 className="text-lg font-semibold text-slate-900">
-        Configure an AI Provider
+        Assign Models to Tasks
       </h2>
       <p className="mt-1 text-sm text-slate-500">
-        Dispatch uses LLMs to summarize articles, classify topics, and generate
-        digests. Add a provider to enable these features.
+        Choose which model handles each task. You can change these later in
+        Settings.
       </p>
 
-      <div className="mt-5 space-y-3">
-        <div className="space-y-1">
-          <Label>Provider Type</Label>
-          <Select
-            value={providerType}
-            onValueChange={(value: "anthropic" | "openai-compatible") => {
-              setProviderType(value);
-              setName(value === "anthropic" ? "Anthropic" : "");
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="anthropic">Anthropic</SelectItem>
-              <SelectItem value="openai-compatible">
-                OpenAI Compatible
-              </SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        {providerType === "openai-compatible" && (
-          <>
-            <div className="space-y-1">
-              <Label>Provider Name</Label>
-              <Input
-                placeholder="My Provider"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label>Base URL</Label>
-              <Input
-                placeholder="https://api.example.com/v1"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-              />
-            </div>
-          </>
-        )}
-
-        <div className="space-y-1">
-          <Label>API Key</Label>
-          <Input
-            type="password"
-            placeholder="sk-..."
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {addProvider.error && (
-        <div className="mt-2 text-xs text-red-600">
-          {addProvider.error.message}
-        </div>
-      )}
+      <RouterTab catalog={catalog} routing={routing} setRouting={setRouting} />
 
       <div className="mt-6 flex gap-2">
         <Button
           className="flex-1"
-          onClick={handleSubmit}
-          disabled={!apiKey || !name || addProvider.isPending}
+          onClick={handleSave}
+          disabled={updateSettings.isPending}
         >
-          {addProvider.isPending ? "Saving..." : "Continue"}
+          {updateSettings.isPending ? "Saving..." : "Continue"}
         </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            setSkipped(true);
-            onSkip();
-          }}
-        >
+        <Button variant="ghost" onClick={onSkip}>
           Skip
         </Button>
       </div>
 
-      {skipped && (
-        <p className="mt-2 text-xs text-amber-600">
-          LLM features won't work until you configure a provider in Settings.
-        </p>
+      {updateSettings.error && (
+        <div className="mt-2 text-xs text-red-600">
+          {updateSettings.error.message}
+        </div>
       )}
     </div>
   );
 }
 
-function SourceStep({
-  onComplete,
-  onSkip,
-}: {
-  onComplete: () => void;
-  onSkip: () => void;
-}) {
-  const [url, setUrl] = useState("");
-  const [added, setAdded] = useState(false);
-
-  const utils = trpc.useUtils();
-  const addSource = trpc.sources.add.useMutation({
-    onSuccess: () => {
-      setAdded(true);
-      utils.sources.list.invalidate();
-    },
-  });
-
-  const handleAdd = () => {
-    if (!url) return;
-    try {
-      const hostname = new URL(url).hostname.replace(/^www\./, "");
-      addSource.mutate({ url, name: hostname });
-    } catch {
-      addSource.mutate({ url, name: url });
-    }
-  };
-
+function SourceStep({ onComplete }: { onComplete: () => void }) {
   return (
     <div>
       <h2 className="text-lg font-semibold text-slate-900">
         Add Your First Source
       </h2>
-      <p className="mt-1 text-sm text-slate-500">
-        Add an RSS feed or website URL to start collecting articles. You can
-        always add more sources later.
+      <p className="mt-3 text-sm text-slate-600">
+        You're almost done! To start collecting articles, head over to the{" "}
+        <span className="font-medium text-slate-900">Sources</span> tab and add
+        an RSS feed or website URL.
+      </p>
+      <p className="mt-2 text-sm text-slate-500">
+        You can add as many sources as you like — Dispatch will automatically
+        fetch and process new articles from each one.
       </p>
 
-      <div className="mt-5 space-y-3">
-        <div className="space-y-1">
-          <Label>Feed or Website URL</Label>
-          <Input
-            placeholder="https://example.com/feed.xml"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={added}
-          />
-        </div>
-      </div>
-
-      {addSource.error && (
-        <div className="mt-2 text-xs text-red-600">
-          {addSource.error.message}
-        </div>
-      )}
-
-      {added && (
-        <div className="mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          Source added successfully! It will be fetched shortly.
-        </div>
-      )}
-
-      <div className="mt-6 flex gap-2">
-        {!added ? (
-          <>
-            <Button
-              className="flex-1"
-              onClick={handleAdd}
-              disabled={!url || addSource.isPending}
-            >
-              {addSource.isPending ? "Adding..." : "Add Source"}
-            </Button>
-            <Button variant="ghost" onClick={onSkip}>
-              Skip
-            </Button>
-          </>
-        ) : (
-          <Button className="w-full" onClick={onComplete}>
-            Finish Setup
-          </Button>
-        )}
-      </div>
+      <Button className="mt-6 w-full" onClick={onComplete}>
+        Finish Setup
+      </Button>
     </div>
   );
 }
