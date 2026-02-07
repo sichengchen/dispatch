@@ -435,6 +435,20 @@ export function GeneralTab({
 
 function DangerZone() {
   const utils = trpc.useUtils();
+  const settingsQuery = trpc.settings.get.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+    refetchOnMount: false,
+  });
+  const updateSettings = trpc.settings.update.useMutation({
+    onSuccess: () => utils.settings.get.invalidate(),
+  });
+  const handleRerunSetup = () => {
+    if (!settingsQuery.data) return;
+    updateSettings.mutate({
+      ...settingsQuery.data,
+      onboardingComplete: false,
+    });
+  };
   const deleteAllData = trpc.settings.deleteAllData.useMutation({
     onSuccess: () => {
       toast.success("All data deleted");
@@ -458,6 +472,24 @@ function DangerZone() {
   });
 
   return (
+    <>
+    <div className="rounded-lg border border-slate-200 bg-white p-3">
+      <div className="text-sm font-semibold text-slate-900">Setup</div>
+      <div className="mt-1 text-xs text-slate-500">
+        Re-run the initial setup wizard to reconfigure providers and sources.
+      </div>
+      <div className="mt-3">
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={handleRerunSetup}
+          disabled={updateSettings.isPending}
+        >
+          {updateSettings.isPending ? "Resetting…" : "Re-run Setup Wizard"}
+        </Button>
+      </div>
+    </div>
     <div className="rounded-lg border border-rose-200 bg-white p-3">
       <div className="text-sm font-semibold text-rose-900">Danger Zone</div>
       <div className="mt-1 text-xs text-rose-700">
@@ -546,5 +578,6 @@ function DangerZone() {
         </AlertDialog>
       </div>
     </div>
+    </>
   );
 }

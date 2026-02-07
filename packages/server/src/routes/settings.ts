@@ -142,6 +142,7 @@ const settingsSchema = z.object({
   pipeline: pipelineConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
   notifications: notificationsConfigSchema.optional(),
+  onboardingComplete: z.boolean().optional(),
 });
 
 export const settingsRouter = t.router({
@@ -157,6 +158,7 @@ export const settingsRouter = t.router({
       pipeline: getPipelineConfig(),
       agent: getAgentConfig(),
       notifications: getNotificationsConfig(),
+      onboardingComplete: settings.onboardingComplete ?? false,
     };
   }),
   update: t.procedure.input(settingsSchema).mutation(({ input }) => {

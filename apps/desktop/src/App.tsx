@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "./lib/trpc";
 import { useUiStore } from "./store/ui";
-import { Toaster } from "sonner";
+import { Toaster, toast } from "sonner";
 import { SettingsPage } from "./components/SettingsPage";
 import { HomeDigest } from "./components/HomeDigest";
 import { ArticleViewer } from "./components/ArticleViewer";
@@ -9,6 +9,8 @@ import { DashboardPage } from "./components/DashboardPage";
 import { HistoryPage } from "./components/HistoryPage";
 import { HistoryDigestPage } from "./components/HistoryDigestPage";
 import { SourcesPage } from "./components/SourcesPage";
+import { OnboardingWizard } from "./components/OnboardingWizard";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Tabs, TabsList, TabsTrigger } from "./components/ui/tabs";
 import { TooltipProvider } from "./components/ui/tooltip";
 
@@ -24,11 +26,29 @@ export default function App() {
   const selectedArticleId = useUiStore((state) => state.selectedArticleId);
   const setSelectedArticleId = useUiStore((state) => state.setSelectedArticleId);
 
-  const { data: uiSettings } = trpc.settings.get.useQuery(undefined, {
+  const settingsQuery = trpc.settings.get.useQuery(undefined, {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
-    select: (data) => data.ui
   });
+  const utils = trpc.useUtils();
+
+  const uiSettings = settingsQuery.data?.ui;
+  const onboardingComplete = settingsQuery.data?.onboardingComplete ?? false;
+
+  const updateSettings = trpc.settings.update.useMutation({
+    onSuccess: () => utils.settings.get.invalidate(),
+  });
+
+  useEffect(() => {
+    const handler = () => {
+      toast.info("A new version of Dispatch is available. Restart to update.", {
+        duration: Infinity,
+        action: { label: "Restart", onClick: () => window.location.reload() },
+      });
+    };
+    window.ipcRenderer?.on("dispatch:update-available", handler);
+    return () => { window.ipcRenderer?.off("dispatch:update-available", handler); };
+  }, []);
 
   const appTitle = uiSettings?.appTitle || "The Dispatch";
   const digestLinkBehavior = uiSettings?.digestReferenceLinkBehavior ?? "internal";
@@ -77,6 +97,27 @@ export default function App() {
     openArticle(id, { view: "home" });
   };
 
+  const handleOnboardingComplete = () => {
+    if (!settingsQuery.data) return;
+    updateSettings.mutate({
+      ...settingsQuery.data,
+      onboardingComplete: true,
+    });
+  };
+
+  if (settingsQuery.isLoading) {
+    return null;
+  }
+
+  if (!onboardingComplete) {
+    return (
+      <TooltipProvider>
+        <OnboardingWizard onComplete={handleOnboardingComplete} />
+        <Toaster position="bottom-right" richColors />
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider>
     <div className="min-h-screen bg-slate-50">
@@ -110,6 +151,7 @@ export default function App() {
           </Tabs>
         </div>
       </header>
+      <ErrorBoundary>
       <main className="mx-auto w-full max-w-6xl px-6 py-6">
         {activeView === "home" ? (
           <HomeDigest
@@ -151,6 +193,7 @@ export default function App() {
           />
         )}
       </main>
+      </ErrorBoundary>
       <Toaster position="bottom-right" richColors />
     </div>
     </TooltipProvider>

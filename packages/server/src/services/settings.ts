@@ -109,6 +109,7 @@ const settingsSchema = z.object({
   pipeline: pipelineConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
   notifications: notificationsConfigSchema.optional(),
+  onboardingComplete: z.boolean().optional(),
 });
 
 export type UiConfig = {
@@ -237,6 +238,7 @@ export function loadSettings(): Settings {
     pipeline: parsed.pipeline,
     agent: parsed.agent,
     notifications: parsed.notifications ?? getDefaultNotificationsConfig(),
+    onboardingComplete: parsed.onboardingComplete,
   };
 
   return settingsSchema.parse({
@@ -249,6 +251,7 @@ export function loadSettings(): Settings {
     pipeline: merged.pipeline,
     agent: merged.agent,
     notifications: merged.notifications,
+    onboardingComplete: merged.onboardingComplete,
   });
 }
 

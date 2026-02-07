@@ -81,6 +81,16 @@ function getDbPath() {
   return path.join(getDevRoot(), 'dispatch.dev.db')
 }
 
+function getVectorPath() {
+  if (process.env.DISPATCH_VECTOR_PATH) {
+    return process.env.DISPATCH_VECTOR_PATH
+  }
+  if (app.isPackaged) {
+    return path.join(app.getPath('userData'), 'dispatch.vectors')
+  }
+  return path.join(getDevRoot(), 'dispatch.vectors')
+}
+
 async function waitForServer(timeoutMs = 10000) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
@@ -191,6 +201,7 @@ async function startServer() {
     HOST: SERVER_HOST,
     DISPATCH_SETTINGS_PATH: getSettingsPath(),
     DISPATCH_DB_PATH: getDbPath(),
+    DISPATCH_VECTOR_PATH: getVectorPath(),
     DISPATCH_ALLOW_EXISTING_SERVER: "1"
   }
 
@@ -201,6 +212,17 @@ async function startServer() {
       env: serverEnv,
       stdio: 'inherit'
     })
+  } else if (app.isPackaged) {
+    const serverEntry = path.join(process.resourcesPath, 'server-dist', 'dist', 'index.js')
+    const logPath = path.join(app.getPath('userData'), 'server.log')
+    const logStream = fs.createWriteStream(logPath, { flags: 'a' })
+
+    serverProcess = spawn(process.execPath, [serverEntry], {
+      env: { ...serverEnv, ELECTRON_RUN_AS_NODE: '1' },
+      stdio: ['ignore', 'pipe', 'pipe']
+    })
+    serverProcess.stdout?.pipe(logStream)
+    serverProcess.stderr?.pipe(logStream)
   } else {
     console.warn('Server bootstrap for packaged app is not configured yet.')
     return
@@ -264,11 +286,42 @@ ipcMain.handle('dispatch:openExternal', async (_event: IpcMainInvokeEvent, url: 
 })
 
 app.on('before-quit', () => {
-  serverProcess?.kill()
+  if (serverProcess && !serverProcess.killed) {
+    serverProcess.kill('SIGTERM')
+    const forceTimeout = setTimeout(() => {
+      if (serverProcess && !serverProcess.killed) {
+        serverProcess.kill('SIGKILL')
+      }
+    }, 5000)
+    serverProcess.on('exit', () => clearTimeout(forceTimeout))
+  }
   serverProcess = null
 })
+
+function setupAutoUpdater(window: InstanceType<typeof BrowserWindow>) {
+  if (!app.isPackaged) return
+
+  try {
+    const { autoUpdater } = require('electron-updater')
+    autoUpdater.autoDownload = false
+    autoUpdater.on('update-available', () => {
+      window.webContents.send('dispatch:update-available')
+    })
+    autoUpdater.on('error', () => {
+      // Silently ignore update check errors (offline, server error, etc.)
+    })
+    autoUpdater.checkForUpdates()
+  } catch {
+    // electron-updater not available in dev
+  }
+}
 
 app.whenReady().then(async () => {
   await startServer()
   createWindow()
+
+  const mainWindow = BrowserWindow.getAllWindows()[0]
+  if (mainWindow) {
+    setupAutoUpdater(mainWindow)
+  }
 })

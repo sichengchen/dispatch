@@ -1,12 +1,13 @@
 {
   "name": "@dispatch/desktop",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && electron-builder",
+    "bundle:server": "bash ../../scripts/bundle-server.sh",
+    "build": "tsc && vite build && pnpm run bundle:server && electron-builder",
     "build:e2e": "tsc && vite build",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
@@ -39,6 +40,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "dompurify": "^3.3.1",
+    "electron-updater": "^6.6.2",
     "highlight.js": "^11.11.1",
     "lucide-react": "^0.563.0",
     "react": "^19.2.4",
