@@ -2,65 +2,12 @@ import schedule from "node-schedule";
 import { db, sources, articles } from "@dispatch/db";
 import { eq, isNull } from "drizzle-orm";
 import { enqueueScrape } from "./scraper";
-import { getDigestConfig, getFetchScheduleConfig, getPipelineScheduleConfig } from "./settings";
+import { getSchedulesConfig, getDigestConfig, getPipelineConfig } from "./settings";
 import { generateDigest } from "./digest";
 import { processArticle } from "./llm";
 import { notificationService } from "./notifications.js";
 
-const FETCH_PRESET_CRONS: Record<string, string> = {
-  hourly: "0 * * * *",
-  every2h: "0 */2 * * *",
-  every6h: "0 */6 * * *",
-  every12h: "0 */12 * * *",
-  daily: "0 6 * * *"
-};
-
-const DIGEST_PRESET_CRONS: Record<string, string> = {
-  daily: "", // special: uses scheduledTime
-  every12h: "0 */12 * * *",
-  every6h: "0 */6 * * *"
-};
-
-const PIPELINE_PRESET_CRONS: Record<string, string> = {
-  every5m: "*/5 * * * *",
-  every15m: "*/15 * * * *",
-  every30m: "*/30 * * * *",
-  hourly: "0 * * * *"
-};
-
 let lastStartedAt: number | null = null;
-let activeFetchCron = FETCH_PRESET_CRONS.hourly;
-let activeDigestCron = "";
-let activePipelineCron = PIPELINE_PRESET_CRONS.every15m;
-
-function resolveFetchCron(): string {
-  const config = getFetchScheduleConfig();
-  if (config.cronExpression) {
-    return config.cronExpression;
-  }
-  return FETCH_PRESET_CRONS[config.preset ?? "hourly"] ?? FETCH_PRESET_CRONS.hourly;
-}
-
-function resolveDigestCron(): string {
-  const config = getDigestConfig();
-  if (config.cronExpression) {
-    return config.cronExpression;
-  }
-  const preset = config.preset ?? "daily";
-  if (preset === "daily") {
-    const [hour, minute] = (config.scheduledTime ?? "06:00").split(":").map(Number);
-    return `${minute} ${hour} * * *`;
-  }
-  return DIGEST_PRESET_CRONS[preset] ?? `0 6 * * *`;
-}
-
-function resolvePipelineCron(): string {
-  const config = getPipelineScheduleConfig();
-  if (config.cronExpression) {
-    return config.cronExpression;
-  }
-  return PIPELINE_PRESET_CRONS[config.preset ?? "every15m"] ?? PIPELINE_PRESET_CRONS.every15m;
-}
 
 export function startScheduler() {
   if (process.env.DISPATCH_DISABLE_SCHEDULER === "true") {
@@ -68,16 +15,20 @@ export function startScheduler() {
   }
   lastStartedAt = Date.now();
 
-  const fetchConfig = getFetchScheduleConfig();
+  const schedules = getSchedulesConfig();
   const digestConfig = getDigestConfig();
-  const pipelineConfig = getPipelineScheduleConfig();
+  const pipelineConfig = getPipelineConfig();
 
-  // Scrape job based on fetch schedule config
+  const fetchEntry = schedules.fetch ?? { enabled: true, cronExpression: "0 * * * *" };
+  const pipelineEntry = schedules.pipeline ?? { enabled: true, cronExpression: "*/15 * * * *" };
+  const digestEntry = schedules.digest ?? { enabled: true, cronExpression: "0 6 * * *" };
+
+  // Scrape job
   let scrapeJob: schedule.Job | null = null;
-  if (fetchConfig.enabled !== false) {
-    activeFetchCron = resolveFetchCron();
-    console.log(`[scheduler] Starting fetch job with cron: ${activeFetchCron}`);
-    scrapeJob = schedule.scheduleJob(activeFetchCron, async () => {
+  if (fetchEntry.enabled !== false) {
+    const fetchCron = fetchEntry.cronExpression ?? "0 * * * *";
+    console.log(`[scheduler] Starting fetch job with cron: ${fetchCron}`);
+    scrapeJob = schedule.scheduleJob(fetchCron, async () => {
       const activeSources = db
         .select()
         .from(sources)
@@ -100,13 +51,13 @@ export function startScheduler() {
     });
   }
 
-  // Pipeline job to process pending articles
+  // Pipeline job
   let pipelineJob: schedule.Job | null = null;
-  if (pipelineConfig.enabled !== false) {
-    activePipelineCron = resolvePipelineCron();
-    console.log(`[scheduler] Starting pipeline job with cron: ${activePipelineCron}`);
+  if (pipelineEntry.enabled !== false) {
+    const pipelineCron = pipelineEntry.cronExpression ?? "*/15 * * * *";
+    console.log(`[scheduler] Starting pipeline job with cron: ${pipelineCron}`);
 
-    pipelineJob = schedule.scheduleJob(activePipelineCron, async () => {
+    pipelineJob = schedule.scheduleJob(pipelineCron, async () => {
       const batchSize = pipelineConfig.batchSize ?? 10;
       const pending = db
         .select({ id: articles.id })
@@ -132,26 +83,23 @@ export function startScheduler() {
     });
   }
 
-  // Digest job based on digest config
+  // Digest job
   let digestJob: schedule.Job | null = null;
-  if (digestConfig.enabled !== false) {
-    activeDigestCron = resolveDigestCron();
-    console.log(`[scheduler] Starting digest job with cron: ${activeDigestCron}`);
+  if (digestEntry.enabled !== false) {
+    const digestCron = digestEntry.cronExpression ?? "0 6 * * *";
+    console.log(`[scheduler] Starting digest job with cron: ${digestCron}`);
 
-    digestJob = schedule.scheduleJob(activeDigestCron, async () => {
+    digestJob = schedule.scheduleJob(digestCron, async () => {
       try {
         console.log("[scheduler] Generating digest...");
         const digest = await generateDigest({
           topN: digestConfig.topN,
-          hoursBack: digestConfig.hoursBack,
         });
         console.log("[scheduler] Digest generated successfully");
 
-        // Send digest notification if enabled
         try {
           await notificationService.sendDigestNotification(digest);
         } catch (notificationError) {
-          // Log but don't fail the digest job
           console.error("[scheduler] Failed to send digest notification:", notificationError);
         }
       } catch (err) {
@@ -179,21 +127,24 @@ function getNextRunFromCron(cron: string): Date | null {
 
 export function getSchedulerSnapshot() {
   const disabled = process.env.DISPATCH_DISABLE_SCHEDULER === "true";
-  const fetchConfig = getFetchScheduleConfig();
-  const pipelineConfig = getPipelineScheduleConfig();
-  const digestConfig = getDigestConfig();
+  const schedules = getSchedulesConfig();
+  const pipelineConfig = getPipelineConfig();
 
-  const fetchCron = resolveFetchCron();
-  const pipelineCron = resolvePipelineCron();
-  const digestCron = resolveDigestCron();
+  const fetchEntry = schedules.fetch ?? { enabled: true, cronExpression: "0 * * * *" };
+  const pipelineEntry = schedules.pipeline ?? { enabled: true, cronExpression: "*/15 * * * *" };
+  const digestEntry = schedules.digest ?? { enabled: true, cronExpression: "0 6 * * *" };
 
-  const fetchNextRun = disabled || fetchConfig.enabled === false
+  const fetchCron = fetchEntry.cronExpression ?? "0 * * * *";
+  const pipelineCron = pipelineEntry.cronExpression ?? "*/15 * * * *";
+  const digestCron = digestEntry.cronExpression ?? "0 6 * * *";
+
+  const fetchNextRun = disabled || fetchEntry.enabled === false
     ? null
     : getNextRunFromCron(fetchCron);
-  const pipelineNextRun = disabled || pipelineConfig.enabled === false
+  const pipelineNextRun = disabled || pipelineEntry.enabled === false
     ? null
     : getNextRunFromCron(pipelineCron);
-  const digestNextRun = disabled || digestConfig.enabled === false
+  const digestNextRun = disabled || digestEntry.enabled === false
     ? null
     : getNextRunFromCron(digestCron);
 
@@ -201,23 +152,19 @@ export function getSchedulerSnapshot() {
     enabled: !disabled,
     startedAt: lastStartedAt,
     scrape: {
-      enabled: fetchConfig.enabled !== false,
+      enabled: fetchEntry.enabled !== false,
       cron: fetchCron,
-      preset: fetchConfig.preset ?? "hourly",
       nextRunAt: fetchNextRun?.getTime() ?? null
     },
     pipeline: {
-      enabled: pipelineConfig.enabled !== false,
+      enabled: pipelineEntry.enabled !== false,
       cron: pipelineCron,
-      preset: pipelineConfig.preset ?? "every15m",
       batchSize: pipelineConfig.batchSize ?? 10,
       nextRunAt: pipelineNextRun?.getTime() ?? null
     },
     digest: {
-      enabled: digestConfig.enabled !== false,
+      enabled: digestEntry.enabled !== false,
       cron: digestCron,
-      preset: digestConfig.preset ?? "daily",
-      scheduledTime: digestConfig.scheduledTime ?? "06:00",
       nextRunAt: digestNextRun?.getTime() ?? null
     }
   };

@@ -58,26 +58,23 @@ const gradingConfigSchema = z.object({
 });
 
 const digestConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  preset: z.enum(["daily", "every12h", "every6h"]).optional(),
-  scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  cronExpression: z.string().optional(),
   topN: z.number().int().positive().max(50).optional(),
-  hoursBack: z.number().positive().optional(),
   preferredLanguage: z.string().min(1).optional(),
   useBold: z.boolean().optional(),
 });
 
-const fetchScheduleConfigSchema = z.object({
+const scheduleEntrySchema = z.object({
   enabled: z.boolean().optional(),
-  preset: z.enum(["hourly", "every2h", "every6h", "every12h", "daily"]).optional(),
   cronExpression: z.string().optional(),
 });
 
-const pipelineScheduleConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  preset: z.enum(["every5m", "every15m", "every30m", "hourly"]).optional(),
-  cronExpression: z.string().optional(),
+const schedulesConfigSchema = z.object({
+  fetch: scheduleEntrySchema.optional(),
+  pipeline: scheduleEntrySchema.optional(),
+  digest: scheduleEntrySchema.optional(),
+});
+
+const pipelineConfigSchema = z.object({
   batchSize: z.number().int().min(1).max(50).optional(),
 });
 
@@ -108,8 +105,8 @@ const settingsSchema = z.object({
   ui: uiConfigSchema.optional(),
   grading: gradingConfigSchema.optional(),
   digest: digestConfigSchema.optional(),
-  fetchSchedule: fetchScheduleConfigSchema.optional(),
-  pipelineSchedule: pipelineScheduleConfigSchema.optional(),
+  schedules: schedulesConfigSchema.optional(),
+  pipeline: pipelineConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
   notifications: notificationsConfigSchema.optional(),
 });
@@ -134,9 +131,11 @@ export type GradingConfig = {
 
 export type DigestConfig = z.infer<typeof digestConfigSchema>;
 
-export type FetchScheduleConfig = z.infer<typeof fetchScheduleConfigSchema>;
+export type ScheduleEntry = z.infer<typeof scheduleEntrySchema>;
 
-export type PipelineScheduleConfig = z.infer<typeof pipelineScheduleConfigSchema>;
+export type SchedulesConfig = z.infer<typeof schedulesConfigSchema>;
+
+export type PipelineConfig = z.infer<typeof pipelineConfigSchema>;
 
 export type AgentConfig = z.infer<typeof agentConfigSchema>;
 
@@ -234,8 +233,8 @@ export function loadSettings(): Settings {
     ui: parsed.ui,
     grading: parsed.grading ?? getDefaultGradingConfig(),
     digest: parsed.digest,
-    fetchSchedule: parsed.fetchSchedule,
-    pipelineSchedule: parsed.pipelineSchedule,
+    schedules: parsed.schedules,
+    pipeline: parsed.pipeline,
     agent: parsed.agent,
     notifications: parsed.notifications ?? getDefaultNotificationsConfig(),
   };
@@ -246,8 +245,8 @@ export function loadSettings(): Settings {
     ui: merged.ui,
     grading: merged.grading,
     digest: merged.digest,
-    fetchSchedule: merged.fetchSchedule,
-    pipelineSchedule: merged.pipelineSchedule,
+    schedules: merged.schedules,
+    pipeline: merged.pipeline,
     agent: merged.agent,
     notifications: merged.notifications,
   });
@@ -267,8 +266,8 @@ export function updateModelsConfig(next: ModelsConfig): ModelsConfig {
     ui: getUiConfig(),
     grading: getGradingConfig(),
     digest: getDigestConfig(),
-    fetchSchedule: getFetchScheduleConfig(),
-    pipelineSchedule: getPipelineScheduleConfig(),
+    schedules: getSchedulesConfig(),
+    pipeline: getPipelineConfig(),
     agent: getAgentConfig(),
     notifications: getNotificationsConfig(),
   }).models;
@@ -292,10 +291,7 @@ export function getGradingConfig(): GradingConfig {
 
 export function getDefaultDigestConfig(): DigestConfig {
   return {
-    enabled: true,
-    scheduledTime: "06:00",
     topN: 10,
-    hoursBack: 24,
     preferredLanguage: "English",
     useBold: true,
   };
@@ -305,27 +301,32 @@ export function getDigestConfig(): DigestConfig {
   return loadSettings().digest ?? getDefaultDigestConfig();
 }
 
-export function getDefaultFetchScheduleConfig(): FetchScheduleConfig {
+export function getDefaultSchedulesConfig(): SchedulesConfig {
   return {
-    enabled: true,
-    preset: "hourly",
+    fetch: { enabled: true, cronExpression: "0 * * * *" },
+    pipeline: { enabled: true, cronExpression: "*/15 * * * *" },
+    digest: { enabled: true, cronExpression: "0 6 * * *" },
   };
 }
 
-export function getFetchScheduleConfig(): FetchScheduleConfig {
-  return loadSettings().fetchSchedule ?? getDefaultFetchScheduleConfig();
+export function getSchedulesConfig(): SchedulesConfig {
+  const defaults = getDefaultSchedulesConfig();
+  const saved = loadSettings().schedules;
+  return {
+    fetch: { ...defaults.fetch, ...saved?.fetch },
+    pipeline: { ...defaults.pipeline, ...saved?.pipeline },
+    digest: { ...defaults.digest, ...saved?.digest },
+  };
 }
 
-export function getDefaultPipelineScheduleConfig(): PipelineScheduleConfig {
+export function getDefaultPipelineConfig(): PipelineConfig {
   return {
-    enabled: true,
-    preset: "every15m",
     batchSize: 10,
   };
 }
 
-export function getPipelineScheduleConfig(): PipelineScheduleConfig {
-  return loadSettings().pipelineSchedule ?? getDefaultPipelineScheduleConfig();
+export function getPipelineConfig(): PipelineConfig {
+  return loadSettings().pipeline ?? getDefaultPipelineConfig();
 }
 
 export function getDefaultAgentConfig(): AgentConfig {

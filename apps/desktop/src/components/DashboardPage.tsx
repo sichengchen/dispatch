@@ -130,26 +130,58 @@ type FetchPreset = "hourly" | "every2h" | "every6h" | "every12h" | "daily";
 type PipelinePreset = "every5m" | "every15m" | "every30m" | "hourly";
 type DigestPreset = "daily" | "every12h" | "every6h";
 
-const FETCH_PRESETS: { value: FetchPreset; label: string }[] = [
-  { value: "hourly", label: "Every hour" },
-  { value: "every2h", label: "Every 2 hours" },
-  { value: "every6h", label: "Every 6 hours" },
-  { value: "every12h", label: "Every 12 hours" },
-  { value: "daily", label: "Once daily" }
+const FETCH_PRESETS: { value: FetchPreset; label: string; cron: string }[] = [
+  { value: "hourly", label: "Every hour", cron: "0 * * * *" },
+  { value: "every2h", label: "Every 2 hours", cron: "0 */2 * * *" },
+  { value: "every6h", label: "Every 6 hours", cron: "0 */6 * * *" },
+  { value: "every12h", label: "Every 12 hours", cron: "0 */12 * * *" },
+  { value: "daily", label: "Once daily", cron: "0 6 * * *" }
 ];
 
-const PIPELINE_PRESETS: { value: PipelinePreset; label: string }[] = [
-  { value: "every5m", label: "Every 5 minutes" },
-  { value: "every15m", label: "Every 15 minutes" },
-  { value: "every30m", label: "Every 30 minutes" },
-  { value: "hourly", label: "Every hour" }
+const PIPELINE_PRESETS: { value: PipelinePreset; label: string; cron: string }[] = [
+  { value: "every5m", label: "Every 5 minutes", cron: "*/5 * * * *" },
+  { value: "every15m", label: "Every 15 minutes", cron: "*/15 * * * *" },
+  { value: "every30m", label: "Every 30 minutes", cron: "*/30 * * * *" },
+  { value: "hourly", label: "Every hour", cron: "0 * * * *" }
 ];
 
-const DIGEST_PRESETS: { value: DigestPreset; label: string }[] = [
+const DIGEST_PRESETS: { value: DigestPreset; label: string; cron?: string }[] = [
   { value: "daily", label: "Daily" },
-  { value: "every12h", label: "Every 12 hours" },
-  { value: "every6h", label: "Every 6 hours" }
+  { value: "every12h", label: "Every 12 hours", cron: "0 */12 * * *" },
+  { value: "every6h", label: "Every 6 hours", cron: "0 */6 * * *" }
 ];
+
+function cronToFetchPreset(cron: string): FetchPreset | null {
+  const match = FETCH_PRESETS.find((p) => p.cron === cron);
+  return match?.value ?? null;
+}
+
+function cronToPipelinePreset(cron: string): PipelinePreset | null {
+  const match = PIPELINE_PRESETS.find((p) => p.cron === cron);
+  return match?.value ?? null;
+}
+
+function cronToDigestPreset(cron: string): { preset: DigestPreset; time?: string } | null {
+  const fixed = DIGEST_PRESETS.find((p) => p.cron && p.cron === cron);
+  if (fixed) return { preset: fixed.value };
+  // Detect daily pattern: "M H * * *"
+  const dailyMatch = cron.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+\*$/);
+  if (dailyMatch) {
+    const h = dailyMatch[2].padStart(2, "0");
+    const m = dailyMatch[1].padStart(2, "0");
+    return { preset: "daily", time: `${h}:${m}` };
+  }
+  return null;
+}
+
+function buildDigestCron(preset: DigestPreset, time: string): string {
+  if (preset === "daily") {
+    const [h, m] = time.split(":").map(Number);
+    return `${m} ${h} * * *`;
+  }
+  const found = DIGEST_PRESETS.find((p) => p.value === preset);
+  return found?.cron ?? "0 6 * * *";
+}
 
 export function DashboardPage() {
   const utils = trpc.useUtils();
@@ -192,28 +224,56 @@ export function DashboardPage() {
   const [digestTime, setDigestTime] = useState("06:00");
   const [digestCron, setDigestCron] = useState("");
   const [digestTopN, setDigestTopN] = useState(10);
-  const [digestHoursBack, setDigestHoursBack] = useState(24);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
-  // Load settings into state
+  // Load settings into state — reverse-match cron expressions to presets
   useEffect(() => {
     if (!settings) return;
-    const fetch = settings.fetchSchedule;
-    const pipeline = settings.pipelineSchedule;
-    const digest = settings.digest;
-    setFetchEnabled(fetch?.enabled ?? true);
-    setFetchPreset((fetch?.preset as FetchPreset) ?? "hourly");
-    setFetchCron(fetch?.cronExpression ?? "");
-    setPipelineEnabled(pipeline?.enabled ?? true);
-    setPipelinePreset((pipeline?.preset as PipelinePreset) ?? "every15m");
-    setPipelineCron(pipeline?.cronExpression ?? "");
-    setPipelineBatchSize(pipeline?.batchSize ?? 10);
-    setDigestEnabled(digest?.enabled ?? true);
-    setDigestPreset((digest?.preset as DigestPreset) ?? "daily");
-    setDigestTime(digest?.scheduledTime ?? "06:00");
-    setDigestCron(digest?.cronExpression ?? "");
-    setDigestTopN(digest?.topN ?? 10);
-    setDigestHoursBack(digest?.hoursBack ?? 24);
+    const fetchSched = settings.schedules?.fetch;
+    const pipelineSched = settings.schedules?.pipeline;
+    const digestSched = settings.schedules?.digest;
+
+    // Fetch
+    setFetchEnabled(fetchSched?.enabled ?? true);
+    const fetchCronVal = fetchSched?.cronExpression ?? "0 * * * *";
+    const matchedFetch = cronToFetchPreset(fetchCronVal);
+    if (matchedFetch) {
+      setFetchPreset(matchedFetch);
+      setFetchCron("");
+    } else {
+      setFetchPreset("hourly");
+      setFetchCron(fetchCronVal);
+    }
+
+    // Pipeline
+    setPipelineEnabled(pipelineSched?.enabled ?? true);
+    const pipelineCronVal = pipelineSched?.cronExpression ?? "*/15 * * * *";
+    const matchedPipeline = cronToPipelinePreset(pipelineCronVal);
+    if (matchedPipeline) {
+      setPipelinePreset(matchedPipeline);
+      setPipelineCron("");
+    } else {
+      setPipelinePreset("every15m");
+      setPipelineCron(pipelineCronVal);
+    }
+
+    setPipelineBatchSize(settings.pipeline?.batchSize ?? 10);
+
+    // Digest
+    setDigestEnabled(digestSched?.enabled ?? true);
+    const digestCronVal = digestSched?.cronExpression ?? "0 6 * * *";
+    const matchedDigest = cronToDigestPreset(digestCronVal);
+    if (matchedDigest) {
+      setDigestPreset(matchedDigest.preset);
+      setDigestTime(matchedDigest.time ?? "06:00");
+      setDigestCron("");
+    } else {
+      setDigestPreset("daily");
+      setDigestTime("06:00");
+      setDigestCron(digestCronVal);
+    }
+
+    setDigestTopN(settings.digest?.topN ?? 10);
   }, [settings]);
 
   const updateSettings = trpc.settings.update.useMutation({
@@ -229,28 +289,25 @@ export function DashboardPage() {
 
   const handleSaveSchedules = () => {
     if (!settings) return;
+    // Build cron expressions: custom cron overrides preset
+    const fetchCronToSave = fetchCron || FETCH_PRESETS.find((p) => p.value === fetchPreset)?.cron || "0 * * * *";
+    const pipelineCronToSave = pipelineCron || PIPELINE_PRESETS.find((p) => p.value === pipelinePreset)?.cron || "*/15 * * * *";
+    const digestCronToSave = digestCron || buildDigestCron(digestPreset, digestTime);
+
     updateSettings.mutate({
       models: settings.models,
       ui: settings.ui,
       grading: settings.grading,
       digest: {
         ...settings.digest,
-        enabled: digestEnabled,
-        preset: digestPreset,
-        scheduledTime: digestTime,
-        cronExpression: digestCron || undefined,
         topN: digestTopN,
-        hoursBack: digestHoursBack
       },
-      fetchSchedule: {
-        enabled: fetchEnabled,
-        preset: fetchPreset,
-        cronExpression: fetchCron || undefined
+      schedules: {
+        fetch: { enabled: fetchEnabled, cronExpression: fetchCronToSave },
+        pipeline: { enabled: pipelineEnabled, cronExpression: pipelineCronToSave },
+        digest: { enabled: digestEnabled, cronExpression: digestCronToSave },
       },
-      pipelineSchedule: {
-        enabled: pipelineEnabled,
-        preset: pipelinePreset,
-        cronExpression: pipelineCron || undefined,
+      pipeline: {
         batchSize: pipelineBatchSize
       },
       agent: settings.agent
@@ -316,9 +373,7 @@ export function DashboardPage() {
   const pipelinePending = pipelineInfo?.pending ?? 0;
   const pipelineSampleNote =
     dashboard?.pipelineRuns?.length ? "Sample from recent pipeline runs" : "No recent pipeline runs";
-  const digestSchedule = digestInfo?.scheduledTime
-    ? `Daily at ${digestInfo.scheduledTime}`
-    : "Not scheduled";
+  const digestSchedule = digestInfo?.frequency ?? "Not scheduled";
 
   const overviewTiles = [
     {
@@ -856,31 +911,17 @@ export function DashboardPage() {
                       </div>
                     )}
                   </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label>Top N articles</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="50"
-                        value={digestTopN}
-                        onChange={(e) =>
-                          setDigestTopN(Math.max(1, Math.min(50, Number(e.target.value) || 1)))
-                        }
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label>Hours back</Label>
-                      <Input
-                        type="number"
-                        min="1"
-                        max="72"
-                        value={digestHoursBack}
-                        onChange={(e) =>
-                          setDigestHoursBack(Math.max(1, Math.min(72, Number(e.target.value) || 1)))
-                        }
-                      />
-                    </div>
+                  <div className="space-y-1">
+                    <Label>Top N articles</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={digestTopN}
+                      onChange={(e) =>
+                        setDigestTopN(Math.max(1, Math.min(50, Number(e.target.value) || 1)))
+                      }
+                    />
                   </div>
                   {showAdvanced && (
                     <div className="space-y-1">

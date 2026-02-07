@@ -8,8 +8,8 @@ import {
   getUiConfig,
   getGradingConfig,
   getDigestConfig,
-  getFetchScheduleConfig,
-  getPipelineScheduleConfig,
+  getSchedulesConfig,
+  getPipelineConfig,
   getAgentConfig,
   getNotificationsConfig,
   saveSettings,
@@ -62,26 +62,23 @@ const gradingConfigSchema = z.object({
 });
 
 const digestConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  preset: z.enum(["daily", "every12h", "every6h"]).optional(),
-  scheduledTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
-  cronExpression: z.string().optional(),
   topN: z.number().int().positive().max(50).optional(),
-  hoursBack: z.number().positive().optional(),
   preferredLanguage: z.string().min(1).optional(),
   useBold: z.boolean().optional(),
 });
 
-const fetchScheduleConfigSchema = z.object({
+const scheduleEntrySchema = z.object({
   enabled: z.boolean().optional(),
-  preset: z.enum(["hourly", "every2h", "every6h", "every12h", "daily"]).optional(),
   cronExpression: z.string().optional(),
 });
 
-const pipelineScheduleConfigSchema = z.object({
-  enabled: z.boolean().optional(),
-  preset: z.enum(["every5m", "every15m", "every30m", "hourly"]).optional(),
-  cronExpression: z.string().optional(),
+const schedulesConfigSchema = z.object({
+  fetch: scheduleEntrySchema.optional(),
+  pipeline: scheduleEntrySchema.optional(),
+  digest: scheduleEntrySchema.optional(),
+});
+
+const pipelineConfigSchema = z.object({
   batchSize: z.number().int().min(1).max(50).optional(),
 });
 
@@ -141,8 +138,8 @@ const settingsSchema = z.object({
   ui: uiConfigSchema.optional(),
   grading: gradingConfigSchema.optional(),
   digest: digestConfigSchema.optional(),
-  fetchSchedule: fetchScheduleConfigSchema.optional(),
-  pipelineSchedule: pipelineScheduleConfigSchema.optional(),
+  schedules: schedulesConfigSchema.optional(),
+  pipeline: pipelineConfigSchema.optional(),
   agent: agentConfigSchema.optional(),
   notifications: notificationsConfigSchema.optional(),
 });
@@ -156,8 +153,8 @@ export const settingsRouter = t.router({
       ui: getUiConfig(),
       grading: getGradingConfig(),
       digest: getDigestConfig(),
-      fetchSchedule: getFetchScheduleConfig(),
-      pipelineSchedule: getPipelineScheduleConfig(),
+      schedules: getSchedulesConfig(),
+      pipeline: getPipelineConfig(),
       agent: getAgentConfig(),
       notifications: getNotificationsConfig(),
     };

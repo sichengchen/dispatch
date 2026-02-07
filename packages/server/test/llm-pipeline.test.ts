@@ -81,10 +81,7 @@ describe("LLM Pipeline (Mock)", () => {
         clamp: { min: 1, max: 10 }
       },
       digest: {
-        enabled: true,
-        scheduledTime: "06:00",
         topN: 10,
-        hoursBack: 24,
         preferredLanguage: "English"
       }
     });

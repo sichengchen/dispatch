@@ -6,7 +6,7 @@ import { listTaskRuns, startTaskRun, finishTaskRun, stopTaskRun } from "../servi
 import { scrapeQueue, enqueueScrape } from "../services/scraper";
 import { getSchedulerSnapshot } from "../services/scheduler";
 import { processArticle } from "../services/llm";
-import { getDigestConfig, getFetchScheduleConfig, getPipelineScheduleConfig } from "../services/settings";
+import { getSchedulesConfig, getPipelineConfig } from "../services/settings";
 
 function parseArticleIds(raw: string | null | undefined): number[] {
   if (!raw) return [];
@@ -63,9 +63,8 @@ export const tasksRouter = t.router({
       .limit(1)
       .get();
 
-    const digestConfig = getDigestConfig();
-    const fetchConfig = getFetchScheduleConfig();
-    const pipelineConfig = getPipelineScheduleConfig();
+    const schedules = getSchedulesConfig();
+    const pipelineConfig = getPipelineConfig();
     const scheduler = getSchedulerSnapshot();
     const digestArticleIds = latestDigest
       ? parseArticleIds(latestDigest.articleIds)
@@ -75,28 +74,40 @@ export const tasksRouter = t.router({
     const rssSources = sourceRows.filter((s) => s.scrapingStrategy === "rss").length;
     const skillSources = sourceRows.filter((s) => s.scrapingStrategy === "skill").length;
 
-    // Human-readable fetch frequency
-    const fetchPresetLabels: Record<string, string> = {
-      hourly: "Every hour",
-      every2h: "Every 2 hours",
-      every6h: "Every 6 hours",
-      every12h: "Every 12 hours",
-      daily: "Once daily"
-    };
-    const fetchFrequency = fetchConfig.cronExpression
-      ? `Custom (${fetchConfig.cronExpression})`
-      : fetchPresetLabels[fetchConfig.preset ?? "hourly"] ?? "Every hour";
+    const fetchEntry = schedules.fetch ?? { enabled: true, cronExpression: "0 * * * *" };
+    const pipelineEntry = schedules.pipeline ?? { enabled: true, cronExpression: "*/15 * * * *" };
+    const digestEntry = schedules.digest ?? { enabled: true, cronExpression: "0 6 * * *" };
 
-    // Human-readable pipeline frequency
-    const pipelinePresetLabels: Record<string, string> = {
-      every5m: "Every 5 minutes",
-      every15m: "Every 15 minutes",
-      every30m: "Every 30 minutes",
-      hourly: "Every hour"
+    // Reverse-match cron expressions to human-readable labels
+    const cronLabels: Record<string, string> = {
+      "0 * * * *": "Every hour",
+      "0 */2 * * *": "Every 2 hours",
+      "0 */6 * * *": "Every 6 hours",
+      "0 */12 * * *": "Every 12 hours",
+      "*/5 * * * *": "Every 5 minutes",
+      "*/15 * * * *": "Every 15 minutes",
+      "*/30 * * * *": "Every 30 minutes",
     };
-    const pipelineFrequency = pipelineConfig.cronExpression
-      ? `Custom (${pipelineConfig.cronExpression})`
-      : pipelinePresetLabels[pipelineConfig.preset ?? "every15m"] ?? "Every 15 minutes";
+
+    function describeCron(cron: string): string {
+      if (cronLabels[cron]) return cronLabels[cron];
+      // Detect daily pattern: "M H * * *"
+      const dailyMatch = cron.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+\*$/);
+      if (dailyMatch) {
+        const h = dailyMatch[2].padStart(2, "0");
+        const m = dailyMatch[1].padStart(2, "0");
+        return `Daily at ${h}:${m}`;
+      }
+      return cron;
+    }
+
+    const fetchCron = fetchEntry.cronExpression ?? "0 * * * *";
+    const pipelineCron = pipelineEntry.cronExpression ?? "*/15 * * * *";
+    const digestCron = digestEntry.cronExpression ?? "0 6 * * *";
+
+    const fetchFrequency = describeCron(fetchCron);
+    const pipelineFrequency = describeCron(pipelineCron);
+    const digestFrequency = describeCron(digestCron);
 
     return {
       overview: {
@@ -116,8 +127,8 @@ export const tasksRouter = t.router({
           lastProcessedAt: lastProcessed?.processedAt ?? null
         },
         digest: {
-          enabled: digestConfig.enabled !== false,
-          scheduledTime: digestConfig.scheduledTime ?? "06:00",
+          enabled: digestEntry.enabled !== false,
+          frequency: digestFrequency,
           nextRunAt: scheduler?.digest?.nextRunAt ?? null,
           lastGeneratedAt: latestDigest?.generatedAt ?? null,
           articleCount: digestArticleIds.length
@@ -148,19 +159,17 @@ export const tasksRouter = t.router({
           nextRunAt: scheduler?.pipeline?.nextRunAt ?? null,
           lastRunAt: lastProcessed?.processedAt ?? null,
           status:
-            pipelineConfig.enabled === false || scheduler?.enabled === false
+            pipelineEntry.enabled === false || scheduler?.enabled === false
               ? "disabled"
               : "scheduled"
         },
         {
           name: "Digest Generation",
-          frequency: digestConfig.scheduledTime
-            ? `Daily at ${digestConfig.scheduledTime}`
-            : "Daily",
+          frequency: digestFrequency,
           nextRunAt: scheduler?.digest?.nextRunAt ?? null,
           lastRunAt: latestDigest?.generatedAt ?? null,
           status:
-            digestConfig.enabled === false || scheduler?.enabled === false
+            digestEntry.enabled === false || scheduler?.enabled === false
               ? "disabled"
               : "scheduled"
         }

@@ -59,7 +59,7 @@ export async function generateDigest(options?: {
 }): Promise<typeof digests.$inferSelect> {
   const config = getDigestConfig();
   const topN = options?.topN ?? config.topN ?? 10;
-  const hoursBack = options?.hoursBack ?? config.hoursBack ?? 24;
+  const hoursBack = options?.hoursBack ?? 24;
   const preferredLanguage = config.preferredLanguage?.trim() || undefined;
   const useBold = config.useBold ?? true;
 
