@@ -341,6 +341,7 @@ export function SettingsPage() {
     const existingCatalog = settingsQuery.data?.models.catalog ?? [];
 
     await updateSettings.mutateAsync({
+      onboardingComplete: settingsQuery.data?.onboardingComplete,
       providers: existingProviders,
       models: {
         assignment: resolvedModels,
