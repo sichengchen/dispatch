@@ -1,0 +1,16 @@
+node_modules/
+dist/
+dist-electron/
+*.db
+dispatch.vectors/
+.env
+dispatch.settings.json
+.DS_Store
+.turbo/
+PLAN.md
+test-results/
+.mcp.json
+.npmrc
+sources-skills/
+server-dist/
+release/

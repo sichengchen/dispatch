@@ -1,0 +1,83 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1770099736883,
+      "tag": "0000_good_blizzard",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1770103414943,
+      "tag": "0001_add_summary_and_last_error",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1770176037103,
+      "tag": "0002_glamorous_william_stryker",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1770176833065,
+      "tag": "0003_rainy_joystick",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1770226578000,
+      "tag": "0004_add_grade_components",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1770228505017,
+      "tag": "0005_opposite_thunderbird",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1770228750060,
+      "tag": "0006_shallow_mimic",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1770228869055,
+      "tag": "0007_ambiguous_photon",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1770253874805,
+      "tag": "0008_add_long_summary",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1770265827247,
+      "tag": "0009_add-skill-columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1770337672347,
+      "tag": "0010_hard_spot",
+      "breakpoints": true
+    }
+  ]
+}
