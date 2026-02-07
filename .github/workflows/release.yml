@@ -14,11 +14,8 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            platform: mac
           - os: ubuntu-latest
-            platform: linux
           - os: windows-latest
-            platform: win
 
     runs-on: ${{ matrix.os }}
 
@@ -42,7 +39,7 @@ jobs:
         run: pnpm install
 
       - name: Build workspace dependencies
-        run: pnpm exec turbo build --filter=@dispatch/api
+        run: pnpm --filter @dispatch/api build
 
       - name: Build and Publish
         env:

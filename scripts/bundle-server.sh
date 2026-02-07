@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Bundle @dispatch/server and its workspace dependencies into a standalone
-# directory that can be included in the Electron app's extraResources.
+# Bundle @dispatch/server and workspace dependencies into a standalone
+# directory for Electron extraResources.
 #
 # Output: apps/desktop/server-dist/
-#   dist/          - compiled server JS
-#   node_modules/  - production dependencies (including workspace packages)
+#   dist/          - compiled server output
+#   node_modules/  - production dependencies (including workspace deps)
 #   package.json   - server package manifest
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -22,13 +22,7 @@ echo "==> Deploying @dispatch/server to $OUTPUT_DIR..."
 rm -rf "$OUTPUT_DIR"
 pnpm --filter @dispatch/server deploy "$OUTPUT_DIR" --prod
 
-echo "==> Cleaning up dev-only artifacts..."
-# Remove playwright browsers (not bundled in packaged app per design D2)
-rm -rf "$OUTPUT_DIR/node_modules/playwright/browsers"
-rm -rf "$OUTPUT_DIR/node_modules/playwright-core/.local-browsers"
-
 echo "==> Rebuilding native addons for Electron..."
-# Recompile better-sqlite3 and @lancedb/lancedb for Electron's Node ABI
 ELECTRON_VERSION=$(cd "$DESKTOP_DIR" && node -e "console.log(require('electron/package.json').version)")
 npx electron-rebuild \
   --version "$ELECTRON_VERSION" \

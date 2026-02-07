@@ -32,13 +32,13 @@
     "p-queue": "^9.1.0",
     "playwright": "^1.58.1",
     "rss-parser": "^3.13.0",
+    "dotenv": "^17.2.3",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/jsdom": "^27.0.0",
     "@types/node": "^25.2.0",
     "@types/node-schedule": "^2.1.8",
-    "dotenv": "^17.2.3",
     "tsx": "^4.21.0",
     "vitest": "^4.0.18"
   }
