@@ -41,6 +41,8 @@ type GeneralTabProps = {
   setSkillGeneratorMaxSteps: (value: number) => void;
   extractionAgentMaxSteps: number;
   setExtractionAgentMaxSteps: (value: number) => void;
+  extractionMaxArticles: number;
+  setExtractionMaxArticles: (value: number) => void;
   chatAgentMaxSteps: number;
   setChatAgentMaxSteps: (value: number) => void;
   digestReferenceLinkBehavior: "internal" | "external";
@@ -73,6 +75,8 @@ export function GeneralTab({
   setSkillGeneratorMaxSteps,
   extractionAgentMaxSteps,
   setExtractionAgentMaxSteps,
+  extractionMaxArticles,
+  setExtractionMaxArticles,
   chatAgentMaxSteps,
   setChatAgentMaxSteps,
   digestReferenceLinkBehavior,
@@ -376,7 +380,7 @@ export function GeneralTab({
         <div className="mt-1 text-xs text-slate-500">
           Configure max steps for AI agents used in website analysis, article extraction, and chat.
         </div>
-        <div className="mt-3 grid grid-cols-3 gap-4">
+        <div className="mt-3 grid grid-cols-4 gap-4">
           <div className="space-y-1">
             <Label htmlFor="skill-max-steps">Analysis Agent Max Steps</Label>
             <Input
@@ -407,6 +411,22 @@ export function GeneralTab({
             />
             <div className="text-[11px] text-slate-500">
               Steps for extracting articles
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="extraction-max-articles">Max Articles per Extraction</Label>
+            <Input
+              id="extraction-max-articles"
+              type="number"
+              min="1"
+              max="50"
+              value={extractionMaxArticles}
+              onChange={(e) =>
+                setExtractionMaxArticles(Math.max(1, Math.min(50, Number(e.target.value) || 10)))
+              }
+            />
+            <div className="text-[11px] text-slate-500">
+              Articles extracted per source
             </div>
           </div>
           <div className="space-y-1">

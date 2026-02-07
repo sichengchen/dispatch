@@ -30,6 +30,7 @@ type InitialState = {
   digestUseBold: boolean;
   skillGeneratorMaxSteps: number;
   extractionAgentMaxSteps: number;
+  extractionMaxArticles: number;
   chatAgentMaxSteps: number;
   digestReferenceLinkBehavior: "internal" | "external";
   externalLinkBehavior: "internal" | "external";
@@ -97,6 +98,7 @@ export function SettingsPage() {
   const [digestUseBold, setDigestUseBold] = useState(true);
   const [skillGeneratorMaxSteps, setSkillGeneratorMaxSteps] = useState(100);
   const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
+  const [extractionMaxArticles, setExtractionMaxArticles] = useState(10);
   const [chatAgentMaxSteps, setChatAgentMaxSteps] = useState(10);
   const [digestReferenceLinkBehavior, setDigestReferenceLinkBehavior] =
     useState<"internal" | "external">("internal");
@@ -132,6 +134,7 @@ export function SettingsPage() {
     setDigestUseBold((cfg.digest as { useBold?: boolean } | undefined)?.useBold ?? true);
     setSkillGeneratorMaxSteps(cfg.agent?.skillGeneratorMaxSteps ?? 40);
     setExtractionAgentMaxSteps(cfg.agent?.extractionAgentMaxSteps ?? 20);
+    setExtractionMaxArticles(cfg.agent?.extractionMaxArticles ?? 10);
     setChatAgentMaxSteps(cfg.agent?.chatAgentMaxSteps ?? 10);
 
     const nextCatalog: CatalogEntry[] =
@@ -216,6 +219,7 @@ export function SettingsPage() {
       digestUseBold: (cfg.digest as { useBold?: boolean } | undefined)?.useBold ?? true,
       skillGeneratorMaxSteps: cfg.agent?.skillGeneratorMaxSteps ?? 40,
       extractionAgentMaxSteps: cfg.agent?.extractionAgentMaxSteps ?? 20,
+      extractionMaxArticles: cfg.agent?.extractionMaxArticles ?? 10,
       chatAgentMaxSteps: cfg.agent?.chatAgentMaxSteps ?? 10,
       digestReferenceLinkBehavior: cfg.ui?.digestReferenceLinkBehavior ?? "internal",
       externalLinkBehavior: cfg.ui?.externalLinkBehavior ?? "internal",
@@ -265,6 +269,7 @@ export function SettingsPage() {
     if (digestUseBold !== initial.digestUseBold) return true;
     if (skillGeneratorMaxSteps !== initial.skillGeneratorMaxSteps) return true;
     if (extractionAgentMaxSteps !== initial.extractionAgentMaxSteps) return true;
+    if (extractionMaxArticles !== initial.extractionMaxArticles) return true;
     if (chatAgentMaxSteps !== initial.chatAgentMaxSteps) return true;
     if (digestReferenceLinkBehavior !== initial.digestReferenceLinkBehavior) return true;
     if (externalLinkBehavior !== initial.externalLinkBehavior) return true;
@@ -288,6 +293,7 @@ export function SettingsPage() {
     digestUseBold,
     skillGeneratorMaxSteps,
     extractionAgentMaxSteps,
+    extractionMaxArticles,
     chatAgentMaxSteps,
     digestReferenceLinkBehavior,
     externalLinkBehavior,
@@ -367,6 +373,7 @@ export function SettingsPage() {
       agent: {
         skillGeneratorMaxSteps,
         extractionAgentMaxSteps,
+        extractionMaxArticles,
         chatAgentMaxSteps
       },
       notifications: {
@@ -413,6 +420,8 @@ export function SettingsPage() {
             setSkillGeneratorMaxSteps={setSkillGeneratorMaxSteps}
             extractionAgentMaxSteps={extractionAgentMaxSteps}
             setExtractionAgentMaxSteps={setExtractionAgentMaxSteps}
+            extractionMaxArticles={extractionMaxArticles}
+            setExtractionMaxArticles={setExtractionMaxArticles}
             chatAgentMaxSteps={chatAgentMaxSteps}
             setChatAgentMaxSteps={setChatAgentMaxSteps}
             digestReferenceLinkBehavior={digestReferenceLinkBehavior}

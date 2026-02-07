@@ -85,6 +85,7 @@ const pipelineConfigSchema = z.object({
 const agentConfigSchema = z.object({
   skillGeneratorMaxSteps: z.number().int().min(5).max(100).optional(),
   extractionAgentMaxSteps: z.number().int().min(5).max(100).optional(),
+  extractionMaxArticles: z.number().int().min(1).max(50).optional(),
   chatAgentMaxSteps: z.number().int().min(1).max(20).optional(),
 });
 

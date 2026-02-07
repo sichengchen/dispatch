@@ -221,6 +221,9 @@ export async function extractArticles(
 
   const model = providerFn(modelConfig.model);
 
+  const agentConfig = getAgentConfig();
+  const maxArticles = agentConfig.extractionMaxArticles ?? 10;
+
   // Build prompt with skill instructions
   const systemPrompt = `You are an article extraction agent. Your job is to extract articles from a website using the provided SKILL.md instructions.
 
@@ -242,7 +245,7 @@ Follow the SKILL.md instructions to:
 
 CRITICAL: Call report_articles after extracting every 2-3 articles. Do NOT wait until the end - you may run out of steps. Save articles incrementally to ensure they are not lost.
 
-Extract up to 10 articles maximum.`;
+Extract up to ${maxArticles} articles maximum.`;
 
   const userPrompt = `Extract articles from ${source.url} using these instructions:
 
@@ -251,7 +254,6 @@ ${skillContent}
 Start by fetching the homepage, then find and extract articles.`;
 
   try {
-    const agentConfig = getAgentConfig();
     const maxSteps = agentConfig.extractionAgentMaxSteps ?? 100;
 
     const result = await generateText({
