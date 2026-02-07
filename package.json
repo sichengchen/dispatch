@@ -8,7 +8,11 @@
     "build": "turbo build",
     "lint": "turbo lint",
     "test": "turbo test",
-    "test:secrets": "scripts/check-secrets.sh"
+    "test:secrets": "scripts/check-secrets.sh",
+    "version:bump": "bash scripts/bump-version.sh",
+    "version:patch": "bash scripts/bump-version.sh patch",
+    "version:minor": "bash scripts/bump-version.sh minor",
+    "version:major": "bash scripts/bump-version.sh major"
   },
   "devDependencies": {
     "turbo": "^2.8.3",
