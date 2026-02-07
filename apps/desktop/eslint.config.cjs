@@ -15,7 +15,9 @@ module.exports = [
       "node_modules",
       "test-results",
       ".turbo",
-      "public"
+      "public",
+      "server-dist",
+      "release"
     ],
   },
   {
