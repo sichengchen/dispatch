@@ -3,7 +3,7 @@ import { TRPCError } from "@trpc/server";
 import { eq, inArray } from "drizzle-orm";
 import { sources } from "@dispatch/db";
 import { t } from "../trpc";
-import { scrapeSource } from "../services/scraper";
+import { scrapeSource, validateUrl } from "../services/scraper";
 import {
   generateSkill,
   regenerateSkill,
@@ -36,6 +36,14 @@ export const sourcesRouter = t.router({
       })
     )
     .mutation(async ({ ctx, input }) => {
+      const validation = validateUrl(input.url);
+      if (!validation.valid) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: validation.error ?? "Invalid source URL"
+        });
+      }
+
       const insertResult = ctx.db
         .insert(sources)
         .values({

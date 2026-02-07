@@ -29,8 +29,44 @@ export type AppRouter = typeof appRouter;
 
 export const app = new Hono();
 
-// Enable CORS for Electron renderer process
-app.use("*", cors());
+function isTrustedRendererOrigin(origin: string): boolean {
+  if (origin === "null") {
+    // Packaged Electron renderer may use the opaque "null" origin.
+    return true;
+  }
+  try {
+    const parsed = new URL(origin);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return false;
+    }
+    if (["localhost", "127.0.0.1", "::1", "[::1]"].includes(parsed.hostname)) {
+      return true;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+// Reject requests from untrusted browser origins before route handling.
+app.use("*", async (c, next) => {
+  const origin = c.req.header("origin");
+  if (origin && !isTrustedRendererOrigin(origin)) {
+    return c.json({ error: "Origin not allowed" }, 403);
+  }
+  await next();
+});
+
+// Apply CORS only to trusted renderer origins.
+app.use(
+  "*",
+  cors({
+    origin: (origin) => (origin && isTrustedRendererOrigin(origin) ? origin : ""),
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization"],
+    credentials: true
+  })
+);
 
 // Register streaming agent chat endpoint (outside tRPC)
 registerAgentChatEndpoint(app);

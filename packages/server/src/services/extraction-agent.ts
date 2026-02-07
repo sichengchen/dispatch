@@ -177,7 +177,9 @@ export async function extractArticles(
   const envContinue = process.env.DISPATCH_SKILL_CONTINUE_ON_ERROR;
   const continueOnError =
     options?.continueOnError ??
-    (envContinue ? envContinue.toLowerCase() === "true" : true);
+    (envContinue
+      ? ["1", "true", "yes"].includes(envContinue.trim().toLowerCase())
+      : true);
 
   // Create tool context
   const ctx = createToolContext({

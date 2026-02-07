@@ -166,6 +166,7 @@ async function resolveServerPort() {
     const existing = await findHealthyServerInRange(3001, 3010)
     if (existing) {
       serverPort = existing
+      process.env.DISPATCH_PORT = String(serverPort)
       return { reuse: true }
     }
     for (let port = 3001; port <= 3010; port += 1) {
