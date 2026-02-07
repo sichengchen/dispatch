@@ -29,12 +29,30 @@ export const RENDERER_DIST = path.join(process.env.APP_ROOT, 'dist')
 process.env.VITE_PUBLIC = VITE_DEV_SERVER_URL ? path.join(process.env.APP_ROOT, 'public') : RENDERER_DIST
 
 let serverProcess: ChildProcess | null = null
+let serverLogStream: fs.WriteStream | null = null
+let serverStartPromise: Promise<void> | null = null
 
 const SERVER_HOST = process.env.DISPATCH_HOST ?? '127.0.0.1'
 let serverPort = Number(process.env.DISPATCH_PORT ?? 3001)
 
 function getServerUrl() {
   return `http://${SERVER_HOST}:${serverPort}`
+}
+
+function getServerLogPath() {
+  return path.join(app.getPath('userData'), 'server.log')
+}
+
+function getServerLogTail(lines = 40) {
+  try {
+    const logPath = getServerLogPath()
+    if (!fs.existsSync(logPath)) return ''
+    const content = fs.readFileSync(logPath, 'utf8')
+    const parts = content.trim().split(/\r?\n/)
+    return parts.slice(Math.max(0, parts.length - lines)).join('\n')
+  } catch {
+    return ''
+  }
 }
 
 function findWorkspaceRoot(startDir: string) {
@@ -191,46 +209,84 @@ async function resolveServerPort() {
 }
 
 async function startServer() {
-  if (serverProcess) return
-
-  const { reuse } = await resolveServerPort()
-  if (reuse) return
-
-  const serverEnv = {
-    ...process.env,
-    PORT: String(serverPort),
-    HOST: SERVER_HOST,
-    DISPATCH_SETTINGS_PATH: getSettingsPath(),
-    DISPATCH_DB_PATH: getDbPath(),
-    DISPATCH_VECTOR_PATH: getVectorPath(),
-    DISPATCH_ALLOW_EXISTING_SERVER: "1"
-  }
-
-  if (VITE_DEV_SERVER_URL || process.env.DISPATCH_E2E === "1") {
-    const cmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
-    serverProcess = spawn(cmd, ['--filter', '@dispatch/server', 'dev'], {
-      cwd: process.env.APP_ROOT,
-      env: serverEnv,
-      stdio: 'inherit'
-    })
-  } else if (app.isPackaged) {
-    const serverEntry = path.join(process.resourcesPath, 'server-dist', 'dist', 'index.js')
-    const logPath = path.join(app.getPath('userData'), 'server.log')
-    const logStream = fs.createWriteStream(logPath, { flags: 'a' })
-
-    serverProcess = spawn(process.execPath, [serverEntry], {
-      env: { ...serverEnv, ELECTRON_RUN_AS_NODE: '1' },
-      stdio: ['ignore', 'pipe', 'pipe']
-    })
-    serverProcess.stdout?.pipe(logStream)
-    serverProcess.stderr?.pipe(logStream)
-  } else {
-    console.warn('Server bootstrap for packaged app is not configured yet.')
+  if (serverStartPromise) {
+    await serverStartPromise
     return
   }
 
-  const timeoutMs = Number(process.env.DISPATCH_SERVER_TIMEOUT_MS ?? 10000)
-  await waitForServer(Number.isFinite(timeoutMs) ? timeoutMs : 10000)
+  serverStartPromise = (async () => {
+    // If our child handle points to a dead process, clear it so we can restart.
+    if (serverProcess && serverProcess.exitCode !== null) {
+      serverProcess = null
+    }
+
+    if (serverProcess) return
+    if (await checkServerHealthy(serverPort)) return
+
+    const { reuse } = await resolveServerPort()
+    if (reuse) return
+
+    const serverEnv = {
+      ...process.env,
+      PORT: String(serverPort),
+      HOST: SERVER_HOST,
+      DISPATCH_SETTINGS_PATH: getSettingsPath(),
+      DISPATCH_DB_PATH: getDbPath(),
+      DISPATCH_VECTOR_PATH: getVectorPath(),
+      DISPATCH_ALLOW_EXISTING_SERVER: "1"
+    }
+
+    if (VITE_DEV_SERVER_URL || process.env.DISPATCH_E2E === "1") {
+      const cmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
+      serverProcess = spawn(cmd, ['--filter', '@dispatch/server', 'dev'], {
+        cwd: process.env.APP_ROOT,
+        env: serverEnv,
+        stdio: 'inherit'
+      })
+    } else if (app.isPackaged) {
+      const serverEntry = path.join(process.resourcesPath, 'server-dist', 'dist', 'index.js')
+
+      // Fresh stream per process; close it on exit.
+      serverLogStream?.end()
+      serverLogStream = fs.createWriteStream(getServerLogPath(), { flags: 'a' })
+
+      serverProcess = spawn(process.execPath, [serverEntry], {
+        env: { ...serverEnv, ELECTRON_RUN_AS_NODE: '1' },
+        stdio: ['ignore', 'pipe', 'pipe']
+      })
+      serverProcess.stdout?.pipe(serverLogStream)
+      serverProcess.stderr?.pipe(serverLogStream)
+    } else {
+      console.warn('Server bootstrap for packaged app is not configured yet.')
+      return
+    }
+
+    serverProcess.on('exit', (code, signal) => {
+      console.error(`Dispatch server exited (code=${code}, signal=${signal ?? 'none'})`)
+      serverProcess = null
+      serverLogStream?.end()
+      serverLogStream = null
+    })
+
+    const timeoutMs = Number(process.env.DISPATCH_SERVER_TIMEOUT_MS ?? 10000)
+    try {
+      await waitForServer(Number.isFinite(timeoutMs) ? timeoutMs : 10000)
+    } catch (error) {
+      const tail = app.isPackaged ? getServerLogTail(80) : ''
+      const detail = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        app.isPackaged && tail
+          ? `Server failed to become ready: ${detail}\n--- server.log tail ---\n${tail}`
+          : `Server failed to become ready: ${detail}`
+      )
+    }
+  })()
+
+  try {
+    await serverStartPromise
+  } finally {
+    serverStartPromise = null
+  }
 }
 
 function createWindow() {
@@ -273,14 +329,33 @@ app.on('activate', () => {
 })
 
 ipcMain.handle('dispatch:request', async (_event: IpcMainInvokeEvent, payload: { path: string; init?: RequestInit }) => {
-  const url = new URL(payload.path, getServerUrl())
-  const response = await fetch(url, payload.init)
-  const body = await response.text()
-  return {
-    status: response.status,
-    statusText: response.statusText,
-    headers: Array.from(response.headers.entries()),
-    body
+  const requestOnce = async () => {
+    const url = new URL(payload.path, getServerUrl())
+    const response = await fetch(url, payload.init)
+    const body = await response.text()
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Array.from(response.headers.entries()),
+      body
+    }
+  }
+
+  try {
+    return await requestOnce()
+  } catch (firstError) {
+    // If the server died after startup, restart once and retry.
+    await startServer()
+    try {
+      return await requestOnce()
+    } catch (secondError) {
+      const firstMessage = firstError instanceof Error ? firstError.message : String(firstError)
+      const secondMessage = secondError instanceof Error ? secondError.message : String(secondError)
+      const logHint = app.isPackaged ? ` See ${getServerLogPath()}` : ''
+      throw new Error(
+        `Dispatch server request failed after restart attempt. First error: ${firstMessage}. Retry error: ${secondMessage}.${logHint}`
+      )
+    }
   }
 })
 
@@ -299,6 +374,8 @@ app.on('before-quit', () => {
     serverProcess.on('exit', () => clearTimeout(forceTimeout))
   }
   serverProcess = null
+  serverLogStream?.end()
+  serverLogStream = null
 })
 
 function setupAutoUpdater(window: InstanceType<typeof BrowserWindow>) {
@@ -320,7 +397,11 @@ function setupAutoUpdater(window: InstanceType<typeof BrowserWindow>) {
 }
 
 app.whenReady().then(async () => {
-  await startServer()
+  try {
+    await startServer()
+  } catch (error) {
+    console.error('Initial server startup failed:', error)
+  }
   createWindow()
 
   const mainWindow = BrowserWindow.getAllWindows()[0]
