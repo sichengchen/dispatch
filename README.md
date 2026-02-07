@@ -11,6 +11,25 @@ It runs on your computer, pulls stories from your sources, notify you when there
 - Scheduled fetch, articles processing, and digest jobs with cron config.
 - IM notifications (supports Telegram).
 
+## Installation
+
+Download the latest release for your platform from [Releases](https://github.com/sichengchen/dispatch/releases):
+
+| Platform | Format |
+|----------|--------|
+| macOS    | `.dmg` |
+| Windows  | `.exe` installer |
+| Linux    | `.AppImage` |
+
+### Getting Started
+
+1. Open The Dispatch after installing.
+2. The onboarding wizard will guide you through setting up an LLM provider (Anthropic, OpenAI, or any OpenAI-compatible endpoint such as Ollama or LM Studio).
+3. Select which models to use for each task (summarization, classification, grading, etc.).
+4. Add your first news source — an RSS feed URL or any web page.
+
+The Dispatch will begin fetching and processing articles.
+
 ## Monorepo layout
 
 - `apps/desktop`: Electron + React + Vite UI
@@ -19,7 +38,7 @@ It runs on your computer, pulls stories from your sources, notify you when there
 - `packages/lib`: shared LLM/provider logic
 - `packages/api`: shared API types
 
-## Quick start
+## Development
 
 1. Install dependencies:
 
@@ -33,61 +52,16 @@ pnpm install
 pnpm --filter @dispatch/db migrate
 ```
 
-3. (Optional) Seed sample data:
-
-```bash
-pnpm --filter @dispatch/db seed
-```
-
-4. (Optional) Copy env template:
+3. (Optional) Copy env template:
 
 ```bash
 cp sample.env .env
 ```
 
-5. Start the workspace:
+4. Start:
 
 ```bash
 pnpm dev
 ```
 
 `pnpm dev` runs the desktop app and local server via Turborepo.
-
-## Core commands
-
-### Development
-
-```bash
-pnpm dev
-pnpm --filter @dispatch/server dev
-pnpm --filter @dispatch/desktop dev
-```
-
-### Build
-
-```bash
-pnpm build
-```
-
-### Database
-
-```bash
-pnpm --filter @dispatch/db migrate
-pnpm --filter @dispatch/db generate
-pnpm --filter @dispatch/db seed
-pnpm --filter @dispatch/db verify
-```
-
-### Tests
-
-```bash
-pnpm test
-pnpm --filter @dispatch/server test
-pnpm --filter @dispatch/server test:backend
-pnpm --filter @dispatch/server test:scraper
-pnpm --filter @dispatch/server test:scraper:advanced
-pnpm --filter @dispatch/server test:llm
-pnpm --filter @dispatch/server test:llm:live
-pnpm --filter @dispatch/desktop test
-pnpm --filter @dispatch/desktop test:e2e
-```
