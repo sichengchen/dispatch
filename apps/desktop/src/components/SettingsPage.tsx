@@ -174,6 +174,9 @@ export function SettingsPage() {
       }
     }
 
+    // Snapshot routing before auto-assignment for change detection
+    const serverRouting = { ...nextRouting };
+
     // Only auto-assign routing if there are models in the catalog
     if (nextCatalog.length > 0) {
       const supportsTask = (entry: CatalogEntry, task: string) => {
@@ -203,7 +206,8 @@ export function SettingsPage() {
     setNotificationsSendBreakingNews(notifCfg?.providers?.telegram?.sendBreakingNews ?? true);
     setNotificationsBreakingNewsThreshold(notifCfg?.providers?.telegram?.breakingNewsThreshold ?? 85);
 
-    // Store initial state for change detection
+    // Store initial state for change detection using server routing
+    // (before auto-assignment) so auto-filled fallbacks are detected as changes
     initialStateRef.current = {
       appTitle: cfg.ui?.appTitle ?? "",
       gradingWeights: {
@@ -214,7 +218,7 @@ export function SettingsPage() {
       },
       interestScores: buildScoreRows(cfg.grading?.interestByTag),
       sourceScores: buildScoreRows(cfg.grading?.sourceWeights),
-      routing: nextRouting,
+      routing: serverRouting,
       digestPreferredLanguage: cfg.digest?.preferredLanguage ?? "English",
       digestUseBold: (cfg.digest as { useBold?: boolean } | undefined)?.useBold ?? true,
       skillGeneratorMaxSteps: cfg.agent?.skillGeneratorMaxSteps ?? 40,
