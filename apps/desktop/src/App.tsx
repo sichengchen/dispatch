@@ -86,6 +86,10 @@ export default function App() {
       setActiveView("history");
       return;
     }
+    if (articleReturn?.view === "sources") {
+      setActiveView("sources");
+      return;
+    }
     setActiveView("home");
   };
 
@@ -120,8 +124,8 @@ export default function App() {
 
   return (
     <TooltipProvider>
-    <div className="min-h-screen bg-slate-50">
-      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div className="flex h-screen flex-col overflow-hidden bg-slate-50">
+      <header className="shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
           <button
             type="button"
@@ -152,7 +156,7 @@ export default function App() {
         </div>
       </header>
       <ErrorBoundary>
-      <main className="mx-auto w-full max-w-6xl px-6 py-6">
+      <main className={`mx-auto min-h-0 w-full max-w-6xl flex-1 px-6 py-6 ${activeView === "sources" ? "overflow-hidden" : "overflow-y-auto"}`}>
         {activeView === "home" ? (
           <HomeDigest
             onSelectArticle={openArticle}
@@ -174,7 +178,9 @@ export default function App() {
         ) : activeView === "dashboard" ? (
           <DashboardPage />
         ) : activeView === "sources" ? (
-          <SourcesPage />
+          <SourcesPage
+            onSelectArticle={(id) => openArticle(id, { view: "sources" })}
+          />
         ) : activeView === "settings" ? (
           <SettingsPage />
         ) : (
@@ -187,7 +193,9 @@ export default function App() {
                 ? "Back to History Digest"
                 : articleReturn?.view === "history"
                   ? "Back to History"
-                  : "Back to Digest"
+                  : articleReturn?.view === "sources"
+                    ? "Back to Sources"
+                    : "Back to Digest"
             }
             externalLinkBehavior={externalLinkBehavior}
           />

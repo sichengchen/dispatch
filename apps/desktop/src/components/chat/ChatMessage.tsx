@@ -34,6 +34,10 @@ export function ChatMessage({
 
   // Custom code block renderer for choices
   const components = {
+    pre: ({ children }: { children?: React.ReactNode }) => {
+      // Strip <pre> wrapper so custom blocks (choices/completion) can wrap text
+      return <>{children}</>;
+    },
     code: ({
       className,
       children,
@@ -71,9 +75,11 @@ export function ChatMessage({
 
         if (parsed) {
           return (
-            <div className="my-2 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
-              <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
-              <span className="text-sm font-medium">{parsed.message}</span>
+            <div className="my-2 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">
+              <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-emerald-600" />
+              <span className="text-xs font-medium [&_p]:inline">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{parsed.message}</ReactMarkdown>
+              </span>
             </div>
           );
         }
@@ -98,7 +104,7 @@ export function ChatMessage({
     >
       <div
         className={cn(
-          "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+          "max-w-[85%] rounded-lg px-3 py-2 text-xs",
           isUser
             ? "bg-slate-900 text-white"
             : "bg-slate-100 text-slate-900",
@@ -108,7 +114,7 @@ export function ChatMessage({
         {isUser ? (
           <p className="whitespace-pre-wrap">{content}</p>
         ) : (
-          <div className="prose prose-sm prose-slate max-w-none dark:prose-invert">
+          <div className="prose prose-xs prose-slate max-w-none dark:prose-invert text-xs">
             <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
               {content || (isStreaming ? "..." : "")}
             </ReactMarkdown>

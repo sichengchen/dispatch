@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { eq, inArray } from "drizzle-orm";
-import { sources } from "@dispatch/db";
+import { eq, inArray, count } from "drizzle-orm";
+import { sources, articles } from "@dispatch/db";
 import { t } from "../trpc";
 import { scrapeSource, validateUrl } from "../services/scraper";
 import {
@@ -14,7 +14,28 @@ import { startTaskRun, finishTaskRun } from "../services/task-log";
 
 export const sourcesRouter = t.router({
   list: t.procedure.query(({ ctx }) => {
-    return ctx.db.select().from(sources).all();
+    return ctx.db
+      .select({
+        id: sources.id,
+        url: sources.url,
+        name: sources.name,
+        type: sources.type,
+        lastFetchedAt: sources.lastFetchedAt,
+        lastErrorAt: sources.lastErrorAt,
+        consecutiveFailures: sources.consecutiveFailures,
+        healthStatus: sources.healthStatus,
+        isActive: sources.isActive,
+        scrapingStrategy: sources.scrapingStrategy,
+        hasSkill: sources.hasSkill,
+        skillVersion: sources.skillVersion,
+        skillGeneratedAt: sources.skillGeneratedAt,
+        createdAt: sources.createdAt,
+        articleCount: count(articles.id),
+      })
+      .from(sources)
+      .leftJoin(articles, eq(sources.id, articles.sourceId))
+      .groupBy(sources.id)
+      .all();
   }),
   listForWeights: t.procedure.query(({ ctx }) => {
     return ctx.db

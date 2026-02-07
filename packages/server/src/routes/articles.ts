@@ -236,6 +236,50 @@ export const articlesRouter = t.router({
       await processArticle(input.id);
       return { ok: true };
     }),
+  delete: t.procedure
+    .input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ ctx, input }) => {
+      const result = ctx.db
+        .delete(articles)
+        .where(eq(articles.id, input.id))
+        .run();
+
+      if (result.changes === 0) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Article not found" });
+      }
+
+      return { ok: true };
+    }),
+  deleteMany: t.procedure
+    .input(
+      z.object({
+        ids: z.array(z.number().int().positive()).min(1)
+      })
+    )
+    .mutation(({ ctx, input }) => {
+      const uniqueIds = Array.from(new Set(input.ids));
+      const result = ctx.db
+        .delete(articles)
+        .where(inArray(articles.id, uniqueIds))
+        .run();
+
+      return { ok: true, deleted: result.changes };
+    }),
+  reprocessMany: t.procedure
+    .input(
+      z.object({
+        ids: z.array(z.number().int().positive()).min(1)
+      })
+    )
+    .mutation(async ({ input }) => {
+      const uniqueIds = Array.from(new Set(input.ids));
+      let processed = 0;
+      for (const id of uniqueIds) {
+        await processArticle(id);
+        processed++;
+      }
+      return { ok: true, processed };
+    }),
   uniqueTags: t.procedure.query(({ ctx }) => {
     const rows = ctx.db
       .select({ tags: articles.tags })

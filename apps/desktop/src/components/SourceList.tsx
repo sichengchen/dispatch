@@ -312,6 +312,13 @@ export function SourceList() {
                   >
                     {source.url}
                   </div>
+                  <div
+                    className={`mt-0.5 text-xs ${
+                      selectedSourceId === source.id ? "text-slate-300" : "text-slate-400"
+                    }`}
+                  >
+                    {source.articleCount} {source.articleCount === 1 ? "article" : "articles"}
+                  </div>
                 </div>
               </div>
               <DropdownMenu>
