@@ -29,7 +29,7 @@ rm -rf "$OUTPUT_DIR/node_modules/playwright-core/.local-browsers"
 
 echo "==> Rebuilding native addons for Electron..."
 # Recompile better-sqlite3 and @lancedb/lancedb for Electron's Node ABI
-ELECTRON_VERSION=$(node -e "console.log(require('$DESKTOP_DIR/node_modules/electron/package.json').version)")
+ELECTRON_VERSION=$(cd "$DESKTOP_DIR" && node -e "console.log(require('electron/package.json').version)")
 npx electron-rebuild \
   --version "$ELECTRON_VERSION" \
   --module-dir "$OUTPUT_DIR" \
