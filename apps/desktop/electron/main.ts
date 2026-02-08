@@ -113,8 +113,7 @@ async function waitForServer(timeoutMs = 10000) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     try {
-      const res = await fetch(`${getServerUrl()}/health`)
-      if (res.ok) return
+      if (await checkServerHealthy(serverPort)) return
     } catch {
       // ignore
     }
@@ -132,10 +131,29 @@ async function checkPortAvailable(port: number) {
   })
 }
 
+async function getEphemeralPort() {
+  const probe = net.createServer()
+  await new Promise<void>((resolve) => probe.listen(0, SERVER_HOST, resolve))
+  const address = probe.address()
+  probe.close()
+  if (address && typeof address === 'object') {
+    return address.port
+  }
+  throw new Error('Failed to allocate an ephemeral server port')
+}
+
 async function checkServerHealthy(port: number) {
   try {
     const res = await fetch(`http://${SERVER_HOST}:${port}/health`)
-    return res.ok
+    if (!res.ok) return false
+
+    const contentType = res.headers.get('content-type') ?? ''
+    if (!contentType.includes('application/json')) {
+      return false
+    }
+
+    const body = await res.json().catch(() => null)
+    return Boolean(body && typeof body === 'object' && body.status === 'ok')
   } catch {
     return false
   }
@@ -215,16 +233,26 @@ async function startServer() {
   }
 
   serverStartPromise = (async () => {
+    const isDevOrE2E = Boolean(VITE_DEV_SERVER_URL || process.env.DISPATCH_E2E === "1")
+    const shouldReuseExisting = isDevOrE2E
+
     // If our child handle points to a dead process, clear it so we can restart.
     if (serverProcess && serverProcess.exitCode !== null) {
       serverProcess = null
     }
 
     if (serverProcess) return
-    if (await checkServerHealthy(serverPort)) return
+    if (shouldReuseExisting && await checkServerHealthy(serverPort)) return
 
-    const { reuse } = await resolveServerPort()
-    if (reuse) return
+    if (app.isPackaged) {
+      // Release builds always use a dedicated ephemeral port and never reuse
+      // any existing local server process.
+      serverPort = await getEphemeralPort()
+      process.env.DISPATCH_PORT = String(serverPort)
+    } else {
+      const { reuse } = await resolveServerPort()
+      if (reuse) return
+    }
 
     const serverEnv = {
       ...process.env,
@@ -233,10 +261,10 @@ async function startServer() {
       DISPATCH_SETTINGS_PATH: getSettingsPath(),
       DISPATCH_DB_PATH: getDbPath(),
       DISPATCH_VECTOR_PATH: getVectorPath(),
-      DISPATCH_ALLOW_EXISTING_SERVER: "1"
+      DISPATCH_ALLOW_EXISTING_SERVER: isDevOrE2E ? "1" : "0"
     }
 
-    if (VITE_DEV_SERVER_URL || process.env.DISPATCH_E2E === "1") {
+    if (isDevOrE2E) {
       const cmd = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm'
       serverProcess = spawn(cmd, ['--filter', '@dispatch/server', 'dev'], {
         cwd: process.env.APP_ROOT,

@@ -25,6 +25,11 @@ mkdir -p "$OUTPUT_DIR"
 # Copy compiled server output.
 cp -R "$REPO_ROOT/packages/server/dist" "$OUTPUT_DIR/dist"
 
+# Runtime bundle does not need declaration/build-info files.
+find "$OUTPUT_DIR/dist" -type f \
+  \( -name "*.d.ts" -o -name "*.d.mts" -o -name "*.d.cts" -o -name "*.map" -o -name "*.tsbuildinfo" \) \
+  -delete
+
 # Build a merged package.json so npm can install a flat production tree
 # without workspace:* references.
 (cd "$REPO_ROOT" && node -e "

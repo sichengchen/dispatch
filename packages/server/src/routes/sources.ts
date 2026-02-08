@@ -2,15 +2,15 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { eq, inArray, count } from "drizzle-orm";
 import { sources, articles } from "@dispatch/db";
-import { t } from "../trpc";
-import { scrapeSource, validateUrl } from "../services/scraper";
+import { t } from "../trpc.js";
+import { scrapeSource, validateUrl } from "../services/scraper.js";
 import {
   generateSkill,
   regenerateSkill,
   getSkillPath,
   skillExists,
-} from "../services/skill-generator";
-import { startTaskRun, finishTaskRun } from "../services/task-log";
+} from "../services/skill-generator.js";
+import { startTaskRun, finishTaskRun } from "../services/task-log.js";
 
 export const sourcesRouter = t.router({
   list: t.procedure.query(({ ctx }) => {

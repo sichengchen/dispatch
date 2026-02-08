@@ -8,10 +8,10 @@
  * 4. Adding the source with the chosen strategy
  */
 
-import type { AgentDefinition } from "./types";
-import { createAddSourceToolSet } from "./add-source-tools";
-import { createChatToolSet } from "./tools";
-import { registerAgent } from "./registry";
+import type { AgentDefinition } from "./types.js";
+import { createAddSourceToolSet } from "./add-source-tools.js";
+import { createChatToolSet } from "./tools/index.js";
+import { registerAgent } from "./registry.js";
 
 const ADD_SOURCE_SYSTEM_PROMPT = `You are a helpful assistant that guides users through adding new website sources to their news reader.
 

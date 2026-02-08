@@ -7,7 +7,7 @@
 import { z } from "zod";
 import { chromium, type Browser, type Page } from "playwright";
 import { tool, zodSchema } from "ai";
-import type { ToolContext, BrowserSession } from "./types";
+import type { ToolContext, BrowserSession } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Browser session management

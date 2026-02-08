@@ -2,12 +2,12 @@ import Parser from "rss-parser";
 import PQueue from "p-queue";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { processArticle } from "./llm";
-import { recordScrapeSuccess, recordScrapeFailure } from "./source-health";
-import { finishTaskRun, startTaskRun } from "./task-log";
-import { getSkillPath, skillExists } from "./skill-generator";
-import { extractArticles } from "./extraction-agent";
-import { decodeHtmlEntities } from "../utils/html";
+import { processArticle } from "./llm.js";
+import { recordScrapeSuccess, recordScrapeFailure } from "./source-health.js";
+import { finishTaskRun, startTaskRun } from "./task-log.js";
+import { getSkillPath, skillExists } from "./skill-generator.js";
+import { extractArticles } from "./extraction-agent.js";
+import { decodeHtmlEntities } from "../utils/html.js";
 
 const parser = new Parser();
 

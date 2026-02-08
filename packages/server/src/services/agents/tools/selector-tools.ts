@@ -5,7 +5,7 @@
 import { z } from "zod";
 import { JSDOM } from "jsdom";
 import { tool, zodSchema } from "ai";
-import type { ToolContext, SelectorResult, XPathResult, RegexMatch } from "./types";
+import type { ToolContext, SelectorResult, XPathResult, RegexMatch } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Helper functions

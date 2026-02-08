@@ -1,10 +1,10 @@
 import schedule from "node-schedule";
 import { db, sources, articles } from "@dispatch/db";
 import { eq, isNull } from "drizzle-orm";
-import { enqueueScrape } from "./scraper";
-import { getSchedulesConfig, getDigestConfig, getPipelineConfig } from "./settings";
-import { generateDigest } from "./digest";
-import { processArticle } from "./llm";
+import { enqueueScrape } from "./scraper.js";
+import { getSchedulesConfig, getDigestConfig, getPipelineConfig } from "./settings.js";
+import { generateDigest } from "./digest.js";
+import { processArticle } from "./llm.js";
 import { notificationService } from "./notifications.js";
 
 let lastStartedAt: number | null = null;

@@ -2,12 +2,12 @@ import { serve } from "@hono/node-server";
 import fs from "node:fs";
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
-import { app } from "./app";
-import { resolvePort } from "./services/server-startup";
-import { startScheduler } from "./services/scheduler";
+import { app } from "./app.js";
+import { resolvePort } from "./services/server-startup.js";
+import { startScheduler } from "./services/scheduler.js";
 
-export type { AppRouter } from "./app";
-export type { UiConfig } from "./services/settings";
+export type { AppRouter } from "./app.js";
+export type { UiConfig } from "./services/settings.js";
 
 function findWorkspaceRoot(startDir: string) {
   let current = startDir;

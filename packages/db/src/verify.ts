@@ -1,4 +1,4 @@
-import { db, sources, articles } from "./index";
+import { db, sources, articles } from "./index.js";
 
 const allSources = db.select().from(sources).all();
 const allArticles = db.select().from(articles).all();

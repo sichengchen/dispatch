@@ -3,8 +3,8 @@ import path from "node:path";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 
-export * from "./schema";
-import * as schema from "./schema";
+export * from "./schema.js";
+import * as schema from "./schema.js";
 
 function findWorkspaceRoot(startDir: string) {
   let current = startDir;

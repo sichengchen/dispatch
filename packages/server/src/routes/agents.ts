@@ -3,11 +3,11 @@ import { TRPCError } from "@trpc/server";
 import { streamText, stepCountIs } from "ai";
 import type { Hono } from "hono";
 import { stream } from "hono/streaming";
-import { t } from "../trpc";
-import { getAgent, listAgents } from "../services/agents/registry";
+import { t } from "../trpc.js";
+import { getAgent, listAgents } from "../services/agents/registry.js";
 import { getModelConfig, createProviderMap } from "@dispatch/lib";
-import { getModelsConfig, getProviders, getAgentConfig } from "../services/settings";
-import type { AgentMessage } from "../services/agents/types";
+import { getModelsConfig, getProviders, getAgentConfig } from "../services/settings.js";
+import type { AgentMessage } from "../services/agents/types.js";
 
 const MAX_TURNS = 20;
 

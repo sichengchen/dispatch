@@ -1,4 +1,4 @@
-import { db, sources, articles } from "./index";
+import { db, sources, articles } from "./index.js";
 
 const now = new Date();
 

@@ -6,8 +6,8 @@ import { z } from "zod";
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { tool, zodSchema } from "ai";
-import type { ToolContext, ReadableContent } from "./types";
-import { fetchPage } from "./page-tools";
+import type { ToolContext, ReadableContent } from "./types.js";
+import { fetchPage } from "./page-tools.js";
 
 // ---------------------------------------------------------------------------
 // Helper functions

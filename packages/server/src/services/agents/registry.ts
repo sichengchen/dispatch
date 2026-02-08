@@ -2,7 +2,7 @@
  * Agent registry - manages registered agents that can be invoked via chat
  */
 
-import type { AgentDefinition, RegisteredAgent } from "./types";
+import type { AgentDefinition, RegisteredAgent } from "./types.js";
 
 /**
  * In-memory registry of available agents

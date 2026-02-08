@@ -2,11 +2,11 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { articles, sources } from "@dispatch/db";
-import { t } from "../trpc";
-import { getRelatedArticles } from "../services/vector";
-import { processArticle } from "../services/llm";
-import { computeFinalGrade } from "../services/grading";
-import { getGradingConfig } from "../services/settings";
+import { t } from "../trpc.js";
+import { getRelatedArticles } from "../services/vector.js";
+import { processArticle } from "../services/llm.js";
+import { computeFinalGrade } from "../services/grading.js";
+import { getGradingConfig } from "../services/settings.js";
 
 function parseTags(raw: string | null): string[] {
   if (!raw) return [];

@@ -6,16 +6,16 @@ import { Readability } from "@mozilla/readability";
 import { generateText, stepCountIs, tool, zodSchema } from "ai";
 import { db, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { callLlm } from "./llm";
+import { callLlm } from "./llm.js";
 import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/lib";
-import { getModelsConfig, getProviders, getDataPaths, getAgentConfig } from "./settings";
+import { getModelsConfig, getProviders, getDataPaths, getAgentConfig } from "./settings.js";
 import {
   createToolContext,
   createSkillGeneratorToolSet,
   closeBrowserSession,
   fetchPage
-} from "./agents/tools";
-import type { ToolContext } from "./agents/tools";
+} from "./agents/tools/index.js";
+import type { ToolContext } from "./agents/tools/index.js";
 
 // ---------------------------------------------------------------------------
 // Skill schema and types

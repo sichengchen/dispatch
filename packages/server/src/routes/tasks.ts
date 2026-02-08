@@ -1,12 +1,12 @@
 import { z } from "zod";
 import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import { articles, digests, sources } from "@dispatch/db";
-import { t } from "../trpc";
-import { listTaskRuns, startTaskRun, finishTaskRun, stopTaskRun } from "../services/task-log";
-import { scrapeQueue, enqueueScrape } from "../services/scraper";
-import { getSchedulerSnapshot } from "../services/scheduler";
-import { processArticle } from "../services/llm";
-import { getSchedulesConfig, getPipelineConfig } from "../services/settings";
+import { t } from "../trpc.js";
+import { listTaskRuns, startTaskRun, finishTaskRun, stopTaskRun } from "../services/task-log.js";
+import { scrapeQueue, enqueueScrape } from "../services/scraper.js";
+import { getSchedulerSnapshot } from "../services/scheduler.js";
+import { processArticle } from "../services/llm.js";
+import { getSchedulesConfig, getPipelineConfig } from "../services/settings.js";
 
 function parseArticleIds(raw: string | null | undefined): number[] {
   if (!raw) return [];

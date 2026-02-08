@@ -5,7 +5,7 @@
  */
 
 // Types
-export * from "./types";
+export * from "./types.js";
 
 // Page tools
 export {
@@ -15,7 +15,7 @@ export {
   getStructureSchema,
   createFetchPageTool,
   createGetStructureTool
-} from "./page-tools";
+} from "./page-tools.js";
 
 // Selector tools
 export {
@@ -28,7 +28,7 @@ export {
   createRunSelectorTool,
   createRunXPathTool,
   createRunRegexTool
-} from "./selector-tools";
+} from "./selector-tools.js";
 
 // Content tools
 export {
@@ -40,7 +40,7 @@ export {
   createExtractReadableTool,
   createParseDateTool,
   createTestArticleLinkTool
-} from "./content-tools";
+} from "./content-tools.js";
 
 // Browser tools
 export {
@@ -62,7 +62,7 @@ export {
   createBrowserEvaluateTool,
   createBrowserGetHtmlTool,
   createBrowserTools
-} from "./browser-tools";
+} from "./browser-tools.js";
 
 // Chat tools
 export {
@@ -71,13 +71,13 @@ export {
   createPresentChoicesTool,
   createFinishConversationTool,
   createChatToolSet
-} from "./chat-tools";
+} from "./chat-tools.js";
 
 // ---------------------------------------------------------------------------
 // Tool context factory
 // ---------------------------------------------------------------------------
 
-import type { ToolContext, PageCache } from "./types";
+import type { ToolContext, PageCache } from "./types.js";
 
 /**
  * Create a tool context for an agent run
@@ -98,10 +98,10 @@ export function createToolContext(options: {
 // Tool set factories
 // ---------------------------------------------------------------------------
 
-import { createFetchPageTool, createGetStructureTool } from "./page-tools";
-import { createRunSelectorTool, createRunXPathTool, createRunRegexTool } from "./selector-tools";
-import { createExtractReadableTool, createParseDateTool, createTestArticleLinkTool } from "./content-tools";
-import { createBrowserTools } from "./browser-tools";
+import { createFetchPageTool, createGetStructureTool } from "./page-tools.js";
+import { createRunSelectorTool, createRunXPathTool, createRunRegexTool } from "./selector-tools.js";
+import { createExtractReadableTool, createParseDateTool, createTestArticleLinkTool } from "./content-tools.js";
+import { createBrowserTools } from "./browser-tools.js";
 
 /**
  * Create shared tools used by both agents

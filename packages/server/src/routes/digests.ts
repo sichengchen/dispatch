@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { desc, eq } from "drizzle-orm";
 import { digests } from "@dispatch/db";
-import { t } from "../trpc";
-import { generateDigest } from "../services/digest";
+import { t } from "../trpc.js";
+import { generateDigest } from "../services/digest.js";
 import { TRPCError } from "@trpc/server";
 
 export const digestsRouter = t.router({

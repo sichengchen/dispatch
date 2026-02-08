@@ -1,9 +1,9 @@
 import { db, articles, digests } from "@dispatch/db";
 import { desc, gte, and, isNotNull } from "drizzle-orm";
 import { z } from "zod";
-import { callLlm } from "./llm";
-import { getDigestConfig } from "./settings";
-import { finishTaskRun, startTaskRun } from "./task-log";
+import { callLlm } from "./llm.js";
+import { getDigestConfig } from "./settings.js";
+import { finishTaskRun, startTaskRun } from "./task-log.js";
 
 const digestTopicSchema = z.object({
   topic: z.string().min(1),

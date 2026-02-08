@@ -5,7 +5,7 @@ import type { Connection, Table } from "@lancedb/lancedb";
 import { db, articles } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { getModelConfig, type ModelsConfig } from "@dispatch/lib";
-import { getModelsConfig, getProviders } from "./settings";
+import { getModelsConfig, getProviders } from "./settings.js";
 
 const TABLE_NAME = "articles_vectors";
 const DEFAULT_MAX_CHARS = 6000;

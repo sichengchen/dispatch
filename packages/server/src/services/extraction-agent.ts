@@ -8,18 +8,18 @@ import { generateText, stepCountIs, tool, zodSchema } from "ai";
 import { z } from "zod";
 import { db, articles, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
-import { getModelsConfig, getProviders, getAgentConfig } from "./settings";
+import { getModelsConfig, getProviders, getAgentConfig } from "./settings.js";
 import { getModelConfig, createProviderMap, type ModelsConfig } from "@dispatch/lib";
-import { getSkillPath, skillExists } from "./skill-generator";
-import { processArticle } from "./llm";
+import { getSkillPath, skillExists } from "./skill-generator.js";
+import { processArticle } from "./llm.js";
 import fs from "node:fs";
-import { decodeHtmlEntities } from "../utils/html";
+import { decodeHtmlEntities } from "../utils/html.js";
 import {
   createToolContext,
   createExtractionToolSet,
   closeBrowserSession
-} from "./agents/tools";
-import type { ToolContext, ExtractedArticle as BaseExtractedArticle, ExtractionStats } from "./agents/tools";
+} from "./agents/tools/index.js";
+import type { ToolContext, ExtractedArticle as BaseExtractedArticle, ExtractionStats } from "./agents/tools/index.js";
 
 // ---------------------------------------------------------------------------
 // Types

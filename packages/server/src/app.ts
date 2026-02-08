@@ -1,16 +1,16 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { fetchRequestHandler } from "@trpc/server/adapters/fetch";
-import { createContext } from "./context";
-import { sourcesRouter } from "./routes/sources";
-import { articlesRouter } from "./routes/articles";
-import { settingsRouter } from "./routes/settings";
-import { digestsRouter } from "./routes/digests";
-import { tasksRouter } from "./routes/tasks";
-import { agentsRouter, registerAgentChatEndpoint } from "./routes/agents";
+import { createContext } from "./context.js";
+import { sourcesRouter } from "./routes/sources.js";
+import { articlesRouter } from "./routes/articles.js";
+import { settingsRouter } from "./routes/settings.js";
+import { digestsRouter } from "./routes/digests.js";
+import { tasksRouter } from "./routes/tasks.js";
+import { agentsRouter, registerAgentChatEndpoint } from "./routes/agents.js";
 import { notificationsRouter } from "./routes/notifications.js";
-import { registerAddSourceAgent } from "./services/agents/add-source-agent";
-import { t } from "./trpc";
+import { registerAddSourceAgent } from "./services/agents/add-source-agent.js";
+import { t } from "./trpc.js";
 
 // Register agents at module load time
 registerAddSourceAgent();

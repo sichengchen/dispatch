@@ -16,14 +16,14 @@ import {
   getModelsConfig,
   getProviders,
   type GradingConfig
-} from "./settings";
+} from "./settings.js";
 import { notificationService } from "./notifications.js";
 import {
   computeFinalGrade,
   type GradeInputs
-} from "./grading";
-import { upsertArticleVector } from "./vector";
-import { finishTaskRun, startTaskRun, updateTaskRun } from "./task-log";
+} from "./grading.js";
+import { upsertArticleVector } from "./vector.js";
+import { finishTaskRun, startTaskRun, updateTaskRun } from "./task-log.js";
 
 // ---------------------------------------------------------------------------
 // Zod schemas

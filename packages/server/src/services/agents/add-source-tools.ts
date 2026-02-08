@@ -9,8 +9,8 @@ import { generateText, tool, zodSchema } from "ai";
 import { db, sources } from "@dispatch/db";
 import { eq } from "drizzle-orm";
 import { createProviderMap, getModelConfig, type ProviderKeyMap } from "@dispatch/lib";
-import { generateSkill, type SkillGenerationOptions } from "../skill-generator";
-import { getModelsConfig, getProviders } from "../settings";
+import { generateSkill, type SkillGenerationOptions } from "../skill-generator.js";
+import { getModelsConfig, getProviders } from "../settings.js";
 
 const parser = new Parser();
 

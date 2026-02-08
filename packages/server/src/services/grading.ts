@@ -1,4 +1,4 @@
-import type { GradingConfig, GradingWeights } from "./settings";
+import type { GradingConfig, GradingWeights } from "./settings.js";
 
 export type GradeInputs = {
   sourceId?: number;

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { sources, articles, digests } from "@dispatch/db";
 import { getDefaultModelsConfig } from "@dispatch/lib";
-import { t } from "../trpc";
+import { t } from "../trpc.js";
 import {
   getModelsConfig,
   getUiConfig,
@@ -15,8 +15,8 @@ import {
   saveSettings,
   loadSettings,
   getDefaultGradingConfig
-} from "../services/settings";
-import { discoverModels as discoverModelsService } from "../services/model-discovery";
+} from "../services/settings.js";
+import { discoverModels as discoverModelsService } from "../services/model-discovery.js";
 
 const assignmentSchema = z.object({
   task: z.enum(["summarize", "classify", "grade", "embed", "digest", "skill"]),

@@ -6,7 +6,7 @@ import { z } from "zod";
 import { JSDOM } from "jsdom";
 import { chromium } from "playwright";
 import { tool, zodSchema } from "ai";
-import type { ToolContext } from "./types";
+import type { ToolContext } from "./types.js";
 
 // ---------------------------------------------------------------------------
 // Helper functions
