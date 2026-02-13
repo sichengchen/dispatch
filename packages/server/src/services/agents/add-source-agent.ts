@@ -47,7 +47,7 @@ Help users add a website as a news source by finding the best extraction method 
 
 4. **If no RSS found** (or user chooses agentic):
    - Use fetch_robots to get crawling guidance
-   - Explain that you'll use AI to extract articles
+   - Explain that you'll use AI to extract articles (preferring Markdown when available, then HTML, then SPA)
    - Use generate_skill to create the extraction skill
 
 5. **Confirm completion**: After successfully adding a source, use finish_conversation to signal completion.

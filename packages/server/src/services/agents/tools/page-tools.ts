@@ -7,6 +7,7 @@ import { JSDOM } from "jsdom";
 import { chromium } from "playwright";
 import { tool, zodSchema } from "ai";
 import type { ToolContext } from "./types.js";
+import { getUserAgent } from "./user-agent.js";
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -28,12 +29,42 @@ export async function fetchPage(url: string, useSpa: boolean = false): Promise<s
   } else {
     const res = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        "User-Agent": getUserAgent()
       }
     });
     if (!res.ok) throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
     return await res.text();
   }
+}
+
+/**
+ * Fetch markdown content using Cloudflare's Markdown for Agents (if available).
+ * Returns null when the origin does not serve text/markdown.
+ */
+export async function fetchMarkdown(url: string): Promise<{
+  markdown: string;
+  tokenCount?: number;
+} | null> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": getUserAgent(),
+      Accept: "text/markdown, text/html;q=0.9"
+    }
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
+  }
+  const contentType = res.headers.get("content-type") ?? "";
+  if (!contentType.includes("text/markdown")) {
+    return null;
+  }
+  const markdown = await res.text();
+  const tokenCountHeader = res.headers.get("x-markdown-tokens");
+  const tokenCount = tokenCountHeader ? Number(tokenCountHeader) : undefined;
+  return {
+    markdown,
+    tokenCount: Number.isFinite(tokenCount) ? tokenCount : undefined
+  };
 }
 
 /**

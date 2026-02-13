@@ -11,6 +11,7 @@ import { eq } from "drizzle-orm";
 import { createProviderMap, getModelConfig, type ProviderKeyMap } from "@dispatch/lib";
 import { generateSkill, type SkillGenerationOptions } from "../skill-generator.js";
 import { getModelsConfig, getProviders } from "../settings.js";
+import { getUserAgent } from "./tools/user-agent.js";
 
 const parser = new Parser();
 
@@ -38,7 +39,7 @@ async function checkRss(url: string): Promise<{
     // Fetch the page HTML
     const response = await fetch(url, {
       headers: {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        "User-Agent": getUserAgent(),
       },
     });
 
@@ -86,7 +87,7 @@ async function checkRss(url: string): Promise<{
         try {
           const feedResponse = await fetch(feedUrl, {
             method: "HEAD",
-            headers: { "User-Agent": "Mozilla/5.0" },
+            headers: { "User-Agent": getUserAgent() },
           });
 
           if (feedResponse.ok) {
@@ -371,7 +372,7 @@ async function fetchRobots(url: string): Promise<{
     const robotsUrl = `${parsedUrl.protocol}//${parsedUrl.host}/robots.txt`;
 
     const response = await fetch(robotsUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" },
+      headers: { "User-Agent": getUserAgent() },
     });
 
     if (!response.ok) {

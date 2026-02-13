@@ -7,7 +7,7 @@ import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { tool, zodSchema } from "ai";
 import type { ToolContext, ReadableContent } from "./types.js";
-import { fetchPage } from "./page-tools.js";
+import { fetchPage, fetchMarkdown } from "./page-tools.js";
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -27,6 +27,65 @@ export function extractReadable(html: string, url: string): ReadableContent | nu
     title: article.title ?? "",
     content: article.textContent ?? "",
     excerpt: article.excerpt ?? ""
+  };
+}
+
+function parseFrontmatter(markdown: string): {
+  frontmatter: Record<string, string>;
+  body: string;
+} {
+  if (!markdown.startsWith("---\n")) {
+    return { frontmatter: {}, body: markdown };
+  }
+
+  const endIndex = markdown.indexOf("\n---", 4);
+  if (endIndex === -1) {
+    return { frontmatter: {}, body: markdown };
+  }
+
+  const fmBlock = markdown.slice(4, endIndex).trim();
+  const body = markdown.slice(endIndex + 4).replace(/^\s+/, "");
+  const frontmatter: Record<string, string> = {};
+
+  for (const line of fmBlock.split("\n")) {
+    const match = line.match(/^([A-Za-z0-9_-]+)\s*:\s*(.*)$/);
+    if (!match) continue;
+    const key = match[1].toLowerCase();
+    const value = match[2].replace(/^"(.*)"$/, "$1").replace(/^'(.*)'$/, "$1").trim();
+    if (value) frontmatter[key] = value;
+  }
+
+  return { frontmatter, body };
+}
+
+function markdownToText(markdown: string): string {
+  let text = markdown.replace(/\r\n/g, "\n");
+  text = text.replace(/```[\s\S]*?```/g, "");
+  text = text.replace(/`([^`]+)`/g, "$1");
+  text = text.replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1");
+  text = text.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  text = text.replace(/^#{1,6}\s+/gm, "");
+  text = text.replace(/^\s{0,3}>\s?/gm, "");
+  text = text.replace(/^\s{0,3}[-*+]\s+/gm, "");
+  text = text.replace(/^\s{0,3}\d+\.\s+/gm, "");
+  text = text.replace(/^\s{0,3}---\s*$/gm, "");
+  text = text.replace(/[*_~]/g, "");
+  text = text.replace(/\n{3,}/g, "\n\n");
+  return text.trim();
+}
+
+export function extractReadableFromMarkdown(markdown: string): ReadableContent | null {
+  const { frontmatter, body } = parseFrontmatter(markdown);
+  const headingMatch = body.match(/^#\s+(.+)$/m);
+  const title = frontmatter.title ?? headingMatch?.[1]?.trim() ?? "";
+  const description = frontmatter.description ?? frontmatter.excerpt ?? "";
+  const content = markdownToText(body);
+  if (!content) return null;
+  const excerpt = description || content.slice(0, 200);
+  return {
+    title,
+    content,
+    excerpt
   };
 }
 
@@ -65,7 +124,7 @@ export const testArticleLinkSchema = z.object({
  */
 export function createExtractReadableTool(ctx: ToolContext) {
   return tool({
-    description: "Extract main content from a cached page using Readability.js. Returns title, content, and excerpt.",
+    description: "Extract main content from a cached page. Prefers Markdown (if available), otherwise falls back to Readability.js. Returns title, content, and excerpt.",
     inputSchema: zodSchema(extractReadableSchema),
     execute: async (input) => {
       const html = ctx.pageCache.get(input.url);
@@ -74,6 +133,23 @@ export function createExtractReadableTool(ctx: ToolContext) {
       }
       try {
         console.log(`[tools] extract_readable: ${input.url}`);
+        let markdownResult: Awaited<ReturnType<typeof fetchMarkdown>> | null = null;
+        try {
+          markdownResult = await fetchMarkdown(input.url);
+        } catch {
+          markdownResult = null;
+        }
+        if (markdownResult?.markdown) {
+          const markdownReadable = extractReadableFromMarkdown(markdownResult.markdown);
+          if (markdownReadable) {
+            return {
+              title: markdownReadable.title,
+              content: markdownReadable.content.slice(0, 2000),
+              excerpt: markdownReadable.excerpt
+            };
+          }
+        }
+
         const readable = extractReadable(html, input.url);
         if (!readable) {
           return { error: "Could not extract readable content" };
@@ -115,15 +191,46 @@ export function createParseDateTool(ctx: ToolContext) {
  */
 export function createTestArticleLinkTool(ctx: ToolContext) {
   return tool({
-    description: "Fetch an article page and test if content can be extracted with Readability.js. Use this to verify the extraction strategy works.",
+    description: "Fetch an article page and test if content can be extracted. Prefers Markdown (if available), otherwise falls back to Readability.js. Use this to verify the extraction strategy works.",
     inputSchema: zodSchema(testArticleLinkSchema),
     execute: async (input) => {
       try {
         console.log(`[tools] test_article_link: ${input.url}`);
-        const html = await fetchPage(input.url, input.spa ?? false);
+        let markdownResult: Awaited<ReturnType<typeof fetchMarkdown>> | null = null;
+        try {
+          markdownResult = await fetchMarkdown(input.url);
+        } catch {
+          markdownResult = null;
+        }
+        if (markdownResult?.markdown) {
+          const markdownReadable = extractReadableFromMarkdown(markdownResult.markdown);
+          if (markdownReadable) {
+            return {
+              success: true,
+              title: markdownReadable.title,
+              excerpt: markdownReadable.excerpt,
+              contentLength: markdownReadable.content.length
+            };
+          }
+        }
+
+        const html = await fetchPage(input.url, false);
         ctx.pageCache.set(input.url, html);
 
         const readable = extractReadable(html, input.url);
+        if (!readable && input.spa) {
+          const spaHtml = await fetchPage(input.url, true);
+          ctx.pageCache.set(input.url, spaHtml);
+          const spaReadable = extractReadable(spaHtml, input.url);
+          if (spaReadable) {
+            return {
+              success: true,
+              title: spaReadable.title,
+              excerpt: spaReadable.excerpt,
+              contentLength: spaReadable.content.length
+            };
+          }
+        }
         if (!readable) {
           return { success: false, error: "Readability could not extract content" };
         }

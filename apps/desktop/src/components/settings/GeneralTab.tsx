@@ -45,6 +45,8 @@ type GeneralTabProps = {
   setExtractionMaxArticles: (value: number) => void;
   chatAgentMaxSteps: number;
   setChatAgentMaxSteps: (value: number) => void;
+  agentUserAgent: string;
+  setAgentUserAgent: (value: string) => void;
   digestReferenceLinkBehavior: "internal" | "external";
   setDigestReferenceLinkBehavior: (value: "internal" | "external") => void;
   externalLinkBehavior: "internal" | "external";
@@ -79,6 +81,8 @@ export function GeneralTab({
   setExtractionMaxArticles,
   chatAgentMaxSteps,
   setChatAgentMaxSteps,
+  agentUserAgent,
+  setAgentUserAgent,
   digestReferenceLinkBehavior,
   setDigestReferenceLinkBehavior,
   externalLinkBehavior,
@@ -444,6 +448,18 @@ export function GeneralTab({
             <div className="text-[11px] text-slate-500">
               Tool call rounds for chat agents
             </div>
+          </div>
+        </div>
+        <div className="mt-4 space-y-1">
+          <Label htmlFor="agent-user-agent">User Agent</Label>
+          <Input
+            id="agent-user-agent"
+            placeholder="Default browser user agent"
+            value={agentUserAgent}
+            onChange={(e) => setAgentUserAgent(e.target.value)}
+          />
+          <div className="text-[11px] text-slate-500">
+            Overrides the User-Agent header for web fetching. Leave empty to use the default.
           </div>
         </div>
       </div>

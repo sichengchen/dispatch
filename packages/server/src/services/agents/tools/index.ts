@@ -10,6 +10,7 @@ export * from "./types.js";
 // Page tools
 export {
   fetchPage,
+  fetchMarkdown,
   getHtmlStructure,
   fetchPageSchema,
   getStructureSchema,
@@ -33,6 +34,7 @@ export {
 // Content tools
 export {
   extractReadable,
+  extractReadableFromMarkdown,
   parseDate,
   extractReadableSchema,
   parseDateSchema,
