@@ -32,6 +32,7 @@ type InitialState = {
   extractionAgentMaxSteps: number;
   extractionMaxArticles: number;
   chatAgentMaxSteps: number;
+  agentUserAgent: string;
   digestReferenceLinkBehavior: "internal" | "external";
   externalLinkBehavior: "internal" | "external";
   notificationsEnabled: boolean;
@@ -100,6 +101,7 @@ export function SettingsPage() {
   const [extractionAgentMaxSteps, setExtractionAgentMaxSteps] = useState(100);
   const [extractionMaxArticles, setExtractionMaxArticles] = useState(10);
   const [chatAgentMaxSteps, setChatAgentMaxSteps] = useState(10);
+  const [agentUserAgent, setAgentUserAgent] = useState("");
   const [digestReferenceLinkBehavior, setDigestReferenceLinkBehavior] =
     useState<"internal" | "external">("internal");
   const [externalLinkBehavior, setExternalLinkBehavior] =
@@ -136,6 +138,7 @@ export function SettingsPage() {
     setExtractionAgentMaxSteps(cfg.agent?.extractionAgentMaxSteps ?? 20);
     setExtractionMaxArticles(cfg.agent?.extractionMaxArticles ?? 10);
     setChatAgentMaxSteps(cfg.agent?.chatAgentMaxSteps ?? 10);
+    setAgentUserAgent(cfg.agent?.userAgent ?? "");
 
     const nextCatalog: CatalogEntry[] =
       llm.catalog && llm.catalog.length > 0
@@ -225,6 +228,7 @@ export function SettingsPage() {
       extractionAgentMaxSteps: cfg.agent?.extractionAgentMaxSteps ?? 20,
       extractionMaxArticles: cfg.agent?.extractionMaxArticles ?? 10,
       chatAgentMaxSteps: cfg.agent?.chatAgentMaxSteps ?? 10,
+      agentUserAgent: cfg.agent?.userAgent ?? "",
       digestReferenceLinkBehavior: cfg.ui?.digestReferenceLinkBehavior ?? "internal",
       externalLinkBehavior: cfg.ui?.externalLinkBehavior ?? "internal",
       notificationsEnabled: notifCfg?.enabled ?? false,
@@ -275,6 +279,7 @@ export function SettingsPage() {
     if (extractionAgentMaxSteps !== initial.extractionAgentMaxSteps) return true;
     if (extractionMaxArticles !== initial.extractionMaxArticles) return true;
     if (chatAgentMaxSteps !== initial.chatAgentMaxSteps) return true;
+    if (agentUserAgent !== initial.agentUserAgent) return true;
     if (digestReferenceLinkBehavior !== initial.digestReferenceLinkBehavior) return true;
     if (externalLinkBehavior !== initial.externalLinkBehavior) return true;
 
@@ -299,6 +304,7 @@ export function SettingsPage() {
     extractionAgentMaxSteps,
     extractionMaxArticles,
     chatAgentMaxSteps,
+    agentUserAgent,
     digestReferenceLinkBehavior,
     externalLinkBehavior,
     notificationsEnabled,
@@ -378,7 +384,8 @@ export function SettingsPage() {
         skillGeneratorMaxSteps,
         extractionAgentMaxSteps,
         extractionMaxArticles,
-        chatAgentMaxSteps
+        chatAgentMaxSteps,
+        userAgent: agentUserAgent.trim() || undefined
       },
       notifications: {
         enabled: notificationsEnabled,
@@ -428,6 +435,8 @@ export function SettingsPage() {
             setExtractionMaxArticles={setExtractionMaxArticles}
             chatAgentMaxSteps={chatAgentMaxSteps}
             setChatAgentMaxSteps={setChatAgentMaxSteps}
+            agentUserAgent={agentUserAgent}
+            setAgentUserAgent={setAgentUserAgent}
             digestReferenceLinkBehavior={digestReferenceLinkBehavior}
             setDigestReferenceLinkBehavior={setDigestReferenceLinkBehavior}
             externalLinkBehavior={externalLinkBehavior}

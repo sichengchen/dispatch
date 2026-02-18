@@ -83,6 +83,7 @@ const agentConfigSchema = z.object({
   extractionAgentMaxSteps: z.number().int().min(5).max(100).optional(),
   extractionMaxArticles: z.number().int().min(1).max(50).optional(),
   chatAgentMaxSteps: z.number().int().min(1).max(20).optional(),
+  userAgent: z.string().trim().min(1).optional(),
 });
 
 const telegramConfigSchema = z.object({

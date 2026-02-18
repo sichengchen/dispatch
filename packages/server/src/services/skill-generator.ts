@@ -13,7 +13,9 @@ import {
   createToolContext,
   createSkillGeneratorToolSet,
   closeBrowserSession,
-  fetchPage
+  fetchPage,
+  fetchMarkdown,
+  extractReadableFromMarkdown
 } from "./agents/tools/index.js";
 import type { ToolContext } from "./agents/tools/index.js";
 
@@ -372,7 +374,7 @@ You have these tools available:
 - run_selector: Test a CSS selector
 - run_xpath: Test an XPath expression (useful for complex DOM traversal)
 - run_regex: Test a regular expression pattern
-- test_article_link: Test if an article can be extracted with Readability.js
+- test_article_link: Test if an article can be extracted (Markdown preferred, then Readability.js)
 - browser_navigate, browser_click, browser_scroll, browser_wait_for, browser_get_html: Browser tools for SPA sites
 - finish_skill: Save your extraction instructions
 
@@ -385,7 +387,7 @@ Strategy:
    - CSS selectors (preferred): article a, [class*='post'] a, etc.
    - XPath for complex patterns: //article//a[@href]
    - Regex for URL patterns: /articles/\\d{4}/
-4. Test at least one article link to verify Readability.js works
+4. Test at least one article link to verify extraction works (Markdown preferred)
 5. If static fetch finds no articles, try browser tools for SPA sites
 6. Call finish_skill with detailed markdown instructions
 
@@ -516,18 +518,32 @@ async function validateSkill(
       };
     }
 
-    // Test extraction on one article using Readability
+    // Test extraction on one article using Markdown (preferred) or Readability
     const firstLink = validLinks[0] as HTMLAnchorElement;
     const testUrl = firstLink.href;
 
     try {
-      const testHtml = await fetchPage(testUrl, discovery.tier === "spa");
-      const testDom = new JSDOM(testHtml, { url: testUrl });
-      const testDoc = testDom.window.document;
+      let contentFound = false;
+      let markdownResult: Awaited<ReturnType<typeof fetchMarkdown>> | null = null;
+      try {
+        markdownResult = await fetchMarkdown(testUrl);
+      } catch {
+        markdownResult = null;
+      }
+      if (markdownResult?.markdown) {
+        const markdownReadable = extractReadableFromMarkdown(markdownResult.markdown);
+        contentFound = Boolean(markdownReadable?.content?.trim());
+      }
 
-      const reader = new Readability(testDoc);
-      const result = reader.parse();
-      const contentFound = Boolean(result?.textContent?.trim());
+      if (!contentFound) {
+        const testHtml = await fetchPage(testUrl, discovery.tier === "spa");
+        const testDom = new JSDOM(testHtml, { url: testUrl });
+        const testDoc = testDom.window.document;
+
+        const reader = new Readability(testDoc);
+        const result = reader.parse();
+        contentFound = Boolean(result?.textContent?.trim());
+      }
 
       if (!contentFound) {
         return { valid: false, error: "Could not extract content from test article", sampleCount: 1 };
